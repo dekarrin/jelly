@@ -22,6 +22,14 @@ var (
 	ErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
 
+type Store interface {
+
+	// Close closes any pending operations on the DAO store and on all of its
+	// Repos. It performs any clean-up operations necessary and should always be
+	// called once the Store is no longer in use.
+	Close() error
+}
+
 type Model[ID any] interface {
 	// ModelID returns a jeldao-usable ID that identifies the Model uniquely.
 	// For those fields which
@@ -166,12 +174,9 @@ type AuthUserRepo interface {
 // TODO: should this be its own "sub-package"? example implementations. Or
 // something. feels like it should live closer to auth-y type things.
 type AuthUserStore interface {
+	Store
+
 	// AuthUsers returns a repository that holds users used as part of
 	// authentication and login.
 	AuthUsers() AuthUserRepo
-
-	// Close closes any pending operations on the DAO store and on all of its
-	// Repos. It performs any clean-up operations necessary and should always be
-	// called once the Store is no longer in use.
-	Close() error
 }

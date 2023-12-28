@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/db/jelinmem"
 	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/jeldao/jelinmem"
 )
 
 // DBType is the type of a Database connection.
@@ -61,31 +61,6 @@ type Database struct {
 	// persistence store. By default, it is "db.owv". This is only applicable
 	// for certain DB types: OWDB.
 	DataFile string
-}
-
-// Connect performs all logic needed to connect to the configured DB and
-// initialize the store for use.
-func (db Database) Connect() (jeldao.Store, error) {
-	switch db.Type {
-	case DatabaseInMemory:
-		return jelinmem.NewDatastore(), nil
-	case DatabaseSQLite:
-		err := os.MkdirAll(db.DataDir, 0770)
-		if err != nil {
-			return nil, fmt.Errorf("create data dir: %w", err)
-		}
-
-		store, err := jelite.NewDatastore(db.DataDir)
-		if err != nil {
-			return nil, fmt.Errorf("initialize sqlite: %w", err)
-		}
-
-		return store, nil
-	case DatabaseNone:
-		return nil, fmt.Errorf("cannot connect to 'none' DB")
-	default:
-		return nil, fmt.Errorf("unknown database type: %q", db.Type.String())
-	}
 }
 
 // Validate returns an error if the Database does not have the correct fields
@@ -278,6 +253,14 @@ type Config struct {
 	// non-parallel connections. If not set it will default to 1 second
 	// (1000ms). Set this to any negative number to disable the delay.
 	UnauthDelayMillis int
+
+	// DBConnector is a custom DB connector for overriding the defaults, which
+	// only provide jeldao.Store instances that are associated with the built-in
+	// authentication and login functionality.
+	//
+	// Any fields in the Connector that are set to nil will use the default
+	// connection method for that DB type.
+	DBConnector Connector
 }
 
 // UnauthDelay returns the configured time for the UnauthDelay as a
@@ -326,4 +309,86 @@ func (cfg Config) Validate() error {
 	// all possible values for UnauthDelayMS are valid, so no need to check it
 
 	return nil
+}
+
+// Connector holds functions for establishing a connection and opening a store
+// that implements jeldao.Store. It's included in Config objects so the default
+// connector functions can be overriden. The default connectors only support
+// opening a Store that provides access to entities assocaited with the built-in
+// authentication and login management of the jelly framework.
+//
+// Custom Connectors do not need to provide a value for all of the DB connection
+// functions; any that are left as nil will default to the built-in
+// implementations.
+type Connector struct {
+	InMem  func() (jeldao.Store, error)
+	SQLite func(dir string) (jeldao.Store, error)
+	OWDB   func(dir string, file string) (jeldao.Store, error)
+}
+
+// Connect performs all logic needed to connect to the configured DB and
+// initialize the store for use.
+func (conr Connector) Connect(db Database) (jeldao.Store, error) {
+	conr = conr.FillDefaults()
+	switch db.Type {
+	case DatabaseInMemory:
+		return conr.InMem()
+	case DatabaseOWDB:
+		err := os.MkdirAll(db.DataDir, 0770)
+		if err != nil {
+			return nil, fmt.Errorf("create data dir: %w", err)
+		}
+
+		store, err := conr.OWDB(db.DataDir, db.DataFile)
+		if err != nil {
+			return nil, fmt.Errorf("initialize owdb: %w", err)
+		}
+
+		return store, nil
+	case DatabaseSQLite:
+		err := os.MkdirAll(db.DataDir, 0770)
+		if err != nil {
+			return nil, fmt.Errorf("create data dir: %w", err)
+		}
+
+		store, err := conr.SQLite(db.DataDir)
+		if err != nil {
+			return nil, fmt.Errorf("initialize sqlite: %w", err)
+		}
+
+		return store, nil
+	case DatabaseNone:
+		return nil, fmt.Errorf("cannot connect to 'none' DB")
+	default:
+		return nil, fmt.Errorf("unknown database type: %q", db.Type.String())
+	}
+}
+
+// FillDefaults returns a new Config identitical to cfg but with unset values
+// set to their defaults.
+func (conr Connector) FillDefaults() Connector {
+	def := DefaultDBConnector()
+	newConr := conr
+
+	if newConr.InMem == nil {
+		newConr.InMem = def.InMem
+	}
+	if newConr.SQLite == nil {
+		newConr.SQLite = def.SQLite
+	}
+	if newConr.OWDB == nil {
+		newConr.OWDB = def.OWDB
+	}
+
+	return newConr
+}
+
+func DefaultDBConnector() Connector {
+	return Connector{
+		InMem: func() (jeldao.Store, error) {
+			return jelinmem.NewAuthUserStore(), nil
+		},
+		SQLite: jelite.NewDatastore,
+		OWDB:   owdb.NewDatastore,
+	}
 }
