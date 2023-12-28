@@ -7,83 +7,30 @@ import (
 	"github.com/dekarrin/jelly/jeldao"
 )
 
-type store struct {
-	repos map[string]any
+// AuthUserStore is an in-memory database that is compatible with built-in jelly
+// user authentication mechanisms. It implements jeldao.AuthUserStore and it can
+// be easily integrated into custom structs by embedding it.
+//
+// Its zero-value should not be used; call NewAuthUserStore to get an
+// AuthUserStore ready for use.
+type AuthUserStore struct {
+	users *AuthUsersRepo
 }
 
-func NewDatastore() jeldao.Store {
-	st := &store{
-		users:  NewUsersRepository(),
-		regs:   NewRegistrationsRepository(),
-		games:  NewGamesRepository(),
-		gd:     NewGameDatasRepository(),
-		seshes: NewSessionsRepository(),
+func NewAuthUserStore() *AuthUserStore {
+	st := &AuthUserStore{
+		users: NewUsersRepository(),
 	}
-	st.coms = NewCommandsRepository(st.seshes)
 	return st
 }
 
-func (s *store) Users() jeldao.UserRepository {
-	return s.users
+func (aus *AuthUserStore) AuthUsers() jeldao.AuthUserRepo {
+	return aus.users
 }
 
-func (s *store) Registrations() jeldao.RegistrationRepository {
-	return s.regs
-}
-
-func (s *store) Games() jeldao.GameRepository {
-	return s.games
-}
-
-func (s *store) GameData() jeldao.GameDataRepository {
-	return s.gd
-}
-
-func (s *store) Sessions() jeldao.SessionRepository {
-	return s.seshes
-}
-
-func (s *store) Commands() jeldao.CommandRepository {
-	return s.coms
-}
-
-func (s *store) Close() error {
+func (aus *AuthUserStore) Close() error {
 	var err error
-	var nextErr error
-
-	nextErr = s.users.Close()
-	if nextErr != err {
-		if err != nil {
-			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)
-		} else {
-			err = nextErr
-		}
-	}
-	nextErr = s.regs.Close()
-	if nextErr != err {
-		if err != nil {
-			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)
-		} else {
-			err = nextErr
-		}
-	}
-	nextErr = s.games.Close()
-	if nextErr != err {
-		if err != nil {
-			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)
-		} else {
-			err = nextErr
-		}
-	}
-	nextErr = s.gd.Close()
-	if nextErr != err {
-		if err != nil {
-			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)
-		} else {
-			err = nextErr
-		}
-	}
-	nextErr = s.seshes.Close()
+	nextErr := aus.users.Close()
 	if nextErr != err {
 		if err != nil {
 			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)

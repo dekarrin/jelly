@@ -1,5 +1,8 @@
 // Package jeldao provides data access objects compatible with the rest of the
 // jelly framework packages.
+//
+// It includes basics as well as a sample implementation of Store that is
+// compatible with jelly auth middleware.
 package jeldao
 
 import (
@@ -23,25 +26,6 @@ type Model[ID any] interface {
 	// ModelID returns a jeldao-usable ID that identifies the Model uniquely.
 	// For those fields which
 	ModelID() ID
-}
-
-// Store holds all repositories.
-type Store interface {
-
-	// Repo must return a Repo. Type parameters make declaring that here tricky;
-	// we don't go with Repo[Model] because that explicitly requires a Model,
-	// not an implementor of.
-	Repo(name string) any
-
-	// ProvidesRepos gives a list of valid names of Repos that this Store
-	// provides. Each element in the list can be passed to the Repo function to
-	// get the corresponding Repo.
-	ProvidesRepos() []string
-
-	// Close closes any pending operations on the DAO store and on all of its
-	// Repos. It performs any clean-up operations necessary and should always be
-	// called once the Store is no longer in use.
-	Close() error
 }
 
 // Repo is a data object repository that maps ID-typed identifiers to M-typed
@@ -171,39 +155,23 @@ func (u User) ModelID() uuid.UUID {
 type AuthUserRepo interface {
 	Repo[uuid.UUID, User]
 
-	// Create creates a new User in the DB based on the provided one and returns
-	// the User as it appears in the DB after creation. The ID, modification
-	// time, and creation time of the provided user are ignored, as these are
-	// all automatically set; ID will be a newly-generated UUID, and both
-	// modification and creation time will be set to the current date.
-	Create(ctx context.Context, u User) (User, error)
-
-	// Get retrieves the user with the given ID. If no entity with that ID
-	// exists, an error is returned.
-	Get(ctx context.Context, id uuid.UUID) (User, error)
-
 	// GetByUsername retrieves the User with the given username. If no entity
 	// with that username exists, an error is returned.
 	GetByUsername(ctx context.Context, username string) (User, error)
+}
 
-	// GetAll retrieves all users in the DB. If no users exist but no error
-	// otherwise occurred, the returned list of entities will have a length of
-	// zero and the returned error will be nil.
-	GetAll(ctx context.Context) ([]User, error)
+// AuthUserStore is an interface that defines methods for building a DAO store
+// to be used as part of user auth via the jelly framework packages.
+//
+// TODO: should this be its own "sub-package"? example implementations. Or
+// something. feels like it should live closer to auth-y type things.
+type AuthUserStore interface {
+	// AuthUsers returns a repository that holds users used as part of
+	// authentication and login.
+	AuthUsers() AuthUserRepo
 
-	// Update updates a particular user in the store to match the provided one
-	// and returns the User as it appears in the DB after the update.
-	//
-	// ID is not ignored in the provided User; this can be used to change the
-	// ID of a given User. The modification and creation time set on the
-	// provided User will be ignored, as those are automatically calculated.
-	Update(ctx context.Context, id uuid.UUID, u User) (User, error)
-
-	// Delete removes the given User from the store and returns the User as it
-	// appeared in the DB immediately before deletion.
-	Delete(ctx context.Context, id uuid.UUID) (User, error)
-
-	// Close performs any clean-up operations required and flushes pending
-	// operations.
+	// Close closes any pending operations on the DAO store and on all of its
+	// Repos. It performs any clean-up operations necessary and should always be
+	// called once the Store is no longer in use.
 	Close() error
 }
