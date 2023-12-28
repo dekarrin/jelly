@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/db/jeldao"
 	"github.com/dekarrin/jelly/db/jelinmem"
+	"github.com/dekarrin/jelly/jeldao"
 )
 
 // DBType is the type of a Database connection.
