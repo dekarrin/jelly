@@ -14,6 +14,10 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	Issuer = "jelly"
+)
+
 func Validate(ctx context.Context, tok string, secret []byte, db jeldao.AuthUserRepo) (jeldao.User, error) {
 	var user jeldao.User
 
@@ -43,7 +47,7 @@ func Validate(ctx context.Context, tok string, secret []byte, db jeldao.AuthUser
 		signKey = append(signKey, []byte(user.Password)...)
 		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogoutTime.Unix()))...)
 		return signKey, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer("tqs"), jwt.WithLeeway(time.Minute))
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
 	if err != nil {
 		return jeldao.User{}, err
