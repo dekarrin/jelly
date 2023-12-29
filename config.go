@@ -65,6 +65,22 @@ type Database struct {
 	DataFile string
 }
 
+// FillDefaults returns a new Database identical to db but with unset values
+// set to their defaults. In this case, if the type is not set, it is changed to
+// DatabaseInMemory. If OWDB File is not set, it is changed to "db.owv".
+func (db Database) FillDefaults() Database {
+	newDB := db
+
+	if newDB.Type == DatabaseNone {
+		newDB = Database{Type: DatabaseInMemory}
+	}
+	if newDB.Type == DatabaseOWDB && newDB.DataFile == "" {
+		newDB.DataFile = "db.owv"
+	}
+
+	return newDB
+}
+
 // Validate returns an error if the Database does not have the correct fields
 // set. Its type will be checked to ensure that it is a valid type to use and
 // any fields necessary for connecting to that type of DB are also checked.
@@ -243,10 +259,10 @@ type Config struct {
 	// default key is used.
 	TokenSecret []byte
 
-	// Database is the configuration to use for connecting to the database. If
-	// not provided, it will be set to a configuration for using an in-memory
-	// persistence layer.
-	DB Database
+	// DBs is the configurations to use for connecting to databases and other
+	// persistence layers. If not provided, it will be set to a configuration
+	// for using an in-memory persistence layer.
+	DBs map[string]Database
 
 	// UnauthDelayMillis is the amount of additional time to wait
 	// (in milliseconds) before sending a response that indicates either that
@@ -276,7 +292,7 @@ func (cfg Config) UnauthDelay() time.Duration {
 	return time.Millisecond * time.Duration(cfg.UnauthDelayMillis)
 }
 
-// FillDefaults returns a new Config identitical to cfg but with unset values
+// FillDefaults returns a new Config identical to cfg but with unset values
 // set to their defaults.
 func (cfg Config) FillDefaults() Config {
 	newCFG := cfg
@@ -284,8 +300,8 @@ func (cfg Config) FillDefaults() Config {
 	if newCFG.TokenSecret == nil {
 		newCFG.TokenSecret = []byte("DEFAULT_TOKEN_SECRET-DO_NOT_USE_IN_PROD!")
 	}
-	if newCFG.DB.Type == DatabaseNone {
-		newCFG.DB = Database{Type: DatabaseInMemory}
+	for name, db := range newCFG.DBs {
+		newCFG.DBs[name] = db.FillDefaults()
 	}
 	if newCFG.UnauthDelayMillis == 0 {
 		newCFG.UnauthDelayMillis = 1000
@@ -304,8 +320,10 @@ func (cfg Config) Validate() error {
 	if len(cfg.TokenSecret) > MaxSecretSize {
 		return fmt.Errorf("token secret: must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.TokenSecret))
 	}
-	if err := cfg.DB.Validate(); err != nil {
-		return fmt.Errorf("db: %w", err)
+	for name, db := range cfg.DBs {
+		if err := db.Validate(); err != nil {
+			return fmt.Errorf("dbs: %s: %w", name, err)
+		}
 	}
 
 	// all possible values for UnauthDelayMS are valid, so no need to check it
@@ -393,6 +411,10 @@ func DefaultDBConnector() Connector {
 		SQLite: func(dir string) (jeldao.Store, error) {
 			return jelite.NewAuthUserStore(dir)
 		},
+		// TODO: actually have Connector accept unique configs for each, as
+		// this will build over time. also, owdb has its own in-mem mode it can
+		// independently use as specified by config; this should be allowed if
+		// discouraged.
 		OWDB: func(dir, file string) (jeldao.Store, error) {
 			fullPath := filepath.Join(dir, file)
 			return owdb.Open(fullPath)
