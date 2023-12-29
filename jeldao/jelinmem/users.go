@@ -10,23 +10,23 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewUsersRepository() *AuthUsersRepo {
-	return &AuthUsersRepo{
+func NewAuthUserRepository() *AuthUserRepo {
+	return &AuthUserRepo{
 		users:           make(map[uuid.UUID]dao.User),
 		byUsernameIndex: make(map[string]uuid.UUID),
 	}
 }
 
-type AuthUsersRepo struct {
+type AuthUserRepo struct {
 	users           map[uuid.UUID]dao.User
 	byUsernameIndex map[string]uuid.UUID
 }
 
-func (aur *AuthUsersRepo) Close() error {
+func (aur *AuthUserRepo) Close() error {
 	return nil
 }
 
-func (aur *AuthUsersRepo) Create(ctx context.Context, user dao.User) (dao.User, error) {
+func (aur *AuthUserRepo) Create(ctx context.Context, user dao.User) (dao.User, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
 		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
@@ -50,7 +50,7 @@ func (aur *AuthUsersRepo) Create(ctx context.Context, user dao.User) (dao.User, 
 	return user, nil
 }
 
-func (aur *AuthUsersRepo) GetAll(ctx context.Context) ([]dao.User, error) {
+func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]dao.User, error) {
 	all := make([]dao.User, len(aur.users))
 
 	i := 0
@@ -66,7 +66,7 @@ func (aur *AuthUsersRepo) GetAll(ctx context.Context) ([]dao.User, error) {
 	return all, nil
 }
 
-func (aur *AuthUsersRepo) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
+func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
 	existing, ok := aur.users[id]
 	if !ok {
 		return dao.User{}, dao.ErrNotFound
@@ -96,7 +96,7 @@ func (aur *AuthUsersRepo) Update(ctx context.Context, id uuid.UUID, user dao.Use
 	return user, nil
 }
 
-func (aur *AuthUsersRepo) Get(ctx context.Context, id uuid.UUID) (dao.User, error) {
+func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	user, ok := aur.users[id]
 	if !ok {
 		return dao.User{}, dao.ErrNotFound
@@ -105,7 +105,7 @@ func (aur *AuthUsersRepo) Get(ctx context.Context, id uuid.UUID) (dao.User, erro
 	return user, nil
 }
 
-func (aur *AuthUsersRepo) GetByUsername(ctx context.Context, username string) (dao.User, error) {
+func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (dao.User, error) {
 	userID, ok := aur.byUsernameIndex[username]
 	if !ok {
 		return dao.User{}, dao.ErrNotFound
@@ -114,7 +114,7 @@ func (aur *AuthUsersRepo) GetByUsername(ctx context.Context, username string) (d
 	return aur.users[userID], nil
 }
 
-func (aur *AuthUsersRepo) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
+func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	user, ok := aur.users[id]
 	if !ok {
 		return dao.User{}, dao.ErrNotFound

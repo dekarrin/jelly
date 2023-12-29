@@ -6,28 +6,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dekarrin/tunaq/server/dao"
+	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/jeldao/jelite/dbconv"
 	"github.com/google/uuid"
 )
 
-func NewUsersDBConn(file string) (*UsersDB, error) {
-	repo := &UsersDB{}
-
-	var err error
-	repo.db, err = sql.Open("sqlite", file)
-	if err != nil {
-		return nil, wrapDBError(err)
-	}
-
-	return repo, repo.init()
+type AuthUsersDB struct {
+	DB *sql.DB
 }
 
-type UsersDB struct {
-	db *sql.DB
-}
-
-func (repo *UsersDB) init() error {
-	_, err := repo.db.Exec(`CREATE TABLE IF NOT EXISTS users (
+func (repo *AuthUsersDB) init() error {
+	_, err := repo.DB.Exec(`CREATE TABLE IF NOT EXISTS users (
 		id TEXT NOT NULL PRIMARY KEY,
 		username TEXT NOT NULL UNIQUE,
 		password TEXT NOT NULL,
@@ -39,54 +28,54 @@ func (repo *UsersDB) init() error {
 		last_login_time INTEGER NOT NULL
 	);`)
 	if err != nil {
-		return wrapDBError(err)
+		return WrapDBError(err)
 	}
 
 	return nil
 }
 
-func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error) {
+func (repo *AuthUsersDB) Create(ctx context.Context, user jeldao.User) (jeldao.User, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return jeldao.User{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
-	stmt, err := repo.db.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return dao.User{}, wrapDBError(err)
+		return jeldao.User{}, WrapDBError(err)
 	}
 
 	now := time.Now()
 	_, err = stmt.ExecContext(
 		ctx,
-		convertToDB_UUID(newUUID),
+		dbconv.UUID.ToDB(newUUID),
 		user.Username,
 		user.Password,
-		convertToDB_Role(user.Role),
-		convertToDB_Email(user.Email),
-		convertToDB_Time(now),
-		convertToDB_Time(now),
-		convertToDB_Time(now),
-		convertToDB_Time(time.Time{}),
+		dbconv.AuthUserRole.ToDB(user.Role),
+		dbconv.Email.ToDB(user.Email),
+		dbconv.Timestamp.ToDB(now),
+		dbconv.Timestamp.ToDB(now),
+		dbconv.Timestamp.ToDB(now),
+		dbconv.Timestamp.ToDB(time.Time{}),
 	)
 	if err != nil {
-		return dao.User{}, wrapDBError(err)
+		return jeldao.User{}, WrapDBError(err)
 	}
 
-	return repo.GetByID(ctx, newUUID)
+	return repo.Get(ctx, newUUID)
 }
 
-func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
+func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jeldao.User, error) {
+	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
-		return nil, wrapDBError(err)
+		return nil, WrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []dao.User
+	var all []jeldao.User
 
 	for rows.Next() {
-		var user dao.User
+		var user jeldao.User
 		var email string
 		var logoutTime int64
 		var loginTime int64
@@ -107,34 +96,34 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		)
 
 		if err != nil {
-			return nil, wrapDBError(err)
+			return nil, WrapDBError(err)
 		}
 
-		err = convertFromDB_UUID(id, &user.ID)
+		err = dbconv.UUID.FromDB(id, &user.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		err = convertFromDB_Email(email, &user.Email)
+		err = dbconv.Email.FromDB(email, &user.Email)
 		if err != nil {
 			return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
 		}
-		err = convertFromDB_Time(logoutTime, &user.LastLogoutTime)
+		err = dbconv.Timestamp.FromDB(logoutTime, &user.LastLogoutTime)
 		if err != nil {
 			return all, fmt.Errorf("stored last_logout_time %d is invalid: %w", logoutTime, err)
 		}
-		err = convertFromDB_Time(loginTime, &user.LastLoginTime)
+		err = dbconv.Timestamp.FromDB(loginTime, &user.LastLoginTime)
 		if err != nil {
 			return all, fmt.Errorf("stored last_login_time %d is invalid: %w", loginTime, err)
 		}
-		err = convertFromDB_Time(created, &user.Created)
+		err = dbconv.Timestamp.FromDB(created, &user.Created)
 		if err != nil {
 			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 		}
-		err = convertFromDB_Time(modified, &user.Modified)
+		err = dbconv.Timestamp.FromDB(modified, &user.Modified)
 		if err != nil {
 			return all, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 		}
-		err = convertFromDB_Role(role, &user.Role)
+		err = dbconv.AuthUserRole.FromDB(role, &user.Role)
 		if err != nil {
 			return all, fmt.Errorf("stored role %q is invalid: %w", role, err)
 		}
@@ -143,41 +132,41 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 	}
 
 	if err := rows.Err(); err != nil {
-		return all, wrapDBError(err)
+		return all, WrapDBError(err)
 	}
 
 	return all, nil
 }
 
-func (repo *UsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user jeldao.User) (jeldao.User, error) {
 	// deliberately not updating created
-	res, err := repo.db.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
-		convertToDB_UUID(user.ID),
+	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
+		dbconv.UUID.ToDB(user.ID),
 		user.Username,
 		user.Password,
-		convertToDB_Role(user.Role),
-		convertToDB_Email(user.Email),
-		convertToDB_Time(user.LastLogoutTime),
-		convertToDB_Time(user.LastLoginTime),
-		convertToDB_Time(time.Now()),
-		convertToDB_UUID(id),
+		dbconv.AuthUserRole.ToDB(user.Role),
+		dbconv.Email.ToDB(user.Email),
+		dbconv.Timestamp.ToDB(user.LastLogoutTime),
+		dbconv.Timestamp.ToDB(user.LastLoginTime),
+		dbconv.Timestamp.ToDB(time.Now()),
+		dbconv.UUID.ToDB(id),
 	)
 	if err != nil {
-		return dao.User{}, wrapDBError(err)
+		return jeldao.User{}, WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return dao.User{}, wrapDBError(err)
+		return jeldao.User{}, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return dao.User{}, dao.ErrNotFound
+		return jeldao.User{}, jeldao.ErrNotFound
 	}
 
-	return repo.GetByID(ctx, user.ID)
+	return repo.Get(ctx, user.ID)
 }
 
-func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.User, error) {
-	user := dao.User{
+func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (jeldao.User, error) {
+	user := jeldao.User{
 		Username: username,
 	}
 	var id string
@@ -188,7 +177,7 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 	var created int64
 	var modified int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT id, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE username = ?;`,
+	row := repo.DB.QueryRowContext(ctx, `SELECT id, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE username = ?;`,
 		username,
 	)
 	err := row.Scan(
@@ -203,42 +192,43 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 	)
 
 	if err != nil {
-		return user, wrapDBError(err)
+		return user, WrapDBError(err)
 	}
 
-	err = convertFromDB_UUID(id, &user.ID)
+	err = dbconv.UUID.FromDB(id, &user.ID)
 	if err != nil {
 		return user, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 	}
-	err = convertFromDB_Email(email, &user.Email)
+	err = dbconv.Email.FromDB(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
-	err = convertFromDB_Time(logout, &user.LastLogoutTime)
+	err = dbconv.Timestamp.FromDB(logout, &user.LastLogoutTime)
 	if err != nil {
 		return user, fmt.Errorf("stored last_logout_time %d is invalid: %w", logout, err)
 	}
-	err = convertFromDB_Time(login, &user.LastLoginTime)
+	err = dbconv.Timestamp.FromDB(login, &user.LastLoginTime)
 	if err != nil {
 		return user, fmt.Errorf("stored last_login_time %d is invalid: %w", login, err)
 	}
-	err = convertFromDB_Time(created, &user.Created)
+	err = dbconv.Timestamp.FromDB(created, &user.Created)
 	if err != nil {
 		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 	}
-	err = convertFromDB_Time(modified, &user.Modified)
+	err = dbconv.Timestamp.FromDB(modified, &user.Modified)
 	if err != nil {
 		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 	}
-	err = convertFromDB_Role(role, &user.Role)
+	err = dbconv.AuthUserRole.FromDB(role, &user.Role)
 	if err != nil {
 		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
 	}
 
 	return user, nil
 }
-func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error) {
-	user := dao.User{
+
+func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jeldao.User, error) {
+	user := jeldao.User{
 		ID: id,
 	}
 	var role string
@@ -248,8 +238,8 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	var created int64
 	var modified int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT username, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE id = ?;`,
-		convertToDB_UUID(id),
+	row := repo.DB.QueryRowContext(ctx, `SELECT username, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE id = ?;`,
+		dbconv.UUID.ToDB(id),
 	)
 	err := row.Scan(
 		&user.Username,
@@ -263,30 +253,30 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	)
 
 	if err != nil {
-		return user, wrapDBError(err)
+		return user, WrapDBError(err)
 	}
 
-	err = convertFromDB_Email(email, &user.Email)
+	err = dbconv.Email.FromDB(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
-	err = convertFromDB_Time(logout, &user.LastLogoutTime)
+	err = dbconv.Timestamp.FromDB(logout, &user.LastLogoutTime)
 	if err != nil {
 		return user, fmt.Errorf("stored last_logout_time %d is invalid: %w", logout, err)
 	}
-	err = convertFromDB_Time(login, &user.LastLoginTime)
+	err = dbconv.Timestamp.FromDB(login, &user.LastLoginTime)
 	if err != nil {
 		return user, fmt.Errorf("stored last_login_time %d is invalid: %w", login, err)
 	}
-	err = convertFromDB_Time(created, &user.Created)
+	err = dbconv.Timestamp.FromDB(created, &user.Created)
 	if err != nil {
 		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 	}
-	err = convertFromDB_Time(modified, &user.Modified)
+	err = dbconv.Timestamp.FromDB(modified, &user.Modified)
 	if err != nil {
 		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 	}
-	err = convertFromDB_Role(role, &user.Role)
+	err = dbconv.AuthUserRole.FromDB(role, &user.Role)
 	if err != nil {
 		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
 	}
@@ -294,27 +284,27 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	return user, nil
 }
 
-func (repo *UsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
-	curVal, err := repo.GetByID(ctx, id)
+func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jeldao.User, error) {
+	curVal, err := repo.Get(ctx, id)
 	if err != nil {
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, convertToDB_UUID(id))
+	res, err := repo.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, dbconv.UUID.ToDB(id))
 	if err != nil {
-		return curVal, wrapDBError(err)
+		return curVal, WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return curVal, wrapDBError(err)
+		return curVal, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, dao.ErrNotFound
+		return curVal, jeldao.ErrNotFound
 	}
 
 	return curVal, nil
 }
 
-func (repo *UsersDB) Close() error {
-	return repo.db.Close()
+func (repo *AuthUsersDB) Close() error {
+	return repo.DB.Close()
 }

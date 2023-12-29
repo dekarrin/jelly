@@ -14,12 +14,12 @@ import (
 // Its zero-value should not be used; call NewAuthUserStore to get an
 // AuthUserStore ready for use.
 type AuthUserStore struct {
-	users *AuthUsersRepo
+	users *AuthUserRepo
 }
 
 func NewAuthUserStore() *AuthUserStore {
 	st := &AuthUserStore{
-		users: NewUsersRepository(),
+		users: NewAuthUserRepository(),
 	}
 	return st
 }
