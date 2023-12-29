@@ -27,14 +27,6 @@ type API interface {
 	// Backend is the service that the API calls to perform the requested
 	// actions.
 	Backend() interface{}
-
-	// UnauthDelay is the amount of time that a request will pause before
-	// responding with an HTTP-403, HTTP-401, or HTTP-500 to deprioritize such
-	// requests from processing and I/O.
-	UnauthDelay() time.Duration
-
-	// Secret is the secret used to sign JWT tokens.
-	Secret() []byte
 }
 
 // v must be a pointer to a type. Will return error such that
