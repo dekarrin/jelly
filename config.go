@@ -9,6 +9,8 @@ import (
 
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jeldao/jelinmem"
+	"github.com/dekarrin/jelly/jeldao/jelite"
+	"github.com/dekarrin/jelly/jeldao/owdb"
 )
 
 // DBType is the type of a Database connection.
@@ -388,7 +390,12 @@ func DefaultDBConnector() Connector {
 		InMem: func() (jeldao.Store, error) {
 			return jelinmem.NewAuthUserStore(), nil
 		},
-		SQLite: jelite.NewDatastore,
-		OWDB:   owdb.NewDatastore,
+		SQLite: func(dir string) (jeldao.Store, error) {
+			return jelite.NewAuthUserStore(dir)
+		},
+		OWDB: func(dir, file string) (jeldao.Store, error) {
+			fullPath := filepath.Join(dir, file)
+			return owdb.Open(fullPath)
+		},
 	}
 }
