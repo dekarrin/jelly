@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/jelapi"
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelerr"
@@ -29,9 +30,19 @@ type LoginAPI struct {
 	Secret []byte
 }
 
-// TODO: added this to implement API, might be unneeded.
-func (api LoginAPI) Backend() interface{} {
-	return api.Service
+func (api *LoginAPI) Init(dbs map[string]jeldao.Store, cfg config.Config) error {
+	api.Secret = cfg.TokenSecret
+	api.UnauthDelay = cfg.UnauthDelay()
+	authRaw := dbs["auth"]
+	authStore, ok := authRaw.(jeldao.AuthUserStore)
+	if !ok {
+		return fmt.Errorf("DB provided under 'auth' does not implement jeldao.AuthUserStore")
+	}
+	api.Service = LoginService{
+		Provider: authStore,
+	}
+
+	return nil
 }
 
 // HTTPGetInfo returns a HandlerFunc that retrieves information on the API and

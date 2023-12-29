@@ -1,4 +1,6 @@
-package jelly
+// Package config contains configuration options for the server as well as
+// various config contstants.
+package config
 
 import (
 	"fmt"
@@ -302,6 +304,9 @@ func (cfg Config) FillDefaults() Config {
 	}
 	for name, db := range newCFG.DBs {
 		newCFG.DBs[name] = db.FillDefaults()
+	}
+	if _, ok := newCFG.DBs["auth"]; !ok {
+		newCFG.DBs["auth"] = Database{Type: DatabaseInMemory}
 	}
 	if newCFG.UnauthDelayMillis == 0 {
 		newCFG.UnauthDelayMillis = 1000

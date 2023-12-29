@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dekarrin/jelly/config"
+	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelresult"
 	"github.com/go-chi/chi"
@@ -24,9 +26,14 @@ type EndpointFunc func(req *http.Request) jelresult.Result
 // assign the result of its HTTP* methods as handlers to a router or some other
 // kind of server mux.
 type API interface {
-	// Backend is the service that the API calls to perform the requested
-	// actions.
-	Backend() interface{}
+
+	// Init creates the API initially and does any setup other than routing its
+	// endpoints. It takes in a complete config object and a map of dbs to
+	// connected stores.
+	//
+	// After Init returns, the API is prepared to set up its routes with
+	// RouteEndpoints.
+	Init(dbs map[string]jeldao.Store, cfg config.Config) error
 }
 
 // v must be a pointer to a type. Will return error such that
