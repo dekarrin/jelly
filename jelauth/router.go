@@ -15,7 +15,7 @@ func p(s string) (pathParam string) {
 	return jelapi.PathParam(s)
 }
 
-func (api *LoginAPI) Routes() (router chi.Router, base string) {
+func (api *LoginAPI) Routes() (base string, router chi.Router, subpaths bool) {
 	r := chi.NewRouter()
 
 	login := api.routesForLogin()
@@ -41,10 +41,10 @@ func (api *LoginAPI) Routes() (router chi.Router, base string) {
 		res.Log(req)
 	})
 
-	return r, "/auth"
+	return "/auth", r, true
 }
 
-func (api *LoginAPI) routesForLogin() chi.Router {
+func (api LoginAPI) routesForLogin() chi.Router {
 	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
 
 	r := chi.NewRouter()
@@ -56,7 +56,7 @@ func (api *LoginAPI) routesForLogin() chi.Router {
 	return r
 }
 
-func (api *LoginAPI) routesForToken() chi.Router {
+func (api LoginAPI) routesForToken() chi.Router {
 	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
 
 	r := chi.NewRouter()
@@ -66,7 +66,7 @@ func (api *LoginAPI) routesForToken() chi.Router {
 	return r
 }
 
-func (api *LoginAPI) routesForAuthUser() chi.Router {
+func (api LoginAPI) routesForAuthUser() chi.Router {
 	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
 
 	r := chi.NewRouter()
@@ -86,7 +86,7 @@ func (api *LoginAPI) routesForAuthUser() chi.Router {
 	return r
 }
 
-func (api *LoginAPI) routesForInfo() chi.Router {
+func (api LoginAPI) routesForInfo() chi.Router {
 	optAuth := jelmid.OptionalAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
 
 	r := chi.NewRouter()

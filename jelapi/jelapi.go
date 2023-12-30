@@ -45,11 +45,14 @@ type API interface {
 	Init(dbs map[string]jeldao.Store, cfg config.Config) error
 
 	// Routes returns a router that leads to all accessible routes in the API
-	// and the preferred base path that the API requests its returned router to
-	// be mounted at on the base router.
+	// and a base path that the API requests its router to be mounted at on the
+	// base router. Additionally, returns whether the API's router contains
+	// subpaths beyond just setting methods on its relative root; this affects
+	// whether path-terminal slashes are redirected in the base router the API
+	// router is mounted in.
 	//
 	// Init must be called before Routes is called.
-	Routes() (base string, router chi.Router)
+	Routes() (base string, router chi.Router, subpaths bool)
 }
 
 // PathParam translates strings of the form "name:type" to a URI path parameter
