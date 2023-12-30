@@ -15,8 +15,18 @@ import (
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelresult"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+)
+
+var (
+	paramTypePats = map[string]string{
+		"uuid":     `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`,
+		"email":    `\S+@\S+`,
+		"num":      `\d+`,
+		"alpha":    `[A-Za-z]+`,
+		"alphanum": `[A-Za-z0-9]+`,
+	}
 )
 
 type EndpointFunc func(req *http.Request) jelresult.Result
@@ -31,9 +41,70 @@ type API interface {
 	// endpoints. It takes in a complete config object and a map of dbs to
 	// connected stores.
 	//
-	// After Init returns, the API is prepared to set up its routes with
-	// RouteEndpoints.
+	// After Init returns, the API is prepared to return its routes with Routes.
 	Init(dbs map[string]jeldao.Store, cfg config.Config) error
+
+	// Routes returns a router that leads to all accessible routes in the API
+	// and the preferred base path that the API requests its returned router to
+	// be mounted at on the base router.
+	//
+	// Init must be called before Routes is called.
+	Routes() (base string, router chi.Router)
+}
+
+// PathParam translates strings of the form "name:type" to a URI path parameter
+// string of the form "{name:regex}" compatible with the routers used in the
+// jelly framework. Only request URIs whose path parameters match their
+// respective regexes (if any) will match that route.
+//
+// Note that this only does basic matching for path routing. API endpoint logic
+// will still need to decode the received string. Do not rely on, for example,
+// the "email" type preventing malicious or invalid email; it only checks the
+// string.
+//
+// Currently, PathParam supports the following parameter type names:
+//
+//   - "uuid" - UUID strings.
+//   - "email" - Two strings separated by an @ sign.
+//   - "num" - One or more digits 0-9.
+//   - "alpha" - One or more Latin letters A-Z or a-z.
+//   - "alphanum" - One or more Latin letters A-Z, a-z, or digits 0-9.
+//
+// If a different regex is needed for a path parameter, give it manually in the
+// path using "{name:regex}" syntax instead of using PathParam; this is simply to use
+// the above listed shortcuts.
+//
+// If only name is given in the string (with no colon), then the string
+// "{" + name + "}" is returned.
+func PathParam(nameType string) string {
+	var name string
+	var pat string
+
+	parts := strings.SplitN(nameType, ":", 2)
+	name = parts[0]
+	if len(parts) == 2 {
+		// we have a type, if it's a name in the paramTypePats map use that else
+		// treat it as a normal pattern
+		pat = parts[1]
+
+		if translatedPat, ok := paramTypePats[parts[1]]; ok {
+			pat = translatedPat
+		}
+	}
+
+	if pat == "" {
+		return "{" + name + "}"
+	}
+	return "{" + name + ":" + pat + "}"
+}
+
+// RedirectNoTrailingSlash is an http.HandlerFunc that redirects to the same URL as the
+// request but with no trailing slash.
+func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
+	redirPath := strings.TrimRight(req.URL.Path, "/")
+	r := jelresult.Redirection(redirPath)
+	r.WriteResponse(w)
+	r.Log(req)
 }
 
 // v must be a pointer to a type. Will return error such that
