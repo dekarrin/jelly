@@ -3,9 +3,13 @@
 package jelly
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strings"
+	"sync"
 
+	"github.com/dekarrin/araneastats/tide"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/jelapi"
 	"github.com/dekarrin/jelly/jelauth"
@@ -23,9 +27,11 @@ const (
 // a RESTServer should not be used directly; call New() to get one ready for
 // use.
 type RESTServer struct {
-	auth   jelapi.API
-	router chi.Router
-	api    jelapi.API
+	mtx     *sync.Mutex
+	serving bool
+	srv     *http.Server
+	router  chi.Router
+	apis    map[string]jelapi.API
 }
 
 // New creates a new RESTServer. The built-in login/auth endpoints and API
@@ -69,9 +75,10 @@ func New(cfg *config.Config, apis map[string]jelapi.API) (RESTServer, error) {
 	// Init API with config.
 
 	return RESTServer{
-		auth:   authAPI,
-		api:    tqAPI,
+		apis:   apis,
 		router: root,
+		srv:    &http.Server{Handler: root},
+		mtx:    &sync.Mutex{},
 	}, nil
 }
 
@@ -99,7 +106,7 @@ func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[stri
 			return nil, fmt.Errorf("API %q: Routes() returned API route base with '{' or '}': %q", name, base)
 		}
 		if strings.Contains(base, "//") {
-			return nil, fmt.Errorf("API %q: Routes() returned API route base with doubled slash")
+			return nil, fmt.Errorf("API %q: Routes() returned API route base with doubled slash", name)
 		}
 		if base == "" {
 			return nil, fmt.Errorf("API %q: Routes() returned empty API route base", name)
@@ -130,4 +137,101 @@ func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[stri
 	}
 
 	return apisRouter, nil
+}
+
+// ServeForever begins listening on the given address and port for HTTP REST
+// client requests. If address is kept as "", it will default to "localhost". If
+// port is less than 1, it will default to 8080.
+//
+// This function will block until the server is stopped. If it returns as a
+// result of rs.Close() being called elsewhere, it will return
+// http.ErrServerClosed.
+//
+// TODO: make this not accept addr and port. Use config instead.
+func (rs RESTServer) ServeForever(address string, port int) error {
+	rs.mtx.Lock()
+	if rs.serving {
+		rs.mtx.Unlock()
+		return fmt.Errorf("server is already running")
+	}
+	rs.serving = true
+	rs.mtx.Unlock()
+
+	defer func() {
+		rs.mtx.Lock()
+		rs.serving = false
+		rs.mtx.Unlock()
+	}()
+
+	if address == "" {
+		address = "localhost"
+	}
+	if port < 1 {
+		port = 8080
+	}
+
+	rs.srv.Addr = fmt.Sprintf("%s:%d", address, port)
+
+	return rs.srv.ListenAndServe()
+}
+
+// Close shuts down the server gracefully. If the passed-in context is
+// canceled while shutting down, it will halt graceful shutdown.
+func (rs RESTServer) Close(ctx context.Context) error {
+	var fullError error
+
+	if !srv.mmUpdater.IsZero() && srv.mmEnabled {
+		srv.log.Info("Shutting down maxmind updater...")
+		srv.mmUpdater.Stop()
+		srv.mmUpdater = tide.Tide{}
+	}
+
+	if srv.beaconServer != nil {
+		srv.log.Info("Shutting down beacon API...")
+		if err := srv.beaconServer.Shutdown(ctx); err != nil {
+			fullError = fmt.Errorf("stop beacon API: %w", err)
+		}
+		srv.beaconServer = nil
+	} else {
+		srv.log.Debug("beacon API not running; no need to shut it down")
+	}
+
+	if srv.statsServer != nil {
+		srv.log.Info("Shutting down stats API...")
+		if err := srv.statsServer.Shutdown(ctx); err != nil {
+			statsErr := fmt.Errorf("shutdown stats API: %w", err)
+			if fullError != nil {
+				fullError = fmt.Errorf("%s;\nadditionally: %w", fullError, statsErr)
+			} else {
+				fullError = statsErr
+			}
+		}
+		srv.statsServer = nil
+	} else {
+		srv.log.Debug("stats API not running on separate listener; no need to shut it down")
+	}
+
+	if srv.mmClient != nil {
+		srv.log.Info("Closing geolocation databases...")
+		if err := srv.mmClient.Close(); err != nil {
+			geoErr := fmt.Errorf("close geolocation dbs: %w", err)
+			if fullError != nil {
+				fullError = fmt.Errorf("%s;\nadditionally: %w", fullError, geoErr)
+			} else {
+				fullError = geoErr
+			}
+		}
+	}
+
+	srv.log.Info("Closing stats databases...")
+	if err := srv.db.Close(); err != nil {
+		dbErr := fmt.Errorf("close stats store: %w", err)
+		if fullError != nil {
+			fullError = fmt.Errorf("%s;\nadditionally: %w", fullError, dbErr)
+		} else {
+			fullError = dbErr
+		}
+	}
+
+	return fullError
 }
