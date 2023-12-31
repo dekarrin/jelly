@@ -85,10 +85,10 @@ func New(cfg *config.Config, apis map[string]jelapi.API) (RESTServer, error) {
 func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[string]jelapi.API) (chi.Router, error) {
 	// first toss a new LoginAPI in.
 	var authAPI jelauth.LoginAPI
-	if _, ok := apis["auth"]; ok { // TODO: call it authn or login or somefin.
-		return nil, fmt.Errorf("a user-supplied API has name of built-in API 'auth'; not allowed")
+	if _, ok := apis["jellyauth"]; ok { // TODO: call it authn or login or somefin.
+		return nil, fmt.Errorf("a user-supplied API has name of built-in API 'jellyauth'; not allowed")
 	}
-	apis["auth"] = &authAPI
+	apis["jellyauth"] = &authAPI
 
 	apisRouter := chi.NewRouter()
 

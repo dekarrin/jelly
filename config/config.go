@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +66,24 @@ type Database struct {
 	// persistence store. By default, it is "db.owv". This is only applicable
 	// for certain DB types: OWDB.
 	DataFile string
+}
+
+// unmarshal completely replaces all attributes with the values or missing
+// values in the marshaledDatabase.
+//
+// does no validation except that which is required for parsing.
+func (db *Database) unmarshal(m marshaledDatabase) error {
+	var err error
+
+	db.Type, err = ParseDBType(m.Type)
+	if err != nil {
+		return fmt.Errorf("type: %w", err)
+	}
+
+	db.DataDir = m.Dir
+	db.DataFile = m.File
+
+	return nil
 }
 
 // FillDefaults returns a new Database identical to db but with unset values
@@ -253,9 +272,43 @@ func splitWithEscaped(s, sep string) []string {
 	return split
 }
 
-// Config is a configuration for a server. It contains all parameters that can
-// be used to configure the operation of a Server.
+// CommonAPIConfig holds configuration options common to all APIs.
+type CommonAPIConfig struct {
+	// Name is the name of the API. Must be unique.
+	Name string
+
+	// Base is the base URI that all paths will be rooted at, relative to the
+	// server base path. This can be "/" (or "", which is equivalent) to
+	// indicate that the API is to be based directly at the URIBase of the
+	// server config that this API is a part of.
+	Base string
+
+	// DBs is a list of names of data stores that the API uses directly. When
+	// Init is called, it is passed active connections to each of the DBs. There
+	// must be a corresponding entry for each name in the root DBs listing in
+	// the Config this API is a part of.
+	DBs []string
+}
+
+type APIConfig interface {
+	Common() CommonAPIConfig
+}
+
+// Config is a complete configuration for a server. It contains all parameters
+// that can be used to configure its operation.
 type Config struct {
+
+	// Port is the port that the server will listen on. It will default to 8080
+	// if none is given.
+	Port int
+
+	// Address is the internet address that the server will listen on. It will
+	// default to "localhost" if none is given.
+	Address string
+
+	// URIBase is the base path that all APIs are rooted on. It will default to
+	// "/", which is equivalent to being directly on root.
+	URIBase string
 
 	// TokenSecret is the secret used for signing tokens. If not provided, a
 	// default key is used.
@@ -281,6 +334,39 @@ type Config struct {
 	// Any fields in the Connector that are set to nil will use the default
 	// connection method for that DB type.
 	DBConnector Connector
+}
+
+// unmarshal completely replaces all attributes except DBConnector with the
+// values or missing values in the marshaledConfig.
+//
+// does no validation except that which is required for parsing.
+func (cfg *Config) unmarshal(m marshaledConfig) error {
+	var err error
+
+	// listen address part...
+	listenAddr := m.Listen
+	bindParts := strings.SplitN(listenAddr, ":", 2)
+	if len(bindParts) != 2 {
+		return fmt.Errorf("listen: not in \"ADDRESS:PORT\" or \":PORT\" format")
+	}
+	cfg.Address = bindParts[0]
+	cfg.Port, err = strconv.Atoi(bindParts[1])
+	if err != nil {
+		return fmt.Errorf("listen: %q is not a valid port number", bindParts[1])
+	}
+
+	// ...and the rest
+	cfg.URIBase = m.Base
+	cfg.TokenSecret = m.Secret
+	cfg.DBs = map[string]Database{}
+	for n, marshaledDB := range m.DBs {
+		var db Database
+		db.unmarshal(marshaledDB)
+		cfg.DBs[n] = db
+	}
+	cfg.UnauthDelayMillis = m.UnauthDelay
+
+	return nil
 }
 
 // UnauthDelay returns the configured time for the UnauthDelay as a
@@ -310,6 +396,12 @@ func (cfg Config) FillDefaults() Config {
 	}
 	if newCFG.UnauthDelayMillis == 0 {
 		newCFG.UnauthDelayMillis = 1000
+	}
+	if newCFG.Port == 0 {
+		newCFG.Port = 8080
+	}
+	if newCFG.Address == "" {
+		newCFG.Address = "localhost"
 	}
 
 	return newCFG
