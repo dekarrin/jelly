@@ -4,6 +4,7 @@ package jelapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -53,6 +54,12 @@ type API interface {
 	//
 	// Init must be called before Routes is called.
 	Routes() (base string, router chi.Router, subpaths bool)
+
+	// Shutdown terminates any pending operations cleanly and releases any held
+	// resources. It will be called after the server listener socket is shut
+	// down. Implementors should examine the context's Done() channel to see if
+	// they should halt during long-running operations, and do so if requested.
+	Shutdown(ctx context.Context) error
 }
 
 // PathParam translates strings of the form "name:type" to a URI path parameter

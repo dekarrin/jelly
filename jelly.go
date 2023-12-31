@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/dekarrin/araneastats/tide"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/jelapi"
 	"github.com/dekarrin/jelly/jelauth"
@@ -28,8 +27,9 @@ const (
 // use.
 type RESTServer struct {
 	mtx     *sync.Mutex
+	closing bool
 	serving bool
-	srv     *http.Server
+	http    *http.Server
 	router  chi.Router
 	apis    map[string]jelapi.API
 }
@@ -77,7 +77,7 @@ func New(cfg *config.Config, apis map[string]jelapi.API) (RESTServer, error) {
 	return RESTServer{
 		apis:   apis,
 		router: root,
-		srv:    &http.Server{Handler: root},
+		http:   &http.Server{Handler: root},
 		mtx:    &sync.Mutex{},
 	}, nil
 }
@@ -148,7 +148,7 @@ func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[stri
 // http.ErrServerClosed.
 //
 // TODO: make this not accept addr and port. Use config instead.
-func (rs RESTServer) ServeForever(address string, port int) error {
+func (rs *RESTServer) ServeForever(address string, port int) error {
 	rs.mtx.Lock()
 	if rs.serving {
 		rs.mtx.Unlock()
@@ -159,6 +159,7 @@ func (rs RESTServer) ServeForever(address string, port int) error {
 
 	defer func() {
 		rs.mtx.Lock()
+		rs.closing = false
 		rs.serving = false
 		rs.mtx.Unlock()
 	}()
@@ -170,66 +171,71 @@ func (rs RESTServer) ServeForever(address string, port int) error {
 		port = 8080
 	}
 
-	rs.srv.Addr = fmt.Sprintf("%s:%d", address, port)
+	rs.http.Addr = fmt.Sprintf("%s:%d", address, port)
 
-	return rs.srv.ListenAndServe()
+	return rs.http.ListenAndServe()
 }
 
-// Close shuts down the server gracefully. If the passed-in context is
-// canceled while shutting down, it will halt graceful shutdown.
-func (rs RESTServer) Close(ctx context.Context) error {
+// Shutdown shuts down the server gracefully, first closing the HTTP server to
+// new connections and then shutting down each individual API the server was
+// created with. This will cause ServeForever to return in any Go thread that is
+// blocking on it. If the passed-in context is canceled while shutting down, it
+// will halt graceful shutdown of the HTTP server and the APIs.
+//
+// Returns a non-nil error if the server is not currently running due to a call
+// to ServeForever or Serve.
+//
+// Once Shutdown returns, the RESTServer should not be used again.
+func (rs *RESTServer) Shutdown(ctx context.Context) error {
+	rs.mtx.Lock()
+	if rs.closing {
+		rs.mtx.Unlock()
+		return fmt.Errorf("close already in-progress in another goroutine")
+	}
+	if !rs.serving {
+		rs.mtx.Unlock()
+		return fmt.Errorf("server is not running")
+	}
+	defer rs.mtx.Unlock()
+	rs.closing = true
+
 	var fullError error
 
-	if !srv.mmUpdater.IsZero() && srv.mmEnabled {
-		srv.log.Info("Shutting down maxmind updater...")
-		srv.mmUpdater.Stop()
-		srv.mmUpdater = tide.Tide{}
-	}
-
-	if srv.beaconServer != nil {
-		srv.log.Info("Shutting down beacon API...")
-		if err := srv.beaconServer.Shutdown(ctx); err != nil {
-			fullError = fmt.Errorf("stop beacon API: %w", err)
+	if rs.http.Addr != "" {
+		err := rs.http.Shutdown(ctx)
+		if err != nil {
+			fullError = fmt.Errorf("stop HTTP server: %w", err)
 		}
-		srv.beaconServer = nil
-	} else {
-		srv.log.Debug("beacon API not running; no need to shut it down")
+		rs.http = &http.Server{Handler: rs.router}
+		if err != nil && err == ctx.Err() {
+			// if its due to the context expiring or timing out, we should
+			// immediately exit without waiting for clean shutdown of the APIs.
+			return fullError
+		}
 	}
 
-	if srv.statsServer != nil {
-		srv.log.Info("Shutting down stats API...")
-		if err := srv.statsServer.Shutdown(ctx); err != nil {
-			statsErr := fmt.Errorf("shutdown stats API: %w", err)
+	// call life-cycle shutdown on each API
+	for name, api := range rs.apis {
+		select {
+		case <-ctx.Done():
+			apiErr := ctx.Err()
 			if fullError != nil {
-				fullError = fmt.Errorf("%s;\nadditionally: %w", fullError, statsErr)
+				fullError = fmt.Errorf("%s\nadditionally: %w", fullError, apiErr)
 			} else {
-				fullError = statsErr
+				fullError = apiErr
 			}
-		}
-		srv.statsServer = nil
-	} else {
-		srv.log.Debug("stats API not running on separate listener; no need to shut it down")
-	}
 
-	if srv.mmClient != nil {
-		srv.log.Info("Closing geolocation databases...")
-		if err := srv.mmClient.Close(); err != nil {
-			geoErr := fmt.Errorf("close geolocation dbs: %w", err)
-			if fullError != nil {
-				fullError = fmt.Errorf("%s;\nadditionally: %w", fullError, geoErr)
-			} else {
-				fullError = geoErr
+			// for context end, immediately close
+			return fullError
+		default:
+			if err := api.Shutdown(ctx); err != nil {
+				apiErr := fmt.Errorf("shutdown API %q: %w", name, err)
+				if fullError != nil {
+					fullError = fmt.Errorf("%s\nadditionally: %w", fullError, apiErr)
+				} else {
+					fullError = apiErr
+				}
 			}
-		}
-	}
-
-	srv.log.Info("Closing stats databases...")
-	if err := srv.db.Close(); err != nil {
-		dbErr := fmt.Errorf("close stats store: %w", err)
-		if fullError != nil {
-			fullError = fmt.Errorf("%s;\nadditionally: %w", fullError, dbErr)
-		} else {
-			fullError = dbErr
 		}
 	}
 

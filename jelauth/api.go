@@ -1,6 +1,7 @@
 package jelauth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -43,6 +44,12 @@ func (api *LoginAPI) Init(dbs map[string]jeldao.Store, cfg config.Config) error 
 	}
 
 	return nil
+}
+
+// Shutdown shuts down the login API. This is added to implement jelapi.API, and
+// has no effect on the login API but to return the error of the context.
+func (api *LoginAPI) Shutdown(ctx context.Context) error {
+	return ctx.Err()
 }
 
 // HTTPGetInfo returns a HandlerFunc that retrieves information on the API and
