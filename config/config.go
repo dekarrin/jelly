@@ -272,6 +272,13 @@ func splitWithEscaped(s, sep string) []string {
 	return split
 }
 
+const (
+	ConfigKeyAPIName    = "name"
+	ConfigKeyAPIBase    = "base"
+	ConfigKeyAPIEnabled = "enabled"
+	ConfigKeyAPIDBs     = "dbs"
+)
+
 // Common holds configuration options common to all APIs.
 type Common struct {
 	// Name is the name of the API. Must be unique.
@@ -311,7 +318,7 @@ func (cc *Common) FillDefaults() *Common {
 // call Validate on the return value of FillDefaults.
 func (cc *Common) Validate() error {
 	if err := validateBaseURI(cc.Base); err != nil {
-		return fmt.Errorf("base: %w", err)
+		return fmt.Errorf(ConfigKeyAPIBase+": %w", err)
 	}
 
 	return nil
@@ -322,18 +329,18 @@ func (cc *Common) Common() Common {
 }
 
 func (cc *Common) Keys() []string {
-	return []string{"name", "enabled", "base", "dbs"}
+	return []string{ConfigKeyAPIName, ConfigKeyAPIEnabled, ConfigKeyAPIBase, ConfigKeyAPIDBs}
 }
 
 func (cc *Common) Get(key string) interface{} {
 	switch strings.ToLower(key) {
-	case "name":
+	case ConfigKeyAPIName:
 		return cc.Name
-	case "enabled":
+	case ConfigKeyAPIEnabled:
 		return cc.Enabled
-	case "base":
+	case ConfigKeyAPIBase:
 		return cc.Base
-	case "dbs":
+	case ConfigKeyAPIDBs:
 		return cc.DBs
 	default:
 		return nil
@@ -342,33 +349,33 @@ func (cc *Common) Get(key string) interface{} {
 
 func (cc *Common) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
-	case "name":
+	case ConfigKeyAPIName:
 		if valueStr, ok := value.(string); ok {
 			cc.Name = valueStr
 			return nil
 		} else {
-			return fmt.Errorf("key 'name' requires a string but got a %T", value)
+			return fmt.Errorf("key '"+ConfigKeyAPIName+"' requires a string but got a %T", value)
 		}
-	case "enabled":
+	case ConfigKeyAPIEnabled:
 		if valueBool, ok := value.(bool); ok {
 			cc.Enabled = valueBool
 			return nil
 		} else {
-			return fmt.Errorf("key 'enabled' requires a bool but got a %T", value)
+			return fmt.Errorf("key '"+ConfigKeyAPIEnabled+"' requires a bool but got a %T", value)
 		}
-	case "base":
+	case ConfigKeyAPIBase:
 		if valueStr, ok := value.(string); ok {
 			cc.Base = valueStr
 			return nil
 		} else {
-			return fmt.Errorf("key 'base' requires a string but got a %T", value)
+			return fmt.Errorf("key '"+ConfigKeyAPIBase+"' requires a string but got a %T", value)
 		}
-	case "dbs":
+	case ConfigKeyAPIDBs:
 		if valueStrSlice, ok := value.([]string); ok {
 			cc.DBs = valueStrSlice
 			return nil
 		} else {
-			return fmt.Errorf("key 'dbs' requires a []string but got a %T", value)
+			return fmt.Errorf("key '"+ConfigKeyAPIDBs+"' requires a []string but got a %T", value)
 		}
 	default:
 		return fmt.Errorf("not a valid key: %q", key)
@@ -377,15 +384,15 @@ func (cc *Common) Set(key string, value interface{}) error {
 
 func (cc *Common) SetFromString(key string, value string) error {
 	switch strings.ToLower(key) {
-	case "name", "base":
+	case ConfigKeyAPIName, ConfigKeyAPIBase:
 		return cc.Set(key, value)
-	case "enabled":
+	case ConfigKeyAPIEnabled:
 		b, err := strconv.ParseBool(value)
 		if err != nil {
 			return err
 		}
 		return cc.Set(key, b)
-	case "dbs":
+	case ConfigKeyAPIDBs:
 		if value == "" {
 			return cc.Set(key, []string{})
 		}
@@ -398,7 +405,15 @@ func (cc *Common) SetFromString(key string, value string) error {
 
 type APIConfig interface {
 	// Common returns the parts of the API configuration that all APIs are
-	// required to have.
+	// required to have. Its keys should be considered part of the configuration
+	// held within the APIConfig and any function that accepts keys will accept
+	// the Common keys; additionally, FillDefaults and Validate will both
+	// perform their operations on the Common's keys.
+	//
+	// Performing mutation operations on the Common() returned will not
+	// necessarily affect the APIConfig it came from. Affecting one of its key's
+	// values should be done by calling the appropriate method on the APIConfig
+	// with the key name.
 	Common() Common
 
 	// Keys returns a list of strings, each of which is a valid key that this
@@ -410,12 +425,19 @@ type APIConfig interface {
 	// particular format of a config source, it will be replaced with an
 	// underscore in that format; e.g. a key called "test!" would be retrieved
 	// from an envvar called "APPNAME_TEST_" as opposed to "APPNAME_TEST!", as
-	// the exclaimation mark is not allowed in most environment variable names.
+	// the exclamation mark is not allowed in most environment variable names.
+	//
+	// The returned slice will contain the values returned by Common()'s Keys()
+	// function as well as any other keys provided by the APIConfig. Each item
+	// in the returned slice must be non-empty and unique when all keys are
+	// converted to lowercase.
 	Keys() []string
 
 	// Get gets the current value of a config key. The parameter key should be a
 	// string that is returned from Keys(). If key is not a string that was
 	// returned from Keys, this function must return nil.
+	//
+	// The key is not case-sensitive.
 	Get(key string) interface{}
 
 	// Set sets the current value of a config key directly. The value must be of
@@ -435,17 +457,64 @@ type APIConfig interface {
 	// for implementers to returns the same APIConfig that FillDefaults was
 	// called on.
 	//
-	// Implementors do not necessarily ensure that the returned APIConfig's
-	// Common() returns a common config that has had FillDefaults() called on
-	// it, and callers should not rely on this.
+	// Implementors must ensure that the returned APIConfig's Common() returns a
+	// common config that has had its keys set to their defaults as well.
 	FillDefaults() APIConfig
 
 	// Validate checks all current values of the APIConfig and returns whether
 	// there is any issues with them.
 	//
-	// Implementors do not necessarily ensure that calling Validate() also calls
-	// Validate() on the held Common, and callers should not rely on this.
+	// Implementors must ensure that calling Validate() also calls validation on
+	// the common keys as well as those that they provide.
 	Validate() error
+}
+
+// GetString returns a string value from an APIConfig. If the given value is not
+// a string or there is an error retrieving it, panics.
+func GetString(api APIConfig, key string) string {
+	return apiGetTyped[string](api, key)
+}
+
+// GetBool returns a bool value from an APIConfig. If the given value is not a
+// bool or there is an error retrieving it, panics.
+func GetBool(api APIConfig, key string) bool {
+	return apiGetTyped[bool](api, key)
+}
+
+// GetInt returns an int value from an APIConfig. If the given value is not an
+// int or there is an error retrieving it, panics.
+func GetInt(api APIConfig, key string) int {
+	return apiGetTyped[int](api, key)
+}
+
+// GetStringSlice returns a string slice value from an APIConfig. If the given
+// value is not a []string or there is an error retrieving it, panics.
+func GetStringSlice(api APIConfig, key string) []string {
+	return apiGetTyped[[]string](api, key)
+}
+
+func apiGetTyped[E any](api APIConfig, key string) E {
+	if !apiHas(api, key) {
+		panic(fmt.Sprintf("config does not contain key %q", key))
+	}
+	v := api.Get(key)
+	if typed, ok := v.(E); ok {
+		return typed
+	}
+
+	var check E
+	panic(fmt.Sprintf("key %q is not of type %T", key, check))
+}
+
+func apiHas(api APIConfig, key string) bool {
+	needle := strings.ToLower(key)
+
+	for _, k := range api.Keys() {
+		if strings.ToLower(k) == needle {
+			return true
+		}
+	}
+	return false
 }
 
 // Config is a complete configuration for a server. It contains all parameters
@@ -518,13 +587,13 @@ func (cfg *Config) unmarshal(m marshaledConfig) error {
 	// ...and the rest
 	cfg.URIBase = m.Base
 	cfg.TokenSecret = m.Secret
+	cfg.UnauthDelayMillis = m.UnauthDelay
 	cfg.DBs = map[string]Database{}
 	for n, marshaledDB := range m.DBs {
 		var db Database
 		db.unmarshal(marshaledDB)
 		cfg.DBs[n] = db
 	}
-	cfg.UnauthDelayMillis = m.UnauthDelay
 
 	return nil
 }
@@ -563,8 +632,14 @@ func (cfg Config) FillDefaults() Config {
 	if newCFG.Address == "" {
 		newCFG.Address = "localhost"
 	}
-	for name, apis := range newCFG.APIs {
-
+	for name, api := range newCFG.APIs {
+		if GetString(api, ConfigKeyAPIName) == "" {
+			if err := api.Set(ConfigKeyAPIName, name); err != nil {
+				panic(fmt.Sprintf("setting a common property failed; should never happen: %v", err))
+			}
+		}
+		api = api.FillDefaults()
+		newCFG.APIs[name] = api
 	}
 
 	return newCFG
@@ -601,9 +676,6 @@ func (cfg Config) Validate() error {
 			return fmt.Errorf("apis: %s: name mismatch; API.Name is set to %q", name, com.Name)
 		}
 		if err := api.Validate(); err != nil {
-			return fmt.Errorf("apis: %s: %w", name, err)
-		}
-		if err := com.Validate(); err != nil {
 			return fmt.Errorf("apis: %s: %w", name, err)
 		}
 	}

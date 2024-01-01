@@ -16,12 +16,19 @@ type marshaledDatabase struct {
 	File string `yaml:"file" json:"file"`
 }
 
+type marshaledAPI struct {
+	Base    string   `yaml:"base" json:"base"`
+	Enabled bool     `yaml:"enabled" json:"enabled"`
+	Uses    []string `yaml:"uses" json:"uses"`
+}
+
 type marshaledConfig struct {
 	Listen      string                       `yaml:"listen" json:"listen"`
 	Base        string                       `yaml:"base" json:"base"`
 	Secret      []byte                       `yaml:"secret" json:"secret"`
 	DBs         map[string]marshaledDatabase `yaml:"dbs" json:"dbs"`
 	UnauthDelay int                          `yaml:"unauth_delay" json:"unauth_delay"`
+	APIs        map[string]marshaledAPI      `yaml:"apis`
 }
 
 // Load loads a configuration from a JSON or YAML file. The format of the file
