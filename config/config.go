@@ -272,10 +272,14 @@ func splitWithEscaped(s, sep string) []string {
 	return split
 }
 
-// CommonAPIConfig holds configuration options common to all APIs.
-type CommonAPIConfig struct {
+// Common holds configuration options common to all APIs.
+type Common struct {
 	// Name is the name of the API. Must be unique.
 	Name string
+
+	// Enabled is whether the API is to be enabled. By default, this is false in
+	// all cases.
+	Enabled bool
 
 	// Base is the base URI that all paths will be rooted at, relative to the
 	// server base path. This can be "/" (or "", which is equivalent) to
@@ -290,8 +294,158 @@ type CommonAPIConfig struct {
 	DBs []string
 }
 
+// FillDefaults returns a new *Common identical to cc but with unset values set
+// to their defaults and values normalized.
+func (cc *Common) FillDefaults() *Common {
+	newCC := new(Common)
+
+	if newCC.Base == "" {
+		newCC.Base = ""
+	}
+
+	return newCC
+}
+
+// Validate returns an error if the Config has invalid field values set. Empty
+// and unset values are considered invalid; if defaults are intended to be used,
+// call Validate on the return value of FillDefaults.
+func (cc *Common) Validate() error {
+	if err := validateBaseURI(cc.Base); err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
+
+	return nil
+}
+
+func (cc *Common) Common() Common {
+	return *cc
+}
+
+func (cc *Common) Keys() []string {
+	return []string{"name", "enabled", "base", "dbs"}
+}
+
+func (cc *Common) Get(key string) interface{} {
+	switch strings.ToLower(key) {
+	case "name":
+		return cc.Name
+	case "enabled":
+		return cc.Enabled
+	case "base":
+		return cc.Base
+	case "dbs":
+		return cc.DBs
+	default:
+		return nil
+	}
+}
+
+func (cc *Common) Set(key string, value interface{}) error {
+	switch strings.ToLower(key) {
+	case "name":
+		if valueStr, ok := value.(string); ok {
+			cc.Name = valueStr
+			return nil
+		} else {
+			return fmt.Errorf("key 'name' requires a string but got a %T", value)
+		}
+	case "enabled":
+		if valueBool, ok := value.(bool); ok {
+			cc.Enabled = valueBool
+			return nil
+		} else {
+			return fmt.Errorf("key 'enabled' requires a bool but got a %T", value)
+		}
+	case "base":
+		if valueStr, ok := value.(string); ok {
+			cc.Base = valueStr
+			return nil
+		} else {
+			return fmt.Errorf("key 'base' requires a string but got a %T", value)
+		}
+	case "dbs":
+		if valueStrSlice, ok := value.([]string); ok {
+			cc.DBs = valueStrSlice
+			return nil
+		} else {
+			return fmt.Errorf("key 'dbs' requires a []string but got a %T", value)
+		}
+	default:
+		return fmt.Errorf("not a valid key: %q", key)
+	}
+}
+
+func (cc *Common) SetFromString(key string, value string) error {
+	switch strings.ToLower(key) {
+	case "name", "base":
+		return cc.Set(key, value)
+	case "enabled":
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		return cc.Set(key, b)
+	case "dbs":
+		if value == "" {
+			return cc.Set(key, []string{})
+		}
+		dbsStrSlice := strings.Split(value, ",")
+		return cc.Set(key, dbsStrSlice)
+	default:
+		return fmt.Errorf("not a valid key: %q", key)
+	}
+}
+
 type APIConfig interface {
-	Common() CommonAPIConfig
+	// Common returns the parts of the API configuration that all APIs are
+	// required to have.
+	Common() Common
+
+	// Keys returns a list of strings, each of which is a valid key that this
+	// configuration contains. These keys may be passed to other methods to
+	// access values in this config.
+	//
+	// Each key returned should be alpha-numeric, and snake-case is preferred
+	// (though not required). If a key contains an illegal character for a
+	// particular format of a config source, it will be replaced with an
+	// underscore in that format; e.g. a key called "test!" would be retrieved
+	// from an envvar called "APPNAME_TEST_" as opposed to "APPNAME_TEST!", as
+	// the exclaimation mark is not allowed in most environment variable names.
+	Keys() []string
+
+	// Get gets the current value of a config key. The parameter key should be a
+	// string that is returned from Keys(). If key is not a string that was
+	// returned from Keys, this function must return nil.
+	Get(key string) interface{}
+
+	// Set sets the current value of a config key directly. The value must be of
+	// the correct type; no parsing is done in Set.
+	//
+	// The key is not case-sensitive.
+	Set(key string, value interface{}) error
+
+	// SetFromString sets the current value of a config key by parsing the given
+	// string for its value.
+	//
+	// The key is not case-sensitive.
+	SetFromString(key string, value string) error
+
+	// FillDefaults returns a copy of the APIConfig with any unset values set to
+	// default values, if possible. It need not be a brand new copy; it is legal
+	// for implementers to returns the same APIConfig that FillDefaults was
+	// called on.
+	//
+	// Implementors do not necessarily ensure that the returned APIConfig's
+	// Common() returns a common config that has had FillDefaults() called on
+	// it, and callers should not rely on this.
+	FillDefaults() APIConfig
+
+	// Validate checks all current values of the APIConfig and returns whether
+	// there is any issues with them.
+	//
+	// Implementors do not necessarily ensure that calling Validate() also calls
+	// Validate() on the held Common, and callers should not rely on this.
+	Validate() error
 }
 
 // Config is a complete configuration for a server. It contains all parameters
@@ -318,6 +472,12 @@ type Config struct {
 	// persistence layers. If not provided, it will be set to a configuration
 	// for using an in-memory persistence layer.
 	DBs map[string]Database
+
+	// APIs is the configuration for each API that will be included in a
+	// configured jelly framework server. Each APIConfig must return a
+	// CommonConfig whose Name is either set to blank or to the key that maps to
+	// it.
+	APIs map[string]APIConfig
 
 	// UnauthDelayMillis is the amount of additional time to wait
 	// (in milliseconds) before sending a response that indicates either that
@@ -403,6 +563,9 @@ func (cfg Config) FillDefaults() Config {
 	if newCFG.Address == "" {
 		newCFG.Address = "localhost"
 	}
+	for name, apis := range newCFG.APIs {
+
+	}
 
 	return newCFG
 }
@@ -417,9 +580,31 @@ func (cfg Config) Validate() error {
 	if len(cfg.TokenSecret) > MaxSecretSize {
 		return fmt.Errorf("token secret: must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.TokenSecret))
 	}
+	if cfg.Port < 1 {
+		return fmt.Errorf("port: must be greater than 0")
+	}
+	if cfg.Address == "" {
+		return fmt.Errorf("address: must not be empty")
+	}
+	if err := validateBaseURI(cfg.URIBase); err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
 	for name, db := range cfg.DBs {
 		if err := db.Validate(); err != nil {
 			return fmt.Errorf("dbs: %s: %w", name, err)
+		}
+	}
+	for name, api := range cfg.APIs {
+		com := cfg.APIs[name].Common()
+
+		if name != com.Name && com.Name != "" {
+			return fmt.Errorf("apis: %s: name mismatch; API.Name is set to %q", name, com.Name)
+		}
+		if err := api.Validate(); err != nil {
+			return fmt.Errorf("apis: %s: %w", name, err)
+		}
+		if err := com.Validate(); err != nil {
+			return fmt.Errorf("apis: %s: %w", name, err)
 		}
 	}
 
@@ -517,4 +702,17 @@ func DefaultDBConnector() Connector {
 			return owdb.Open(fullPath)
 		},
 	}
+}
+
+func validateBaseURI(base string) error {
+	if strings.ContainsRune(base, '{') {
+		return fmt.Errorf("contains disallowed char \"{\"")
+	}
+	if strings.ContainsRune(base, '}') {
+		return fmt.Errorf("contains disallowed char \"}\"")
+	}
+	if strings.Contains(base, "//") {
+		return fmt.Errorf("contains disallowed double-slash \"//\"")
+	}
+	return nil
 }
