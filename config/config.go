@@ -68,24 +68,6 @@ type Database struct {
 	DataFile string
 }
 
-// unmarshal completely replaces all attributes with the values or missing
-// values in the marshaledDatabase.
-//
-// does no validation except that which is required for parsing.
-func (db *Database) unmarshal(m marshaledDatabase) error {
-	var err error
-
-	db.Type, err = ParseDBType(m.Type)
-	if err != nil {
-		return fmt.Errorf("type: %w", err)
-	}
-
-	db.DataDir = m.Dir
-	db.DataFile = m.File
-
-	return nil
-}
-
 // FillDefaults returns a new Database identical to db but with unset values
 // set to their defaults. In this case, if the type is not set, it is changed to
 // DatabaseInMemory. If OWDB File is not set, it is changed to "db.owv".
@@ -273,10 +255,10 @@ func splitWithEscaped(s, sep string) []string {
 }
 
 const (
-	ConfigKeyAPIName    = "name"
-	ConfigKeyAPIBase    = "base"
-	ConfigKeyAPIEnabled = "enabled"
-	ConfigKeyAPIDBs     = "dbs"
+	KeyAPIName    = "name"
+	KeyAPIBase    = "base"
+	KeyAPIEnabled = "enabled"
+	KeyAPIDBs     = "uses"
 )
 
 // Common holds configuration options common to all APIs.
@@ -294,11 +276,11 @@ type Common struct {
 	// server config that this API is a part of.
 	Base string
 
-	// DBs is a list of names of data stores that the API uses directly. When
-	// Init is called, it is passed active connections to each of the DBs. There
-	// must be a corresponding entry for each name in the root DBs listing in
-	// the Config this API is a part of.
-	DBs []string
+	// UsesDBs is a list of names of data stores that the API uses directly.
+	// When Init is called, it is passed active connections to each of the DBs.
+	// There must be a corresponding entry for each name in the root DBs listing
+	// in the Config this API is a part of.
+	UsesDBs []string
 }
 
 // FillDefaults returns a new *Common identical to cc but with unset values set
@@ -318,7 +300,7 @@ func (cc *Common) FillDefaults() *Common {
 // call Validate on the return value of FillDefaults.
 func (cc *Common) Validate() error {
 	if err := validateBaseURI(cc.Base); err != nil {
-		return fmt.Errorf(ConfigKeyAPIBase+": %w", err)
+		return fmt.Errorf(KeyAPIBase+": %w", err)
 	}
 
 	return nil
@@ -329,19 +311,19 @@ func (cc *Common) Common() Common {
 }
 
 func (cc *Common) Keys() []string {
-	return []string{ConfigKeyAPIName, ConfigKeyAPIEnabled, ConfigKeyAPIBase, ConfigKeyAPIDBs}
+	return []string{KeyAPIName, KeyAPIEnabled, KeyAPIBase, KeyAPIDBs}
 }
 
 func (cc *Common) Get(key string) interface{} {
 	switch strings.ToLower(key) {
-	case ConfigKeyAPIName:
+	case KeyAPIName:
 		return cc.Name
-	case ConfigKeyAPIEnabled:
+	case KeyAPIEnabled:
 		return cc.Enabled
-	case ConfigKeyAPIBase:
+	case KeyAPIBase:
 		return cc.Base
-	case ConfigKeyAPIDBs:
-		return cc.DBs
+	case KeyAPIDBs:
+		return cc.UsesDBs
 	default:
 		return nil
 	}
@@ -349,33 +331,33 @@ func (cc *Common) Get(key string) interface{} {
 
 func (cc *Common) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
-	case ConfigKeyAPIName:
+	case KeyAPIName:
 		if valueStr, ok := value.(string); ok {
 			cc.Name = valueStr
 			return nil
 		} else {
-			return fmt.Errorf("key '"+ConfigKeyAPIName+"' requires a string but got a %T", value)
+			return fmt.Errorf("key '"+KeyAPIName+"' requires a string but got a %T", value)
 		}
-	case ConfigKeyAPIEnabled:
+	case KeyAPIEnabled:
 		if valueBool, ok := value.(bool); ok {
 			cc.Enabled = valueBool
 			return nil
 		} else {
-			return fmt.Errorf("key '"+ConfigKeyAPIEnabled+"' requires a bool but got a %T", value)
+			return fmt.Errorf("key '"+KeyAPIEnabled+"' requires a bool but got a %T", value)
 		}
-	case ConfigKeyAPIBase:
+	case KeyAPIBase:
 		if valueStr, ok := value.(string); ok {
 			cc.Base = valueStr
 			return nil
 		} else {
-			return fmt.Errorf("key '"+ConfigKeyAPIBase+"' requires a string but got a %T", value)
+			return fmt.Errorf("key '"+KeyAPIBase+"' requires a string but got a %T", value)
 		}
-	case ConfigKeyAPIDBs:
+	case KeyAPIDBs:
 		if valueStrSlice, ok := value.([]string); ok {
-			cc.DBs = valueStrSlice
+			cc.UsesDBs = valueStrSlice
 			return nil
 		} else {
-			return fmt.Errorf("key '"+ConfigKeyAPIDBs+"' requires a []string but got a %T", value)
+			return fmt.Errorf("key '"+KeyAPIDBs+"' requires a []string but got a %T", value)
 		}
 	default:
 		return fmt.Errorf("not a valid key: %q", key)
@@ -384,15 +366,15 @@ func (cc *Common) Set(key string, value interface{}) error {
 
 func (cc *Common) SetFromString(key string, value string) error {
 	switch strings.ToLower(key) {
-	case ConfigKeyAPIName, ConfigKeyAPIBase:
+	case KeyAPIName, KeyAPIBase:
 		return cc.Set(key, value)
-	case ConfigKeyAPIEnabled:
+	case KeyAPIEnabled:
 		b, err := strconv.ParseBool(value)
 		if err != nil {
 			return err
 		}
 		return cc.Set(key, b)
-	case ConfigKeyAPIDBs:
+	case KeyAPIDBs:
 		if value == "" {
 			return cc.Set(key, []string{})
 		}
@@ -565,39 +547,6 @@ type Config struct {
 	DBConnector Connector
 }
 
-// unmarshal completely replaces all attributes except DBConnector with the
-// values or missing values in the marshaledConfig.
-//
-// does no validation except that which is required for parsing.
-func (cfg *Config) unmarshal(m marshaledConfig) error {
-	var err error
-
-	// listen address part...
-	listenAddr := m.Listen
-	bindParts := strings.SplitN(listenAddr, ":", 2)
-	if len(bindParts) != 2 {
-		return fmt.Errorf("listen: not in \"ADDRESS:PORT\" or \":PORT\" format")
-	}
-	cfg.Address = bindParts[0]
-	cfg.Port, err = strconv.Atoi(bindParts[1])
-	if err != nil {
-		return fmt.Errorf("listen: %q is not a valid port number", bindParts[1])
-	}
-
-	// ...and the rest
-	cfg.URIBase = m.Base
-	cfg.TokenSecret = m.Secret
-	cfg.UnauthDelayMillis = m.UnauthDelay
-	cfg.DBs = map[string]Database{}
-	for n, marshaledDB := range m.DBs {
-		var db Database
-		db.unmarshal(marshaledDB)
-		cfg.DBs[n] = db
-	}
-
-	return nil
-}
-
 // UnauthDelay returns the configured time for the UnauthDelay as a
 // time.Duration. If cfg.UnauthDelayMS is set to a number less than 0, this will
 // return a zero-valued time.Duration.
@@ -633,8 +582,8 @@ func (cfg Config) FillDefaults() Config {
 		newCFG.Address = "localhost"
 	}
 	for name, api := range newCFG.APIs {
-		if GetString(api, ConfigKeyAPIName) == "" {
-			if err := api.Set(ConfigKeyAPIName, name); err != nil {
+		if GetString(api, KeyAPIName) == "" {
+			if err := api.Set(KeyAPIName, name); err != nil {
 				panic(fmt.Sprintf("setting a common property failed; should never happen: %v", err))
 			}
 		}
