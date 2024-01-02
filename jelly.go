@@ -92,13 +92,13 @@ func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[stri
 		if !ok {
 			return nil, fmt.Errorf("missing config for API %q", name)
 		}
-		if !config.GetBool(apiConf, config.KeyAPIEnabled) {
+		if !config.Get[bool](apiConf, config.KeyAPIEnabled) {
 			continue
 		}
 
 		// find the actual dbs it uses
 		usedDBs := map[string]jeldao.Store{}
-		usedDBNames := config.GetStringSlice(apiConf, config.KeyAPIDBs)
+		usedDBNames := config.Get[[]string](apiConf, config.KeyAPIDBs)
 
 		for _, dbName := range usedDBNames {
 			connectedDB, ok := dbs[strings.ToLower(dbName)]
@@ -108,7 +108,7 @@ func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[stri
 			usedDBs[strings.ToLower(dbName)] = connectedDB
 		}
 
-		base := config.GetString(apiConf, config.KeyAPIBase)
+		base := config.Get[string](apiConf, config.KeyAPIBase)
 		for base[len(base)-1] == '/' {
 			// do not end with a slash, please
 			base = base[:len(base)-1]
