@@ -73,7 +73,8 @@ dbs:
   
   auth:
     type: sqlite3
-    
+    dir: ./authdb
+
 
 ################################################################################
 # API CONFIGS                                                                  #
@@ -115,7 +116,7 @@ example:
   #
   # If left blank, no datastores are passed in.
   uses:
-    - authdb
+    - main
 
 # jellyauth API config
 #
@@ -141,5 +142,17 @@ jellyauth:
   # jellyauth.base will default to /auth if not set by user.
   base: /auth
 
+  # jellyauth.uses will default to ["auth"] if not set or if given an empty
+  # list. Only the first DB in this list is actually used by jellyauth; any
+  # others will be ignored.
   uses:
-    - "auth"
+    - auth
+
+  # "jellyauth.secret" - string - default: (a value unsuitable in prod)
+  #
+  # This is the secret seed used to generate JWT tokens with. It should be kept
+  # hidden and never revealed. If this secret is changed and the server
+  # restarted, any logins that existed on shutdown will become invalid.
+  #
+  # This value should be changed from its default for production use.
+  secret: DEFAULT_NONPROD_TOKEN_SECRET

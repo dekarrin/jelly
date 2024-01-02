@@ -16,34 +16,63 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-const (
-	// TODO: move to config
-	RootURIPrefix = "/api/v1"
-)
+var autoAPIProviders = map[string]func() jelapi.API{}
+
+// RegisterAuto marks an API as being in-use and gives functions to provide a
+// new empty instance of the API and a new empty instance of its associated
+// config. This will make the API automatically instantiating in calls
+// subsequent calls to New().
+//
+// Calling this function for every API to be used is not required, but it is for
+// those that are to be automatically configured when the server is created with
+// New(). Note that if this function is not called for an API, you will need to
+// call config.Register() in order to set the config type for the API, and Add()
+// on server instances in order to actually add and configure the API.
+func RegisterAuto(name string, provider func() jelapi.API, confProvider func() config.APIConfig) error {
+	normName := strings.ToLower(name)
+	if _, ok := autoAPIProviders[normName]; ok {
+		return fmt.Errorf("duplicate API name: %q is already registered", name)
+	}
+	if err := config.Register(name, confProvider); err != nil {
+		return fmt.Errorf("register API config section: %w", err)
+	}
+	if provider == nil {
+		return fmt.Errorf("API instance provider function cannot be nil")
+	}
+
+	autoAPIProviders[normName] = provider
+	return nil
+}
 
 // RESTServer is an HTTP REST server that provides resources. The zero-value of
 // a RESTServer should not be used directly; call New() to get one ready for
 // use.
 type RESTServer struct {
-	mtx     *sync.Mutex
-	closing bool
-	serving bool
-	http    *http.Server
-	router  chi.Router
-	apis    map[string]jelapi.API
+	mtx        *sync.Mutex
+	closing    bool
+	serving    bool
+	http       *http.Server
+	rootRouter chi.Router
+	baseRouter chi.Router
+	apis       map[string]jelapi.API
+	usedBases  map[string]string // used for tracking that APIs do not eat each other
+	dbs        map[string]jeldao.Store
+	cfg        config.Config // config that it was started with.
 }
 
-// New creates a new RESTServer. The built-in login/auth endpoints and API
-// service are pre-configured unless disabled in config. Additionally, Init and
-// Routes is called on all given APIs, and the result of Routes is used to route
-// the master API router to it.
-//
-// This function takes ownership of apis and it should not be used after this
-// function is called.
-func New(cfg *config.Config, apis map[string]jelapi.API) (RESTServer, error) {
+// New creates a new RESTServer ready to have new APIs added to it. All
+// configured DBs are connected to before this function returns, and the config
+// is retained for future operations. Any registered auto-APIs are automatically
+// added via Add as per the configuration; this includes both built-in and
+// user-supplied APIs.
+func New(cfg *config.Config) (RESTServer, error) {
 	// check config
 	if cfg == nil {
 		cfg = &config.Config{}
+	} else {
+		var copy *config.Config
+		*copy = *cfg
+		cfg = copy
 	}
 	*cfg = cfg.FillDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -60,94 +89,116 @@ func New(cfg *config.Config, apis map[string]jelapi.API) (RESTServer, error) {
 		dbs[strings.ToLower(name)] = db
 	}
 
-	// make API router
-	apisRouter, err := newAPIsRouter(dbs, *cfg, apis)
-	if err != nil {
-		return RESTServer{}, fmt.Errorf("setup APIs: %w", err)
-	}
-
 	// Create root router
 	root := chi.NewRouter()
 	root.Use(jelmid.DontPanic())
-	root.Mount(RootURIPrefix, apisRouter)
 
-	// Init API with config.
+	// make API router
+	baseRouter := root
+	if cfg.Globals.URIBase != "/" {
+		baseRouter = chi.NewRouter()
+		root.Mount(cfg.Globals.URIBase, baseRouter)
+	}
 
-	return RESTServer{
-		apis:   apis,
-		router: root,
-		http:   &http.Server{Handler: root},
-		mtx:    &sync.Mutex{},
-	}, nil
-}
+	rs := RESTServer{
+		apis:       map[string]jelapi.API{},
+		rootRouter: root,
+		baseRouter: baseRouter,
+		http:       &http.Server{Handler: root},
+		mtx:        &sync.Mutex{},
+		usedBases:  map[string]string{},
+		dbs:        dbs,
+		cfg:        *cfg,
+	}
 
-func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[string]jelapi.API) (chi.Router, error) {
-	apisRouter := chi.NewRouter()
-
-	// map base name to API name
-	usedBases := map[string]string{}
-
-	for name, api := range apis {
-		apiConf, ok := cfg.APIs[strings.ToLower(name)]
-		if !ok {
-			return nil, fmt.Errorf("missing config for API %q", name)
-		}
-		if !config.Get[bool](apiConf, config.KeyAPIEnabled) {
-			continue
-		}
-
-		// find the actual dbs it uses
-		usedDBs := map[string]jeldao.Store{}
-		usedDBNames := config.Get[[]string](apiConf, config.KeyAPIDBs)
-
-		for _, dbName := range usedDBNames {
-			connectedDB, ok := dbs[strings.ToLower(dbName)]
-			if !ok {
-				return nil, fmt.Errorf("API refers to missing DB %q", strings.ToLower(dbName))
+	// check on pre-rolled APIs
+	for name, prov := range autoAPIProviders {
+		if prConf, ok := cfg.APIs[name]; ok && config.Get[bool](prConf, config.KeyAPIEnabled) {
+			preRolled := prov()
+			if err := rs.Add(name, preRolled); err != nil {
+				return RESTServer{}, fmt.Errorf("auto-add enabled API %s: create API: %w", name, err)
 			}
-			usedDBs[strings.ToLower(dbName)] = connectedDB
-		}
-
-		base := config.Get[string](apiConf, config.KeyAPIBase)
-		for base[len(base)-1] == '/' {
-			// do not end with a slash, please
-			base = base[:len(base)-1]
-		}
-		if base[0] != '/' {
-			base = "/" + base
-		}
-		// routing must be unique on case-insensitive basis
-		if curUser, ok := usedBases[strings.ToLower(base)]; ok {
-			return nil, fmt.Errorf("API %q and %q both request API route base of %q", name, curUser, base)
-		}
-		usedBases[strings.ToLower(base)] = name
-		apiConf.Set(config.KeyAPIBase, base)
-
-		if err := api.Init(apiConf, cfg.Globals, usedDBs); err != nil {
-			return nil, fmt.Errorf("init API %q: Init(): %w", name, err)
-		}
-
-		r, subpaths := api.Routes()
-
-		apisRouter.Mount(base, r)
-		if !subpaths {
-			apisRouter.HandleFunc(base+"/", jelapi.RedirectNoTrailingSlash)
 		}
 	}
 
-	return apisRouter, nil
+	return rs, nil
 }
 
-// ServeForever begins listening on the given address and port for HTTP REST
-// client requests. If address is kept as "", it will default to "localhost". If
-// port is less than 1, it will default to 8080.
+// Add adds the given API and initializes it with the configuration section that
+// matches its name. The name is case-insensitive and will be normalized to
+// lowercase. It is an error to use the same normalized name in two calls to Add
+// on the same RESTServer.
+//
+// Returns an error if there is any issue initializing the API.
+func (rs *RESTServer) Add(name string, api jelapi.API) error {
+	normName := strings.ToLower(name)
+
+	if _, ok := rs.apis[name]; ok {
+		return fmt.Errorf("API named %q has already been added", normName)
+	}
+
+	rs.apis[normName] = api
+	return rs.initAPI(normName, rs.apis[normName])
+}
+
+func (rs *RESTServer) initAPI(name string, api jelapi.API) error {
+	apiConf, ok := rs.cfg.APIs[strings.ToLower(name)]
+	if !ok {
+		return fmt.Errorf("missing config for API %q", name)
+	}
+
+	// find the actual dbs it uses
+	usedDBs := map[string]jeldao.Store{}
+	usedDBNames := config.Get[[]string](apiConf, config.KeyAPIDBs)
+
+	for _, dbName := range usedDBNames {
+		connectedDB, ok := rs.dbs[strings.ToLower(dbName)]
+		if !ok {
+			return fmt.Errorf("API refers to missing DB %q", strings.ToLower(dbName))
+		}
+		usedDBs[strings.ToLower(dbName)] = connectedDB
+	}
+
+	base := config.Get[string](apiConf, config.KeyAPIBase)
+	for base[len(base)-1] == '/' {
+		// do not end with a slash, please
+		base = base[:len(base)-1]
+	}
+	if base[0] != '/' {
+		base = "/" + base
+	}
+	// routing must be unique on case-insensitive basis (unless it's root, in
+	// which case we make zero assumptions)
+	if base != "/" {
+		checkBase := strings.ToLower(base)
+		if curUser, ok := rs.usedBases[checkBase]; ok {
+			return fmt.Errorf("API %q and %q specify effectively identical API route bases of %q", name, curUser, base)
+		}
+		rs.usedBases[checkBase] = name
+	}
+	apiConf.Set(config.KeyAPIBase, base)
+
+	if err := api.Init(apiConf, rs.cfg.Globals, usedDBs); err != nil {
+		return fmt.Errorf("init API %q: Init(): %w", name, err)
+	}
+
+	r, subpaths := api.Routes()
+
+	rs.baseRouter.Mount(base, r)
+	if !subpaths {
+		rs.baseRouter.HandleFunc(base+"/", jelapi.RedirectNoTrailingSlash)
+	}
+
+	return nil
+}
+
+// ServeForever begins listening on the server's configured address and port for
+// HTTP REST client requests.
 //
 // This function will block until the server is stopped. If it returns as a
 // result of rs.Close() being called elsewhere, it will return
 // http.ErrServerClosed.
-//
-// TODO: make this not accept addr and port. Use config instead.
-func (rs *RESTServer) ServeForever(address string, port int) error {
+func (rs *RESTServer) ServeForever() error {
 	rs.mtx.Lock()
 	if rs.serving {
 		rs.mtx.Unlock()
@@ -163,14 +214,7 @@ func (rs *RESTServer) ServeForever(address string, port int) error {
 		rs.mtx.Unlock()
 	}()
 
-	if address == "" {
-		address = "localhost"
-	}
-	if port < 1 {
-		port = 8080
-	}
-
-	rs.http.Addr = fmt.Sprintf("%s:%d", address, port)
+	rs.http.Addr = fmt.Sprintf("%s:%d", rs.cfg.Globals.Address, rs.cfg.Globals.Port)
 
 	return rs.http.ListenAndServe()
 }
@@ -205,7 +249,7 @@ func (rs *RESTServer) Shutdown(ctx context.Context) error {
 		if err != nil {
 			fullError = fmt.Errorf("stop HTTP server: %w", err)
 		}
-		rs.http = &http.Server{Handler: rs.router}
+		rs.http = &http.Server{Handler: rs.rootRouter}
 		if err != nil && err == ctx.Err() {
 			// if its due to the context expiring or timing out, we should
 			// immediately exit without waiting for clean shutdown of the APIs.

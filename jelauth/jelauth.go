@@ -1,14 +1,21 @@
 // Package jelauth provides user authentication and login services and APIs.
 package jelauth
 
-import "github.com/dekarrin/jelly/config"
+import (
+	"github.com/dekarrin/jelly"
+	"github.com/dekarrin/jelly/config"
+	"github.com/dekarrin/jelly/jelapi"
+)
 
 const (
 	Version = "0.0.1"
 )
 
 func init() {
-	config.Register("jellyauth", func() config.APIConfig { return &Config{} })
+	jelly.RegisterAuto("jellyauth",
+		func() jelapi.API { return &LoginAPI{} },
+		func() config.APIConfig { return &Config{} },
+	)
 }
 
 type LoginResponse struct {
