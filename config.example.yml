@@ -1,5 +1,12 @@
 # This is a sample configuration file for a jelly-based server.
 
+################################################################################
+# GLOBAL CONFIG                                                                #
+# ============================================================================ #
+# These configuration options are shared with every API on initialization and  #
+# are generally used for global server run control.                            #
+################################################################################
+
 # "listen" - string - default: "localhost:8080"
 #
 # The bind address that the server listens on. This can be a host address and a
@@ -11,7 +18,127 @@ listen: localhost:8080
 
 # "base" - string - default: "/"
 #
-# The base URI that all APIs are rooted on. If missing or blank, it defaults to
-# "/", the server root path.
+# The base URI that all APIs are rooted on.
 base: /
 
+# "unauth_delay" - int - default: 1000
+#
+# The minimum amount of time that the server waits before replying to
+# unauthenticated requests to an authenticated endpoint. Built for use in the
+# jellyauth pre-configured endpoints, but is useful to any API that wishes to
+# have authenticated endpoints.
+unauth_delay: 1000
+
+################################################################################
+# DATASTORE CONFIG                                                             #
+# ============================================================================ #
+# These options configure database connections, under the "dbs" key. A DB      #
+# connection is made for each at server startup, and the connections for DBs   #
+# decalred in an API's 'uses' block are passed to that APIs on initialization. #
+################################################################################
+
+# "dbs" - map of keys to objects - default: (none)
+#
+# Configurations for the databases that the server will connect to. This value
+# has no defaults under normal circumstances, but if the jellyauth server is
+# enabled and no DB is specifically configured for it, it will cause an inmem DB
+# to be automatically created for it.
+dbs:
+
+  # Each key of dbs is the name of a database connection. This is how a DB is
+  # referred to in other places in config.
+  main:
+
+    # "dbs.DBNAME.type" - string - default: "inmem"
+    #
+    # Sets the type of the database. Allowed values are:
+    # * "inmem" - An in-memory database.
+    # * "owdb" - OrbweaverDB, a hit-tracker datastore with local persistence.
+    # * "sqlite" - A SQLite3 on-disk database.
+    type: inmem
+
+    # "dbs.DBNAME.dir" - string - default: (none)
+    #
+    # The path to the data directory for the DB. This is the location where it
+    # will write its local persistence files to. This must be manually set for
+    # dbs of type "sqlite" and "owdb" and is ignored for all other types.
+    dir: "./data/"
+
+    # "dbs.DBNAME.file" - string - default: "db.owv" (if type is "owdb")
+    #
+    # The file that data will be written to on disk, relative to the data
+    # directory. This is only used by dbs of type "owdb". If not set in an OWDB
+    # configuration, it will default to "db.owv".
+    file: "db.owv"
+  
+  auth:
+    type: sqlite3
+
+################################################################################
+# API CONFIGS                                                                  #
+# ============================================================================ #
+# Every key that isn't mentioned above is interpreted as a new section in      #
+# config. Each section is used to configure a single API. Every API has a set  #
+# of properties common to all APIs, as well as any other options they require  #
+# to start.                                                                    #
+#                                                                              #
+# The format of these sections is dependent on the API. See the 'example'      #
+# section for an example.                                                      #
+################################################################################
+
+# Example API config
+#
+# This is an example of a configuration for an API called 'example'. The section
+# name identifies the API and is used interchangeably with that term.
+example:
+
+  # "APINAME.enabled" - bool - default: false
+  #
+  # Whether an API is enabled. Provides a quick way to flip one on and off from
+  # configuration.
+  enabled: false
+
+  # "APINAME.base" - string - default: "/"
+  #
+  # The base URI of all paths in the API, relative to the base of the server as
+  # a whole. This can be "/" to leave paths rooted to the server base.
+  base: /
+
+  # "APINAME.uses" - string - default: (none)
+  #
+  # Gives a list of the databases that this API uses. Only the databases with a
+  # corresponding entry under the top-level DBs can be listed (with the
+  # exception of built-in autoconfiguration as is done with jellyauth). Each
+  # DB listed here will be passed in as an active connection to the associated
+  # datastore.
+  #
+  # If left blank, no datastores are passed in.
+  uses:
+    - authdb
+
+# jellyauth API config
+#
+# This is a special built-in API that, if configured and enabled, will perform
+# autoconfiguration for extremely basic non-prod usage.
+#
+# To use it, you just need to configure an API called jellyauth and enable it:
+#
+# ```
+# jellyauth:
+#   enabled: true
+# ```
+#
+# This will create a set of endpoints with base set to /auth (relative to the
+# server root) that handle login/logout, user management, and token management.
+# It will use an in-memory database for persistence and a non-production ready
+# secret to generate JWT tokens. This can be changed to production-ready by
+# configuring a proper secret and by setting a persisted datastore such as
+# sqlite.
+jellyauth:
+  enabled: true
+
+  # jellyauth.base will default to /auth if not set by user.
+  base: /auth
+
+  uses:
+    - "auth"
