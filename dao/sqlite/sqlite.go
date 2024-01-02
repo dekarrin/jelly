@@ -1,6 +1,6 @@
-// Package jelite provides an interface into SQLite compatible with the rest of
+// Package sqlite provides an interface into SQLite compatible with the rest of
 // jelly packages.
-package jelite
+package sqlite
 
 import (
 	"database/sql"

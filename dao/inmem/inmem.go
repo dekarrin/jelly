@@ -1,5 +1,5 @@
-// Package jelinmem provides an in-memory database for use with model types.
-package jelinmem
+// Package inmem provides an in-memory database for use with model types.
+package inmem
 
 import (
 	"fmt"

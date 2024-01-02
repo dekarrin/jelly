@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/dao/jelinmem"
-	"github.com/dekarrin/jelly/dao/jelite"
+	"github.com/dekarrin/jelly/dao/inmem"
 	"github.com/dekarrin/jelly/dao/owdb"
+	"github.com/dekarrin/jelly/dao/sqlite"
 )
 
 // DBType is the type of a Database connection.
@@ -320,10 +320,10 @@ func (conr Connector) FillDefaults() Connector {
 func DefaultDBConnector() Connector {
 	return Connector{
 		InMem: func() (dao.Store, error) {
-			return jelinmem.NewAuthUserStore(), nil
+			return inmem.NewAuthUserStore(), nil
 		},
 		SQLite: func(dir string) (dao.Store, error) {
-			return jelite.NewAuthUserStore(dir)
+			return sqlite.NewAuthUserStore(dir)
 		},
 		// TODO: actually have Connector accept unique configs for each, as
 		// this will build over time. also, owdb has its own in-mem mode it can

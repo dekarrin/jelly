@@ -1,4 +1,4 @@
-package jelinmem
+package inmem
 
 import (
 	"context"

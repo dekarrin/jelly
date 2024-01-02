@@ -1,4 +1,4 @@
-package jelite
+package sqlite
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/dao/jelite/dbconv"
+	"github.com/dekarrin/jelly/dao/sqlite/dbconv"
 	"github.com/google/uuid"
 )
 
