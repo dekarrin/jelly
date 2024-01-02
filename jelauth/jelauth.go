@@ -1,13 +1,15 @@
 // Package jelauth provides user authentication and login services and APIs.
 package jelauth
 
+import "github.com/dekarrin/jelly/config"
+
 const (
 	Version = "0.0.1"
-
-	// PathPrefix is the prefix of all paths in the API. Routers should mount
-	// a sub-router that routes all requests to the API at this path.
-	PathPrefix = "/api/v1"
 )
+
+func init() {
+	config.Register("jellyauth", func() config.APIConfig { return &Config{} })
+}
 
 type LoginResponse struct {
 	Token  string `json:"token"`

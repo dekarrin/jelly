@@ -30,11 +30,6 @@ const (
 	DatabaseInMemory DBType = "inmem"
 )
 
-const (
-	MaxSecretSize = 64
-	MinSecretSize = 32
-)
-
 // ParseDBType parses a string found in a connection string into a DBType.
 func ParseDBType(s string) (DBType, error) {
 	sLower := strings.ToLower(s)
@@ -289,7 +284,7 @@ func (cc *Common) FillDefaults() *Common {
 	newCC := new(Common)
 
 	if newCC.Base == "" {
-		newCC.Base = ""
+		newCC.Base = "/"
 	}
 
 	return newCC
@@ -383,6 +378,75 @@ func (cc *Common) SetFromString(key string, value string) error {
 	default:
 		return fmt.Errorf("not a valid key: %q", key)
 	}
+}
+
+// Globals are the values of global configuration values from the top level
+// config. These values are shared with every API.
+type Globals struct {
+
+	// Port is the port that the server will listen on. It will default to 8080
+	// if none is given.
+	Port int
+
+	// Address is the internet address that the server will listen on. It will
+	// default to "localhost" if none is given.
+	Address string
+
+	// URIBase is the base path that all APIs are rooted on. It will default to
+	// "/", which is equivalent to being directly on root.
+	URIBase string
+
+	// UnauthDelayMillis is the amount of additional time to wait
+	// (in milliseconds) before sending a response that indicates either that
+	// the client was unauthorized or the client was unauthenticated. This is
+	// something of an "anti-flood" measure for naive clients attempting
+	// non-parallel connections. If not set it will default to 1 second
+	// (1000ms). Set this to any negative number to disable the delay.
+	UnauthDelayMillis int
+}
+
+func (g Globals) FillDefaults() Globals {
+	newG := g
+
+	if newG.UnauthDelayMillis == 0 {
+		newG.UnauthDelayMillis = 1000
+	}
+	if newG.Port == 0 {
+		newG.Port = 8080
+	}
+	if newG.Address == "" {
+		newG.Address = "localhost"
+	}
+	if newG.URIBase == "" {
+		newG.URIBase = "/"
+	}
+
+	return newG
+}
+
+func (g Globals) Validate() error {
+	if g.Port < 1 {
+		return fmt.Errorf("port: must be greater than 0")
+	}
+	if g.Address == "" {
+		return fmt.Errorf("address: must not be empty")
+	}
+	if err := validateBaseURI(g.URIBase); err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
+
+	return nil
+}
+
+// UnauthDelay returns the configured time for the UnauthDelay as a
+// time.Duration. If cfg.UnauthDelayMS is set to a number less than 0, this will
+// return a zero-valued time.Duration.
+func (g Globals) UnauthDelay() time.Duration {
+	if g.UnauthDelayMillis < 1 {
+		var dur time.Duration
+		return dur
+	}
+	return time.Millisecond * time.Duration(g.UnauthDelayMillis)
 }
 
 type APIConfig interface {
@@ -503,21 +567,8 @@ func apiHas(api APIConfig, key string) bool {
 // that can be used to configure its operation.
 type Config struct {
 
-	// Port is the port that the server will listen on. It will default to 8080
-	// if none is given.
-	Port int
-
-	// Address is the internet address that the server will listen on. It will
-	// default to "localhost" if none is given.
-	Address string
-
-	// URIBase is the base path that all APIs are rooted on. It will default to
-	// "/", which is equivalent to being directly on root.
-	URIBase string
-
-	// TokenSecret is the secret used for signing tokens. If not provided, a
-	// default key is used.
-	TokenSecret []byte
+	// Globals is all variables shared with initialization of all APIs.
+	Globals Globals
 
 	// DBs is the configurations to use for connecting to databases and other
 	// persistence layers. If not provided, it will be set to a configuration
@@ -529,14 +580,6 @@ type Config struct {
 	// CommonConfig whose Name is either set to blank or to the key that maps to
 	// it.
 	APIs map[string]APIConfig
-
-	// UnauthDelayMillis is the amount of additional time to wait
-	// (in milliseconds) before sending a response that indicates either that
-	// the client was unauthorized or the client was unauthenticated. This is
-	// something of an "anti-flood" measure for naive clients attempting
-	// non-parallel connections. If not set it will default to 1 second
-	// (1000ms). Set this to any negative number to disable the delay.
-	UnauthDelayMillis int
 
 	// DBConnector is a custom DB connector for overriding the defaults, which
 	// only provide jeldao.Store instances that are associated with the built-in
@@ -551,11 +594,7 @@ type Config struct {
 // time.Duration. If cfg.UnauthDelayMS is set to a number less than 0, this will
 // return a zero-valued time.Duration.
 func (cfg Config) UnauthDelay() time.Duration {
-	if cfg.UnauthDelayMillis < 1 {
-		var dur time.Duration
-		return dur
-	}
-	return time.Millisecond * time.Duration(cfg.UnauthDelayMillis)
+	return cfg.Globals.UnauthDelay()
 }
 
 // FillDefaults returns a new Config identical to cfg but with unset values
@@ -563,24 +602,10 @@ func (cfg Config) UnauthDelay() time.Duration {
 func (cfg Config) FillDefaults() Config {
 	newCFG := cfg
 
-	if newCFG.TokenSecret == nil {
-		newCFG.TokenSecret = []byte("DEFAULT_TOKEN_SECRET-DO_NOT_USE_IN_PROD!")
-	}
 	for name, db := range newCFG.DBs {
 		newCFG.DBs[name] = db.FillDefaults()
 	}
-	if _, ok := newCFG.DBs["auth"]; !ok {
-		newCFG.DBs["auth"] = Database{Type: DatabaseInMemory}
-	}
-	if newCFG.UnauthDelayMillis == 0 {
-		newCFG.UnauthDelayMillis = 1000
-	}
-	if newCFG.Port == 0 {
-		newCFG.Port = 8080
-	}
-	if newCFG.Address == "" {
-		newCFG.Address = "localhost"
-	}
+	newCFG.Globals = newCFG.Globals.FillDefaults()
 	for name, api := range newCFG.APIs {
 		if GetString(api, KeyAPIName) == "" {
 			if err := api.Set(KeyAPIName, name); err != nil {
@@ -591,6 +616,20 @@ func (cfg Config) FillDefaults() Config {
 		newCFG.APIs[name] = api
 	}
 
+	// if the user has enabled the jellyauth API, set defaults now.
+	if authConf, ok := newCFG.APIs["jellyauth"]; ok {
+		// make shore the first DB exists
+		if GetBool(authConf, KeyAPIEnabled) {
+			dbs := GetStringSlice(authConf, KeyAPIDBs)
+			if len(dbs) > 0 {
+				// make shore this DB exists
+				if _, ok := newCFG.DBs[dbs[0]]; !ok {
+					newCFG.DBs[dbs[0]] = Database{Type: DatabaseInMemory}.FillDefaults()
+				}
+			}
+		}
+	}
+
 	return newCFG
 }
 
@@ -598,20 +637,8 @@ func (cfg Config) FillDefaults() Config {
 // and unset values are considered invalid; if defaults are intended to be used,
 // call Validate on the return value of FillDefaults.
 func (cfg Config) Validate() error {
-	if len(cfg.TokenSecret) < MinSecretSize {
-		return fmt.Errorf("token secret: must be at least %d bytes, but is %d", MinSecretSize, len(cfg.TokenSecret))
-	}
-	if len(cfg.TokenSecret) > MaxSecretSize {
-		return fmt.Errorf("token secret: must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.TokenSecret))
-	}
-	if cfg.Port < 1 {
-		return fmt.Errorf("port: must be greater than 0")
-	}
-	if cfg.Address == "" {
-		return fmt.Errorf("address: must not be empty")
-	}
-	if err := validateBaseURI(cfg.URIBase); err != nil {
-		return fmt.Errorf("base: %w", err)
+	if err := cfg.Globals.Validate(); err != nil {
+		return err
 	}
 	for name, db := range cfg.DBs {
 		if err := db.Validate(); err != nil {

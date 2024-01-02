@@ -15,7 +15,7 @@ func p(s string) (pathParam string) {
 	return jelapi.PathParam(s)
 }
 
-func (api *LoginAPI) Routes() (base string, router chi.Router, subpaths bool) {
+func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
 	r := chi.NewRouter()
 
 	login := api.routesForLogin()
@@ -41,7 +41,7 @@ func (api *LoginAPI) Routes() (base string, router chi.Router, subpaths bool) {
 		res.Log(req)
 	})
 
-	return "/auth", r, true
+	return r, true
 }
 
 func (api LoginAPI) routesForLogin() chi.Router {

@@ -1,5 +1,8 @@
 // Package jelapi has API interfaces for compatibility with the rest of the
 // jelly framework.
+//
+// TODO: the way this is shaping up, this package could probably just be merged
+// with jelly.
 package jelapi
 
 import (
@@ -40,20 +43,20 @@ type API interface {
 
 	// Init creates the API initially and does any setup other than routing its
 	// endpoints. It takes in a complete config object and a map of dbs to
-	// connected stores.
+	// connected stores. Only those stores requested in the API's config in the
+	// 'uses' key will be included here.
 	//
 	// After Init returns, the API is prepared to return its routes with Routes.
-	Init(dbs map[string]jeldao.Store, cfg config.Config) error
+	Init(cfg config.APIConfig, g config.Globals, dbs map[string]jeldao.Store) error
 
-	// Routes returns a router that leads to all accessible routes in the API
-	// and a base path that the API requests its router to be mounted at on the
-	// base router. Additionally, returns whether the API's router contains
-	// subpaths beyond just setting methods on its relative root; this affects
-	// whether path-terminal slashes are redirected in the base router the API
+	// Routes returns a router that leads to all accessible routes in the API.
+	// Additionally, returns whether the API's router contains subpaths beyond
+	// just setting methods on its relative root; this affects whether
+	// path-terminal slashes are redirected in the base router the API
 	// router is mounted in.
 	//
 	// Init must be called before Routes is called.
-	Routes() (base string, router chi.Router, subpaths bool)
+	Routes() (router chi.Router, subpaths bool)
 
 	// Shutdown terminates any pending operations cleanly and releases any held
 	// resources. It will be called after the server listener socket is shut

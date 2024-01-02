@@ -127,11 +127,10 @@ func unmarshalAPI(ma marshaledAPI, name string) (APIConfig, error) {
 	return api, nil
 }
 
-// unmarshal completely replaces all attributes except DBConnector with the
-// values or missing values in the marshaledConfig.
+// unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
-func (cfg *Config) unmarshal(m marshaledConfig) error {
+func (cfg *Globals) unmarshal(m marshaledConfig) error {
 	var err error
 
 	// listen address part...
@@ -148,8 +147,19 @@ func (cfg *Config) unmarshal(m marshaledConfig) error {
 
 	// ...and the rest
 	cfg.URIBase = m.Base
-	cfg.TokenSecret = m.Secret
 	cfg.UnauthDelayMillis = m.UnauthDelay
+
+	return nil
+}
+
+// unmarshal completely replaces all attributes except DBConnector with the
+// values or missing values in the marshaledConfig.
+//
+// does no validation except that which is required for parsing.
+func (cfg *Config) unmarshal(m marshaledConfig) error {
+	if err := cfg.Globals.unmarshal(m); err != nil {
+		return err
+	}
 	cfg.DBs = map[string]Database{}
 	for n, marshaledDB := range m.DBs {
 		var db Database

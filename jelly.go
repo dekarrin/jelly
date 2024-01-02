@@ -11,7 +11,6 @@ import (
 
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/jelapi"
-	"github.com/dekarrin/jelly/jelauth"
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/go-chi/chi/v5"
@@ -83,53 +82,53 @@ func New(cfg *config.Config, apis map[string]jelapi.API) (RESTServer, error) {
 }
 
 func newAPIsRouter(dbs map[string]jeldao.Store, cfg config.Config, apis map[string]jelapi.API) (chi.Router, error) {
-	// first toss a new LoginAPI in.
-	var authAPI jelauth.LoginAPI
-	if _, ok := apis["jellyauth"]; ok { // TODO: call it authn or login or somefin.
-		return nil, fmt.Errorf("a user-supplied API has name of built-in API 'jellyauth'; not allowed")
-	}
-	apis["jellyauth"] = &authAPI
-
 	apisRouter := chi.NewRouter()
 
 	// map base name to API name
 	usedBases := map[string]string{}
 
 	for name, api := range apis {
-		// TODO: add method to config to allow retrieval of
-		// custom blocks.
-		if err := api.Init(dbs, cfg); err != nil {
-			return nil, fmt.Errorf("init API %q: Init(): %w", name, err)
+		apiConf, ok := cfg.APIs[strings.ToLower(name)]
+		if !ok {
+			return nil, fmt.Errorf("missing config for API %q", name)
 		}
-		base, r, subpaths := api.Routes()
-		if strings.ContainsAny(base, "{}") {
-			return nil, fmt.Errorf("API %q: Routes() returned API route base with '{' or '}': %q", name, base)
+		if !config.GetBool(apiConf, config.KeyAPIEnabled) {
+			continue
 		}
-		if strings.Contains(base, "//") {
-			return nil, fmt.Errorf("API %q: Routes() returned API route base with doubled slash", name)
+
+		// find the actual dbs it uses
+		usedDBs := map[string]jeldao.Store{}
+		usedDBNames := config.GetStringSlice(apiConf, config.KeyAPIDBs)
+
+		for _, dbName := range usedDBNames {
+			connectedDB, ok := dbs[strings.ToLower(dbName)]
+			if !ok {
+				return nil, fmt.Errorf("API refers to missing DB %q", strings.ToLower(dbName))
+			}
+			usedDBs[strings.ToLower(dbName)] = connectedDB
 		}
-		if base == "" {
-			return nil, fmt.Errorf("API %q: Routes() returned empty API route base", name)
-		}
-		if base == "/" {
-			return nil, fmt.Errorf("API %q: Routes() returned \"/\" for API route base", name)
-		}
+
+		base := config.GetString(apiConf, config.KeyAPIBase)
 		for base[len(base)-1] == '/' {
 			// do not end with a slash, please
 			base = base[:len(base)-1]
 		}
-		if base == "" {
-			return nil, fmt.Errorf("API %q: Routes() returned API route base made of slashes", name)
-		}
 		if base[0] != '/' {
 			base = "/" + base
 		}
-
 		// routing must be unique on case-insensitive basis
 		if curUser, ok := usedBases[strings.ToLower(base)]; ok {
 			return nil, fmt.Errorf("API %q and %q both request API route base of %q", name, curUser, base)
 		}
 		usedBases[strings.ToLower(base)] = name
+		apiConf.Set(config.KeyAPIBase, base)
+
+		if err := api.Init(apiConf, cfg.Globals, usedDBs); err != nil {
+			return nil, fmt.Errorf("init API %q: Init(): %w", name, err)
+		}
+
+		r, subpaths := api.Routes()
+
 		apisRouter.Mount(base, r)
 		if !subpaths {
 			apisRouter.HandleFunc(base+"/", jelapi.RedirectNoTrailingSlash)

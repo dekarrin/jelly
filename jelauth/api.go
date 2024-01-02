@@ -29,11 +29,18 @@ type LoginAPI struct {
 
 	// Secret is the secret used to sign JWT tokens.
 	Secret []byte
+
+	pathPrefix string
 }
 
-func (api *LoginAPI) Init(dbs map[string]jeldao.Store, cfg config.Config) error {
-	api.Secret = cfg.TokenSecret
-	api.UnauthDelay = cfg.UnauthDelay()
+func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[string]jeldao.Store) error {
+	cfg, ok := rawCfg.(*Config)
+	if !ok {
+		return fmt.Errorf("bad config type %T", rawCfg)
+	}
+
+	api.Secret = cfg.Secret
+	api.UnauthDelay = g.UnauthDelay()
 	authRaw := dbs["auth"]
 	authStore, ok := authRaw.(jeldao.AuthUserStore)
 	if !ok {
@@ -42,6 +49,7 @@ func (api *LoginAPI) Init(dbs map[string]jeldao.Store, cfg config.Config) error 
 	api.Service = LoginService{
 		Provider: authStore,
 	}
+	api.pathPrefix = g.URIBase + cfg.CommonConf.Base
 
 	return nil
 }
@@ -222,7 +230,7 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) jelresult.Result {
 
 	for i := range users {
 		resp[i] = UserModel{
-			URI:            PathPrefix + "/users/" + users[i].ID.String(),
+			URI:            api.pathPrefix + "/users/" + users[i].ID.String(),
 			ID:             users[i].ID.String(),
 			Username:       users[i].Username,
 			Role:           users[i].Role.String(),
@@ -288,7 +296,7 @@ func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
 	}
 
 	resp := UserModel{
-		URI:            PathPrefix + "/users/" + newUser.ID.String(),
+		URI:            api.pathPrefix + "/users/" + newUser.ID.String(),
 		ID:             newUser.ID.String(),
 		Username:       newUser.Username,
 		Role:           newUser.Role.String(),
@@ -348,7 +356,7 @@ func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
 
 	// put it into a model to return
 	resp := UserModel{
-		URI:            PathPrefix + "/users/" + userInfo.ID.String(),
+		URI:            api.pathPrefix + "/users/" + userInfo.ID.String(),
 		ID:             userInfo.ID.String(),
 		Username:       userInfo.Username,
 		Role:           userInfo.Role.String(),
@@ -478,7 +486,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	}
 
 	resp := UserModel{
-		URI:            PathPrefix + "/users/" + updated.ID.String(),
+		URI:            api.pathPrefix + "/users/" + updated.ID.String(),
 		ID:             updated.ID.String(),
 		Username:       updated.Username,
 		Role:           updated.Role.String(),
@@ -563,7 +571,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 	}
 
 	resp := UserModel{
-		URI:            PathPrefix + "/users/" + newUser.ID.String(),
+		URI:            api.pathPrefix + "/users/" + newUser.ID.String(),
 		ID:             newUser.ID.String(),
 		Username:       newUser.Username,
 		Role:           newUser.Role.String(),
