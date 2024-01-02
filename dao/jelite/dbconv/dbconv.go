@@ -11,7 +11,7 @@ import (
 	"net/mail"
 	"time"
 
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/google/uuid"
 )
@@ -26,12 +26,12 @@ type Converter[N any, DB any] struct {
 
 // AuthUserRole converts the role of the built-in jelly framework auth users to
 // a string value.
-var AuthUserRole = Converter[jeldao.Role, string]{
-	ToDB: jeldao.Role.String,
-	FromDB: func(s string, target *jeldao.Role) error {
-		r, err := jeldao.ParseRole(s)
+var AuthUserRole = Converter[dao.Role, string]{
+	ToDB: dao.Role.String,
+	FromDB: func(s string, target *dao.Role) error {
+		r, err := dao.ParseRole(s)
 		if err != nil {
-			return jelerr.New("", err, jeldao.ErrDecodingFailure)
+			return jelerr.New("", err, dao.ErrDecodingFailure)
 		}
 		*target = r
 		return nil
@@ -55,7 +55,7 @@ var Email = Converter[*mail.Address, string]{
 
 		email, err := mail.ParseAddress(s)
 		if err != nil {
-			return jelerr.New("", err, jeldao.ErrDecodingFailure)
+			return jelerr.New("", err, dao.ErrDecodingFailure)
 		}
 
 		*target = email
@@ -69,7 +69,7 @@ var UUID = Converter[uuid.UUID, string]{
 	FromDB: func(s string, target *uuid.UUID) error {
 		u, err := uuid.Parse(s)
 		if err != nil {
-			return jelerr.New("", err, jeldao.ErrDecodingFailure)
+			return jelerr.New("", err, dao.ErrDecodingFailure)
 		}
 		*target = u
 		return nil
@@ -97,7 +97,7 @@ var Base64EncodedBytes = Converter[[]byte, string]{
 	FromDB: func(s string, target *[]byte) error {
 		decoded, err := base64.StdEncoding.DecodeString(s)
 		if err != nil {
-			return jelerr.New("", err, jeldao.ErrDecodingFailure)
+			return jelerr.New("", err, dao.ErrDecodingFailure)
 		}
 		*target = decoded
 		return nil

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"modernc.org/sqlite"
 )
 
@@ -44,7 +44,7 @@ func NewAuthUserStore(storageDir string) (*AuthUserStore, error) {
 	return st, nil
 }
 
-func (aus *AuthUserStore) AuthUsers() jeldao.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() dao.AuthUserRepo {
 	return aus.users
 }
 
@@ -69,11 +69,11 @@ func WrapDBError(err error) error {
 	sqliteErr := &sqlite.Error{}
 	if errors.As(err, &sqliteErr) {
 		if sqliteErr.Code() == 19 {
-			return jeldao.ErrConstraintViolation
+			return dao.ErrConstraintViolation
 		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
-		return jeldao.ErrNotFound
+		return dao.ErrNotFound
 	}
 	return err
 }

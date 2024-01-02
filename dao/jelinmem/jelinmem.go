@@ -4,7 +4,7 @@ package jelinmem
 import (
 	"fmt"
 
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 )
 
 // AuthUserStore is an in-memory database that is compatible with built-in jelly
@@ -24,7 +24,7 @@ func NewAuthUserStore() *AuthUserStore {
 	return st
 }
 
-func (aus *AuthUserStore) AuthUsers() jeldao.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() dao.AuthUserRepo {
 	return aus.users
 }
 

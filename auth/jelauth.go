@@ -1,5 +1,5 @@
-// Package jelauth provides user authentication and login services and APIs.
-package jelauth
+// Package aut provides user authentication and login services and APIs.
+package auth
 
 import (
 	"github.com/dekarrin/jelly"

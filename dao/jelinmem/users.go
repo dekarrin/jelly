@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	dao "github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/internal/jelsort"
-	dao "github.com/dekarrin/jelly/jeldao"
 	"github.com/google/uuid"
 )
 

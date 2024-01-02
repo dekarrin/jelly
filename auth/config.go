@@ -1,4 +1,4 @@
-package jelauth
+package auth
 
 import (
 	"fmt"

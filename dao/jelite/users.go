@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dekarrin/jelly/jeldao"
-	"github.com/dekarrin/jelly/jeldao/jelite/dbconv"
+	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/dao/jelite/dbconv"
 	"github.com/google/uuid"
 )
 
@@ -34,15 +34,15 @@ func (repo *AuthUsersDB) init() error {
 	return nil
 }
 
-func (repo *AuthUsersDB) Create(ctx context.Context, user jeldao.User) (jeldao.User, error) {
+func (repo *AuthUsersDB) Create(ctx context.Context, user dao.User) (dao.User, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return jeldao.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return jeldao.User{}, WrapDBError(err)
+		return dao.User{}, WrapDBError(err)
 	}
 
 	now := time.Now()
@@ -59,23 +59,23 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user jeldao.User) (jeldao.U
 		dbconv.Timestamp.ToDB(time.Time{}),
 	)
 	if err != nil {
-		return jeldao.User{}, WrapDBError(err)
+		return dao.User{}, WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
 }
 
-func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jeldao.User, error) {
+func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
 		return nil, WrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []jeldao.User
+	var all []dao.User
 
 	for rows.Next() {
-		var user jeldao.User
+		var user dao.User
 		var email string
 		var logoutTime int64
 		var loginTime int64
@@ -138,7 +138,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jeldao.User, error) {
 	return all, nil
 }
 
-func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user jeldao.User) (jeldao.User, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		dbconv.UUID.ToDB(user.ID),
@@ -152,21 +152,21 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user jeldao.U
 		dbconv.UUID.ToDB(id),
 	)
 	if err != nil {
-		return jeldao.User{}, WrapDBError(err)
+		return dao.User{}, WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return jeldao.User{}, WrapDBError(err)
+		return dao.User{}, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return jeldao.User{}, jeldao.ErrNotFound
+		return dao.User{}, dao.ErrNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
 }
 
-func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (jeldao.User, error) {
-	user := jeldao.User{
+func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (dao.User, error) {
+	user := dao.User{
 		Username: username,
 	}
 	var id string
@@ -227,8 +227,8 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (je
 	return user, nil
 }
 
-func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jeldao.User, error) {
-	user := jeldao.User{
+func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error) {
+	user := dao.User{
 		ID: id,
 	}
 	var role string
@@ -284,7 +284,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jeldao.User, er
 	return user, nil
 }
 
-func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jeldao.User, error) {
+func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	curVal, err := repo.Get(ctx, id)
 	if err != nil {
 		return curVal, err
@@ -299,7 +299,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jeldao.User,
 		return curVal, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, jeldao.ErrNotFound
+		return curVal, dao.ErrNotFound
 	}
 
 	return curVal, nil
