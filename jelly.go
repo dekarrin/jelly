@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/go-chi/chi/v5"
 )
@@ -29,7 +29,7 @@ type API interface {
 	// 'uses' key will be included here.
 	//
 	// After Init returns, the API is prepared to return its routes with Routes.
-	Init(cfg config.APIConfig, g config.Globals, dbs map[string]jeldao.Store) error
+	Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error
 
 	// Routes returns a router that leads to all accessible routes in the API.
 	// Additionally, returns whether the API's router contains subpaths beyond
@@ -85,7 +85,7 @@ type RESTServer struct {
 	baseRouter chi.Router
 	apis       map[string]API
 	usedBases  map[string]string // used for tracking that APIs do not eat each other
-	dbs        map[string]jeldao.Store
+	dbs        map[string]dao.Store
 	cfg        config.Config // config that it was started with.
 }
 
@@ -109,7 +109,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 	}
 
 	// connect DBs
-	dbs := map[string]jeldao.Store{}
+	dbs := map[string]dao.Store{}
 	for name, db := range cfg.DBs {
 		db, err := cfg.DBConnector.Connect(db)
 		if err != nil {
@@ -177,7 +177,7 @@ func (rs *RESTServer) initAPI(name string, api API) error {
 	}
 
 	// find the actual dbs it uses
-	usedDBs := map[string]jeldao.Store{}
+	usedDBs := map[string]dao.Store{}
 	usedDBNames := config.Get[[]string](apiConf, config.KeyAPIDBs)
 
 	for _, dbName := range usedDBNames {

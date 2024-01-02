@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -18,8 +18,8 @@ var (
 	Issuer = "jelly"
 )
 
-func Validate(ctx context.Context, tok string, secret []byte, db jeldao.AuthUserRepo) (jeldao.User, error) {
-	var user jeldao.User
+func Validate(ctx context.Context, tok string, secret []byte, db dao.AuthUserRepo) (dao.User, error) {
+	var user dao.User
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
@@ -35,7 +35,7 @@ func Validate(ctx context.Context, tok string, secret []byte, db jeldao.AuthUser
 
 		user, err = db.Get(ctx, id)
 		if err != nil {
-			if err == jeldao.ErrNotFound {
+			if err == dao.ErrNotFound {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")
@@ -50,7 +50,7 @@ func Validate(ctx context.Context, tok string, secret []byte, db jeldao.AuthUser
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
 	if err != nil {
-		return jeldao.User{}, err
+		return dao.User{}, err
 	}
 
 	return user, nil
@@ -78,7 +78,7 @@ func Get(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func Generate(secret []byte, u jeldao.User) (string, error) {
+func Generate(secret []byte, u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        "tqs",
 		"exp":        time.Now().Add(time.Hour).Unix(),

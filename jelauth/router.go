@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/dekarrin/jelly/jelresult"
 	"github.com/go-chi/chi/v5"
@@ -45,7 +45,7 @@ func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
 }
 
 func (api LoginAPI) routesForLogin() chi.Router {
-	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
+	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -57,7 +57,7 @@ func (api LoginAPI) routesForLogin() chi.Router {
 }
 
 func (api LoginAPI) routesForToken() chi.Router {
-	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
+	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -67,7 +67,7 @@ func (api LoginAPI) routesForToken() chi.Router {
 }
 
 func (api LoginAPI) routesForAuthUser() chi.Router {
-	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
+	reqAuth := jelmid.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -87,7 +87,7 @@ func (api LoginAPI) routesForAuthUser() chi.Router {
 }
 
 func (api LoginAPI) routesForInfo() chi.Router {
-	optAuth := jelmid.OptionalAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, jeldao.User{})
+	optAuth := jelmid.OptionalAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 

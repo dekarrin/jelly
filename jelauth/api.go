@@ -9,7 +9,7 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/dekarrin/jelly/jelresult"
@@ -33,7 +33,7 @@ type LoginAPI struct {
 	pathPrefix string
 }
 
-func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[string]jeldao.Store) error {
+func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
 	cfg, ok := rawCfg.(*Config)
 	if !ok {
 		return fmt.Errorf("bad config type %T", rawCfg)
@@ -42,7 +42,7 @@ func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[str
 	api.Secret = cfg.Secret
 	api.UnauthDelay = g.UnauthDelay()
 	authRaw := dbs["auth"]
-	authStore, ok := authRaw.(jeldao.AuthUserStore)
+	authStore, ok := authRaw.(dao.AuthUserStore)
 	if !ok {
 		return fmt.Errorf("DB provided under 'auth' does not implement jeldao.AuthUserStore")
 	}
@@ -78,7 +78,7 @@ func (api LoginAPI) epGetInfo(req *http.Request) jelresult.Result {
 
 	userStr := "unauthed client"
 	if loggedIn {
-		user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+		user := req.Context().Value(jelmid.AuthUser).(dao.User)
 		userStr = "user '" + user.Username + "'"
 	}
 	return jelresult.OK(resp, "%s got API info", userStr)
@@ -140,11 +140,11 @@ func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	// is the user trying to delete someone else's login? they'd betta be the
 	// admin if so!
-	if id != user.ID && user.Role != jeldao.Admin {
+	if id != user.ID && user.Role != dao.Admin {
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
@@ -189,7 +189,7 @@ func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) jelresult.Result {
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	tok, err := jeltoken.Generate(api.Secret, user)
 	if err != nil {
@@ -215,9 +215,9 @@ func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
 
 // GET /users: get all users (admin auth required).
 func (api LoginAPI) epGetAllUsers(req *http.Request) jelresult.Result {
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
-	if user.Role != jeldao.Admin {
+	if user.Role != dao.Admin {
 		return jelresult.Forbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
 	}
 
@@ -258,9 +258,9 @@ func (api LoginAPI) HTTPCreateUser() http.HandlerFunc {
 }
 
 func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
-	if user.Role != jeldao.Admin {
+	if user.Role != dao.Admin {
 		return jelresult.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
@@ -276,9 +276,9 @@ func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
 		return jelresult.BadRequest("password: property is empty or missing from request", "empty password")
 	}
 
-	role := jeldao.Unverified
+	role := dao.Unverified
 	if createUser.Role != "" {
-		role, err = jeldao.ParseRole(createUser.Role)
+		role, err = dao.ParseRole(createUser.Role)
 		if err != nil {
 			return jelresult.BadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
@@ -327,10 +327,10 @@ func (api LoginAPI) HTTPGetUser() http.HandlerFunc {
 
 func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
-	if id != user.ID && user.Role != jeldao.Admin {
+	if id != user.ID && user.Role != dao.Admin {
 
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
@@ -398,9 +398,9 @@ func (api LoginAPI) HTTPUpdateUser() http.HandlerFunc {
 
 func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
-	if id != user.ID && user.Role != jeldao.Admin {
+	if id != user.ID && user.Role != dao.Admin {
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
@@ -430,9 +430,9 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 
 	// pre-parse updateRole if needed so we return bad request before hitting
 	// DB
-	var updateRole jeldao.Role
+	var updateRole dao.Role
 	if updateReq.Role.Update {
-		updateRole, err = jeldao.ParseRole(updateReq.Role.Value)
+		updateRole, err = dao.ParseRole(updateReq.Role.Value)
 		if err != nil {
 			return jelresult.BadRequest(err.Error(), err.Error())
 		}
@@ -517,9 +517,9 @@ func (api LoginAPI) HTTPReplaceUser() http.HandlerFunc {
 
 func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
-	if user.Role != jeldao.Admin {
+	if user.Role != dao.Admin {
 		return jelresult.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
@@ -541,9 +541,9 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 		return jelresult.BadRequest("id: must be same as ID in URI", "body ID different from URI ID")
 	}
 
-	role := jeldao.Unverified
+	role := dao.Unverified
 	if createUser.Role != "" {
-		role, err = jeldao.ParseRole(createUser.Role)
+		role, err = dao.ParseRole(createUser.Role)
 		if err != nil {
 			return jelresult.BadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
@@ -601,10 +601,10 @@ func (api LoginAPI) HTTPDeleteUser() http.HandlerFunc {
 
 func (api LoginAPI) epDeleteUser(req *http.Request) jelresult.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
+	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
-	if id != user.ID && user.Role != jeldao.Admin {
+	if id != user.ID && user.Role != dao.Admin {
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now

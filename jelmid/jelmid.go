@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelresult"
 	"github.com/dekarrin/jelly/jeltoken"
 )
@@ -41,10 +41,10 @@ const (
 // optional logins; for non-optional, not being logged in will result in an
 // HTTP error being returned before the request is passed to the next handler).
 type AuthHandler struct {
-	db            jeldao.AuthUserRepo
+	db            dao.AuthUserRepo
 	secret        []byte
 	required      bool
-	defaultUser   jeldao.User
+	defaultUser   dao.User
 	unauthedDelay time.Duration
 	next          http.Handler
 }
@@ -95,26 +95,26 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ah.next.ServeHTTP(w, req)
 }
 
-func RequireAuth(db jeldao.AuthUserRepo, secret []byte, unauthDelay time.Duration, defaultUser jeldao.User) Middleware {
+func RequireAuth(db dao.AuthUserRepo, secret []byte, unauthDelay time.Duration, defaultUser dao.User) Middleware {
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
 			db:            db,
 			secret:        secret,
 			unauthedDelay: unauthDelay,
-			defaultUser:   jeldao.User{},
+			defaultUser:   dao.User{},
 			required:      true,
 			next:          next,
 		}
 	}
 }
 
-func OptionalAuth(db jeldao.AuthUserRepo, secret []byte, unauthDelay time.Duration, defaultUser jeldao.User) Middleware {
+func OptionalAuth(db dao.AuthUserRepo, secret []byte, unauthDelay time.Duration, defaultUser dao.User) Middleware {
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
 			db:            db,
 			secret:        secret,
 			unauthedDelay: unauthDelay,
-			defaultUser:   jeldao.User{},
+			defaultUser:   dao.User{},
 			required:      false,
 			next:          next,
 		}

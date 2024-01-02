@@ -7,7 +7,7 @@ import (
 	"net/mail"
 	"time"
 
-	"github.com/dekarrin/jelly/jeldao"
+	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -19,7 +19,7 @@ import (
 // The zero-value of LoginService is not ready to be used until its Provider is
 // set.
 type LoginService struct {
-	Provider jeldao.AuthUserStore
+	Provider dao.AuthUserStore
 }
 
 // Login verifies the provided username and password against the existing user
@@ -31,34 +31,34 @@ type LoginService struct {
 // a user or if the password is incorrect, it will match ErrBadCredentials. If
 // the error occured due to an unexpected problem with the DB, it will match
 // serr.ErrDB.
-func (svc LoginService) Login(ctx context.Context, username string, password string) (jeldao.User, error) {
+func (svc LoginService) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.ErrBadCredentials
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.ErrBadCredentials
 		}
-		return jeldao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, jelerr.WrapDB("", err)
 	}
 
 	// verify password
 	bcryptHash, err := base64.StdEncoding.DecodeString(user.Password)
 	if err != nil {
-		return jeldao.User{}, err
+		return dao.User{}, err
 	}
 
 	err = bcrypt.CompareHashAndPassword(bcryptHash, []byte(password))
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return jeldao.User{}, jelerr.ErrBadCredentials
+			return dao.User{}, jelerr.ErrBadCredentials
 		}
-		return jeldao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, jelerr.WrapDB("", err)
 	}
 
 	// successful login; update the DB
 	user.LastLoginTime = time.Now()
 	user, err = svc.Provider.AuthUsers().Update(ctx, user.ID, user)
 	if err != nil {
-		return jeldao.User{}, jelerr.WrapDB("cannot update user login time", err)
+		return dao.User{}, jelerr.WrapDB("cannot update user login time", err)
 	}
 
 	return user, nil
@@ -71,27 +71,27 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 // errors.Is depending on what caused the error. If the user doesn't exist, it
 // will match serr.ErrNotFound. If the error occured due to an unexpected
 // problem with the DB, it will match serr.ErrDB.
-func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (jeldao.User, error) {
+func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
 	existing, err := svc.Provider.AuthUsers().Get(ctx, who)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.ErrNotFound
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.ErrNotFound
 		}
-		return jeldao.User{}, jelerr.WrapDB("could not retrieve user", err)
+		return dao.User{}, jelerr.WrapDB("could not retrieve user", err)
 	}
 
 	existing.LastLogoutTime = time.Now()
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, existing.ID, existing)
 	if err != nil {
-		return jeldao.User{}, jelerr.WrapDB("could not update user", err)
+		return dao.User{}, jelerr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
 }
 
 // GetAllUsers returns all auth users currently in persistence.
-func (svc LoginService) GetAllUsers(ctx context.Context) ([]jeldao.User, error) {
+func (svc LoginService) GetAllUsers(ctx context.Context) ([]dao.User, error) {
 	users, err := svc.Provider.AuthUsers().GetAll(ctx)
 	if err != nil {
 		return nil, jelerr.WrapDB("", err)
@@ -107,18 +107,18 @@ func (svc LoginService) GetAllUsers(ctx context.Context) ([]jeldao.User, error) 
 // it will match serr.ErrNotFound. If the error occured due to an unexpected
 // problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
 // with one of the arguments, it will match serr.ErrBadArgument.
-func (svc LoginService) GetUser(ctx context.Context, id string) (jeldao.User, error) {
+func (svc LoginService) GetUser(ctx context.Context, id string) (dao.User, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return jeldao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.ErrNotFound
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.ErrNotFound
 		}
-		return jeldao.User{}, jelerr.WrapDB("could not get user", err)
+		return dao.User{}, jelerr.WrapDB("could not get user", err)
 	}
 
 	return user, nil
@@ -132,42 +132,42 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (jeldao.User, er
 // already present, it will match serr.ErrAlreadyExists. If the error occured
 // due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
 // if one of the arguments is invalid, it will match serr.ErrBadArgument.
-func (svc LoginService) CreateUser(ctx context.Context, username, password, email string, role jeldao.Role) (jeldao.User, error) {
+func (svc LoginService) CreateUser(ctx context.Context, username, password, email string, role dao.Role) (dao.User, error) {
 	var err error
 	if username == "" {
-		return jeldao.User{}, jelerr.New("username cannot be blank", err, jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("username cannot be blank", err, jelerr.ErrBadArgument)
 	}
 	if password == "" {
-		return jeldao.User{}, jelerr.New("password cannot be blank", err, jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("password cannot be blank", err, jelerr.ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
 	if email != "" {
 		storedEmail, err = mail.ParseAddress(email)
 		if err != nil {
-			return jeldao.User{}, jelerr.New("email is not valid", err, jelerr.ErrBadArgument)
+			return dao.User{}, jelerr.New("email is not valid", err, jelerr.ErrBadArgument)
 		}
 	}
 
 	_, err = svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err == nil {
-		return jeldao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
-	} else if !errors.Is(err, jeldao.ErrNotFound) {
-		return jeldao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
+	} else if !errors.Is(err, dao.ErrNotFound) {
+		return dao.User{}, jelerr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return jeldao.User{}, jelerr.New("password is too long", err, jelerr.ErrBadArgument)
+			return dao.User{}, jelerr.New("password is too long", err, jelerr.ErrBadArgument)
 		} else {
-			return jeldao.User{}, jelerr.New("password could not be encrypted", err)
+			return dao.User{}, jelerr.New("password could not be encrypted", err)
 		}
 	}
 
 	storedPass := base64.StdEncoding.EncodeToString(passHash)
 
-	newUser := jeldao.User{
+	newUser := dao.User{
 		Username: username,
 		Password: storedPass,
 		Email:    storedEmail,
@@ -176,10 +176,10 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 
 	user, err := svc.Provider.AuthUsers().Create(ctx, newUser)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrConstraintViolation) {
-			return jeldao.User{}, jelerr.ErrAlreadyExists
+		if errors.Is(err, dao.ErrConstraintViolation) {
+			return dao.User{}, jelerr.ErrAlreadyExists
 		}
-		return jeldao.User{}, jelerr.WrapDB("could not create user", err)
+		return dao.User{}, jelerr.WrapDB("could not create user", err)
 	}
 
 	return user, nil
@@ -199,51 +199,51 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 // serr.ErrNotFound. If the error occured due to an unexpected problem with the
 // DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
 // will match serr.ErrBadArgument.
-func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role jeldao.Role) (jeldao.User, error) {
+func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role dao.Role) (dao.User, error) {
 	var err error
 
 	if username == "" {
-		return jeldao.User{}, jelerr.New("username cannot be blank", err, jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("username cannot be blank", err, jelerr.ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
 	if email != "" {
 		storedEmail, err = mail.ParseAddress(email)
 		if err != nil {
-			return jeldao.User{}, jelerr.New("email is not valid", err, jelerr.ErrBadArgument)
+			return dao.User{}, jelerr.New("email is not valid", err, jelerr.ErrBadArgument)
 		}
 	}
 
 	uuidCurID, err := uuid.Parse(curID)
 	if err != nil {
-		return jeldao.User{}, jelerr.New("current ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("current ID is not valid", jelerr.ErrBadArgument)
 	}
 	uuidNewID, err := uuid.Parse(newID)
 	if err != nil {
-		return jeldao.User{}, jelerr.New("new ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("new ID is not valid", jelerr.ErrBadArgument)
 	}
 
 	daoUser, err := svc.Provider.AuthUsers().Get(ctx, uuidCurID)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.New("user not found", jelerr.ErrNotFound)
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.New("user not found", jelerr.ErrNotFound)
 		}
 	}
 
 	if curID != newID {
 		_, err := svc.Provider.AuthUsers().Get(ctx, uuidNewID)
 		if err == nil {
-			return jeldao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
-		} else if !errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.WrapDB("", err)
+			return dao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
+		} else if !errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.WrapDB("", err)
 		}
 	}
 	if daoUser.Username != username {
 		_, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 		if err == nil {
-			return jeldao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
-		} else if !errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.WrapDB("", err)
+			return dao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
+		} else if !errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.WrapDB("", err)
 		}
 	}
 
@@ -254,12 +254,12 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 
 	updatedUser, err := svc.Provider.AuthUsers().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrConstraintViolation) {
-			return jeldao.User{}, jelerr.New("a user with that ID/username already exists", jelerr.ErrAlreadyExists)
-		} else if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.New("user not found", jelerr.ErrNotFound)
+		if errors.Is(err, dao.ErrConstraintViolation) {
+			return dao.User{}, jelerr.New("a user with that ID/username already exists", jelerr.ErrAlreadyExists)
+		} else if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.New("user not found", jelerr.ErrNotFound)
 		}
-		return jeldao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, jelerr.WrapDB("", err)
 	}
 
 	return updatedUser, nil
@@ -273,29 +273,29 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 // exists, it will match serr.ErrNotFound. If the error occured due to an
 // unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
 // the arguments is invalid, it will match serr.ErrBadArgument.
-func (svc LoginService) UpdatePassword(ctx context.Context, id, password string) (jeldao.User, error) {
+func (svc LoginService) UpdatePassword(ctx context.Context, id, password string) (dao.User, error) {
 	if password == "" {
-		return jeldao.User{}, jelerr.New("password cannot be empty", jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("password cannot be empty", jelerr.ErrBadArgument)
 	}
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return jeldao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
 	}
 
 	existing, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.New("no user with that ID exists", jelerr.ErrNotFound)
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.New("no user with that ID exists", jelerr.ErrNotFound)
 		}
-		return jeldao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, jelerr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return jeldao.User{}, jelerr.New("password is too long", err, jelerr.ErrBadArgument)
+			return dao.User{}, jelerr.New("password is too long", err, jelerr.ErrBadArgument)
 		} else {
-			return jeldao.User{}, jelerr.New("password could not be encrypted", err)
+			return dao.User{}, jelerr.New("password could not be encrypted", err)
 		}
 	}
 
@@ -305,10 +305,10 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, uuidID, existing)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.New("no user with that ID exists", jelerr.ErrNotFound)
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.New("no user with that ID exists", jelerr.ErrNotFound)
 		}
-		return jeldao.User{}, jelerr.WrapDB("could not update user", err)
+		return dao.User{}, jelerr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
@@ -322,18 +322,18 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 // exists, it will match serr.ErrNotFound. If the error occured due to an
 // unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
 // is an issue with one of the arguments, it will match serr.ErrBadArgument.
-func (svc LoginService) DeleteUser(ctx context.Context, id string) (jeldao.User, error) {
+func (svc LoginService) DeleteUser(ctx context.Context, id string) (dao.User, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return jeldao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Delete(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, jeldao.ErrNotFound) {
-			return jeldao.User{}, jelerr.ErrNotFound
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, jelerr.ErrNotFound
 		}
-		return jeldao.User{}, jelerr.WrapDB("could not delete user", err)
+		return dao.User{}, jelerr.WrapDB("could not delete user", err)
 	}
 
 	return user, nil

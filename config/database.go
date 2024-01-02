@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/dekarrin/jelly/jeldao"
-	"github.com/dekarrin/jelly/jeldao/jelinmem"
-	"github.com/dekarrin/jelly/jeldao/jelite"
-	"github.com/dekarrin/jelly/jeldao/owdb"
+	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/dao/jelinmem"
+	"github.com/dekarrin/jelly/dao/jelite"
+	"github.com/dekarrin/jelly/dao/owdb"
 )
 
 // DBType is the type of a Database connection.
@@ -255,14 +255,14 @@ func splitWithEscaped(s, sep string) []string {
 // functions; any that are left as nil will default to the built-in
 // implementations.
 type Connector struct {
-	InMem  func() (jeldao.Store, error)
-	SQLite func(dir string) (jeldao.Store, error)
-	OWDB   func(dir string, file string) (jeldao.Store, error)
+	InMem  func() (dao.Store, error)
+	SQLite func(dir string) (dao.Store, error)
+	OWDB   func(dir string, file string) (dao.Store, error)
 }
 
 // Connect performs all logic needed to connect to the configured DB and
 // initialize the store for use.
-func (conr Connector) Connect(db Database) (jeldao.Store, error) {
+func (conr Connector) Connect(db Database) (dao.Store, error) {
 	conr = conr.FillDefaults()
 	switch db.Type {
 	case DatabaseInMemory:
@@ -319,17 +319,17 @@ func (conr Connector) FillDefaults() Connector {
 
 func DefaultDBConnector() Connector {
 	return Connector{
-		InMem: func() (jeldao.Store, error) {
+		InMem: func() (dao.Store, error) {
 			return jelinmem.NewAuthUserStore(), nil
 		},
-		SQLite: func(dir string) (jeldao.Store, error) {
+		SQLite: func(dir string) (dao.Store, error) {
 			return jelite.NewAuthUserStore(dir)
 		},
 		// TODO: actually have Connector accept unique configs for each, as
 		// this will build over time. also, owdb has its own in-mem mode it can
 		// independently use as specified by config; this should be allowed if
 		// discouraged.
-		OWDB: func(dir, file string) (jeldao.Store, error) {
+		OWDB: func(dir, file string) (dao.Store, error) {
 			fullPath := filepath.Join(dir, file)
 			return owdb.Open(fullPath)
 		},

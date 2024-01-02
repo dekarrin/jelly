@@ -1,9 +1,9 @@
-// Package jeldao provides data access objects compatible with the rest of the
+// Package dao provides data access objects compatible with the rest of the
 // jelly framework packages.
 //
 // It includes basics as well as a sample implementation of Store that is
 // compatible with jelly auth middleware.
-package jeldao
+package dao
 
 import (
 	"context"
