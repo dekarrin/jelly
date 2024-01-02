@@ -24,7 +24,7 @@ type Config struct {
 	Secret []byte
 }
 
-// FillDefaults returns a new *Common identical to cc but with unset values set
+// FillDefaults returns a new *Config identical to cfg but with unset values set
 // to their defaults and values normalized.
 func (cfg *Config) FillDefaults() config.APIConfig {
 	newCFG := new(Config)
