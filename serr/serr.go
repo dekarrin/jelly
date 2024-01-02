@@ -1,11 +1,11 @@
-// Package jelerr holds common error objects used across the jelly framework.
-// Notably, it contains the Error type, which can be created with one or more
-// 'cause' errors. Calling errors.Is() on this Error type with an argument
-// consisting of any of the errors it has as a cause will return true.
+// Package serr holds common server error objects used across the jelly
+// framework. Notably, it contains the Error type, which can be created with one
+// or more 'cause' errors. Calling errors.Is() on this Error type with an
+// argument consisting of any of the errors it has as a cause will return true.
 //
 // This package also holds several global error constants created via
 // errors.New().
-package jelerr
+package serr
 
 import "errors"
 

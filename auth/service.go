@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/jelerr"
+	"github.com/dekarrin/jelly/serr"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -35,9 +35,9 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.ErrBadCredentials
+			return dao.User{}, serr.ErrBadCredentials
 		}
-		return dao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	// verify password
@@ -49,16 +49,16 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 	err = bcrypt.CompareHashAndPassword(bcryptHash, []byte(password))
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return dao.User{}, jelerr.ErrBadCredentials
+			return dao.User{}, serr.ErrBadCredentials
 		}
-		return dao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	// successful login; update the DB
 	user.LastLoginTime = time.Now()
 	user, err = svc.Provider.AuthUsers().Update(ctx, user.ID, user)
 	if err != nil {
-		return dao.User{}, jelerr.WrapDB("cannot update user login time", err)
+		return dao.User{}, serr.WrapDB("cannot update user login time", err)
 	}
 
 	return user, nil
@@ -75,16 +75,16 @@ func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (dao.User, er
 	existing, err := svc.Provider.AuthUsers().Get(ctx, who)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.ErrNotFound
+			return dao.User{}, serr.ErrNotFound
 		}
-		return dao.User{}, jelerr.WrapDB("could not retrieve user", err)
+		return dao.User{}, serr.WrapDB("could not retrieve user", err)
 	}
 
 	existing.LastLogoutTime = time.Now()
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, existing.ID, existing)
 	if err != nil {
-		return dao.User{}, jelerr.WrapDB("could not update user", err)
+		return dao.User{}, serr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
@@ -94,7 +94,7 @@ func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (dao.User, er
 func (svc LoginService) GetAllUsers(ctx context.Context) ([]dao.User, error) {
 	users, err := svc.Provider.AuthUsers().GetAll(ctx)
 	if err != nil {
-		return nil, jelerr.WrapDB("", err)
+		return nil, serr.WrapDB("", err)
 	}
 
 	return users, nil
@@ -110,15 +110,15 @@ func (svc LoginService) GetAllUsers(ctx context.Context) ([]dao.User, error) {
 func (svc LoginService) GetUser(ctx context.Context, id string) (dao.User, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return dao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.ErrNotFound
+			return dao.User{}, serr.ErrNotFound
 		}
-		return dao.User{}, jelerr.WrapDB("could not get user", err)
+		return dao.User{}, serr.WrapDB("could not get user", err)
 	}
 
 	return user, nil
@@ -135,33 +135,33 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (dao.User, error
 func (svc LoginService) CreateUser(ctx context.Context, username, password, email string, role dao.Role) (dao.User, error) {
 	var err error
 	if username == "" {
-		return dao.User{}, jelerr.New("username cannot be blank", err, jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
 	}
 	if password == "" {
-		return dao.User{}, jelerr.New("password cannot be blank", err, jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("password cannot be blank", err, serr.ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
 	if email != "" {
 		storedEmail, err = mail.ParseAddress(email)
 		if err != nil {
-			return dao.User{}, jelerr.New("email is not valid", err, jelerr.ErrBadArgument)
+			return dao.User{}, serr.New("email is not valid", err, serr.ErrBadArgument)
 		}
 	}
 
 	_, err = svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err == nil {
-		return dao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
+		return dao.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
 	} else if !errors.Is(err, dao.ErrNotFound) {
-		return dao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return dao.User{}, jelerr.New("password is too long", err, jelerr.ErrBadArgument)
+			return dao.User{}, serr.New("password is too long", err, serr.ErrBadArgument)
 		} else {
-			return dao.User{}, jelerr.New("password could not be encrypted", err)
+			return dao.User{}, serr.New("password could not be encrypted", err)
 		}
 	}
 
@@ -177,9 +177,9 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 	user, err := svc.Provider.AuthUsers().Create(ctx, newUser)
 	if err != nil {
 		if errors.Is(err, dao.ErrConstraintViolation) {
-			return dao.User{}, jelerr.ErrAlreadyExists
+			return dao.User{}, serr.ErrAlreadyExists
 		}
-		return dao.User{}, jelerr.WrapDB("could not create user", err)
+		return dao.User{}, serr.WrapDB("could not create user", err)
 	}
 
 	return user, nil
@@ -203,47 +203,47 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 	var err error
 
 	if username == "" {
-		return dao.User{}, jelerr.New("username cannot be blank", err, jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
 	if email != "" {
 		storedEmail, err = mail.ParseAddress(email)
 		if err != nil {
-			return dao.User{}, jelerr.New("email is not valid", err, jelerr.ErrBadArgument)
+			return dao.User{}, serr.New("email is not valid", err, serr.ErrBadArgument)
 		}
 	}
 
 	uuidCurID, err := uuid.Parse(curID)
 	if err != nil {
-		return dao.User{}, jelerr.New("current ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("current ID is not valid", serr.ErrBadArgument)
 	}
 	uuidNewID, err := uuid.Parse(newID)
 	if err != nil {
-		return dao.User{}, jelerr.New("new ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("new ID is not valid", serr.ErrBadArgument)
 	}
 
 	daoUser, err := svc.Provider.AuthUsers().Get(ctx, uuidCurID)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.New("user not found", jelerr.ErrNotFound)
+			return dao.User{}, serr.New("user not found", serr.ErrNotFound)
 		}
 	}
 
 	if curID != newID {
 		_, err := svc.Provider.AuthUsers().Get(ctx, uuidNewID)
 		if err == nil {
-			return dao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
+			return dao.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
 		} else if !errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.WrapDB("", err)
+			return dao.User{}, serr.WrapDB("", err)
 		}
 	}
 	if daoUser.Username != username {
 		_, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 		if err == nil {
-			return dao.User{}, jelerr.New("a user with that username already exists", jelerr.ErrAlreadyExists)
+			return dao.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
 		} else if !errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.WrapDB("", err)
+			return dao.User{}, serr.WrapDB("", err)
 		}
 	}
 
@@ -255,11 +255,11 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 	updatedUser, err := svc.Provider.AuthUsers().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
 		if errors.Is(err, dao.ErrConstraintViolation) {
-			return dao.User{}, jelerr.New("a user with that ID/username already exists", jelerr.ErrAlreadyExists)
+			return dao.User{}, serr.New("a user with that ID/username already exists", serr.ErrAlreadyExists)
 		} else if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.New("user not found", jelerr.ErrNotFound)
+			return dao.User{}, serr.New("user not found", serr.ErrNotFound)
 		}
-		return dao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	return updatedUser, nil
@@ -275,27 +275,27 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 // the arguments is invalid, it will match serr.ErrBadArgument.
 func (svc LoginService) UpdatePassword(ctx context.Context, id, password string) (dao.User, error) {
 	if password == "" {
-		return dao.User{}, jelerr.New("password cannot be empty", jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("password cannot be empty", serr.ErrBadArgument)
 	}
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return dao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	existing, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.New("no user with that ID exists", jelerr.ErrNotFound)
+			return dao.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
-		return dao.User{}, jelerr.WrapDB("", err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return dao.User{}, jelerr.New("password is too long", err, jelerr.ErrBadArgument)
+			return dao.User{}, serr.New("password is too long", err, serr.ErrBadArgument)
 		} else {
-			return dao.User{}, jelerr.New("password could not be encrypted", err)
+			return dao.User{}, serr.New("password could not be encrypted", err)
 		}
 	}
 
@@ -306,9 +306,9 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 	updated, err := svc.Provider.AuthUsers().Update(ctx, uuidID, existing)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.New("no user with that ID exists", jelerr.ErrNotFound)
+			return dao.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
-		return dao.User{}, jelerr.WrapDB("could not update user", err)
+		return dao.User{}, serr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
@@ -325,15 +325,15 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 func (svc LoginService) DeleteUser(ctx context.Context, id string) (dao.User, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return dao.User{}, jelerr.New("ID is not valid", jelerr.ErrBadArgument)
+		return dao.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Delete(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, dao.ErrNotFound) {
-			return dao.User{}, jelerr.ErrNotFound
+			return dao.User{}, serr.ErrNotFound
 		}
-		return dao.User{}, jelerr.WrapDB("could not delete user", err)
+		return dao.User{}, serr.WrapDB("could not delete user", err)
 	}
 
 	return user, nil

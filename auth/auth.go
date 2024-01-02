@@ -1,4 +1,4 @@
-// Package aut provides user authentication and login services and APIs.
+// Package auth provides user authentication and login services and APIs.
 package auth
 
 import (

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelresult"
+	"github.com/dekarrin/jelly/serr"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -103,7 +103,7 @@ func ParseJSONRequest(req *http.Request, v interface{}) error {
 
 	err = json.Unmarshal(bodyData, v)
 	if err != nil {
-		return jelerr.New("malformed JSON in request", err, jelerr.ErrBodyUnmarshal)
+		return serr.New("malformed JSON in request", err, serr.ErrBodyUnmarshal)
 	}
 
 	return nil
@@ -129,7 +129,7 @@ func GetURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 
 	val, err = parse(valStr)
 	if err != nil {
-		return val, jelerr.New("", jelerr.ErrBadArgument)
+		return val, serr.New("", serr.ErrBadArgument)
 	}
 	return val, nil
 }

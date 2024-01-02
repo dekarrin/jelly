@@ -10,10 +10,10 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/dekarrin/jelly/jelresult"
 	"github.com/dekarrin/jelly/jeltoken"
+	"github.com/dekarrin/jelly/serr"
 )
 
 // LoginAPI holds endpoint frontend for the login service.
@@ -106,8 +106,8 @@ func (api LoginAPI) epCreateLogin(req *http.Request) jelresult.Result {
 
 	user, err := api.Service.Login(req.Context(), loginData.Username, loginData.Password)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrBadCredentials) {
-			return jelresult.Unauthorized(jelerr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
+		if errors.Is(err, serr.ErrBadCredentials) {
+			return jelresult.Unauthorized(serr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
 		} else {
 			return jelresult.InternalServerError(err.Error())
 		}
@@ -149,7 +149,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
 		if err != nil {
-			if !errors.Is(err, jelerr.ErrNotFound) {
+			if !errors.Is(err, serr.ErrNotFound) {
 				return jelresult.InternalServerError("retrieve user for perm checking: %s", err.Error())
 			}
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -162,7 +162,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
 
 	loggedOutUser, err := api.Service.Logout(req.Context(), id)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jelresult.NotFound()
 		}
 		return jelresult.InternalServerError("could not log out user: " + err.Error())
@@ -286,9 +286,9 @@ func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
 
 	newUser, err := api.Service.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jelresult.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, jelerr.ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jelresult.BadRequest(err.Error(), err.Error())
 		} else {
 			return jelresult.InternalServerError(err.Error())
@@ -346,9 +346,9 @@ func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
 
 	userInfo, err := api.Service.GetUser(req.Context(), id.String())
 	if err != nil {
-		if errors.Is(err, jelerr.ErrBadArgument) {
+		if errors.Is(err, serr.ErrBadArgument) {
 			return jelresult.BadRequest(err.Error(), err.Error())
-		} else if errors.Is(err, jelerr.ErrNotFound) {
+		} else if errors.Is(err, serr.ErrNotFound) {
 			return jelresult.NotFound()
 		}
 		return jelresult.InternalServerError("could not get user: " + err.Error())
@@ -416,7 +416,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	var updateReq UserUpdateRequest
 	err := jelly.ParseJSONRequest(req, &updateReq)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrBodyUnmarshal) {
+		if errors.Is(err, serr.ErrBodyUnmarshal) {
 			// did they send a normal user?
 			var normalUser UserModel
 			err2 := jelly.ParseJSONRequest(req, &normalUser)
@@ -440,7 +440,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 
 	existing, err := api.Service.GetUser(req.Context(), id.String())
 	if err != nil {
-		if errors.Is(err, jelerr.ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jelresult.NotFound()
 		}
 		return jelresult.InternalServerError(err.Error())
@@ -470,16 +470,16 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	// transactions on jeldao.
 	updated, err := api.Service.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jelresult.Conflict(err.Error(), err.Error())
-		} else if errors.Is(err, jelerr.ErrNotFound) {
+		} else if errors.Is(err, serr.ErrNotFound) {
 			return jelresult.NotFound()
 		}
 		return jelresult.InternalServerError(err.Error())
 	}
 	if updateReq.Password.Update {
 		updated, err = api.Service.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
-		if errors.Is(err, jelerr.ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jelresult.NotFound()
 		}
 		return jelresult.InternalServerError(err.Error())
@@ -551,9 +551,9 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 
 	newUser, err := api.Service.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jelresult.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, jelerr.ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jelresult.BadRequest(err.Error(), err.Error())
 		}
 		return jelresult.InternalServerError(err.Error())
@@ -562,9 +562,9 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 	// but also update it immediately to set its user ID
 	newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
 	if err != nil {
-		if errors.Is(err, jelerr.ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jelresult.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, jelerr.ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jelresult.BadRequest(err.Error(), err.Error())
 		}
 		return jelresult.InternalServerError(err.Error())
@@ -618,8 +618,8 @@ func (api LoginAPI) epDeleteUser(req *http.Request) jelresult.Result {
 	}
 
 	deletedUser, err := api.Service.DeleteUser(req.Context(), id.String())
-	if err != nil && !errors.Is(err, jelerr.ErrNotFound) {
-		if errors.Is(err, jelerr.ErrBadArgument) {
+	if err != nil && !errors.Is(err, serr.ErrNotFound) {
+		if errors.Is(err, serr.ErrBadArgument) {
 			return jelresult.BadRequest(err.Error(), err.Error())
 		}
 		return jelresult.InternalServerError("could not delete user: " + err.Error())
