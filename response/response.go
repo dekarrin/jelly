@@ -1,6 +1,6 @@
-// Pacakge jelresult contains results that are used to write out API responses
-// in the jelly server framework.
-package jelresult
+// Pacakge response provides standardized responses for APIs in the jelly server
+// framework.
+package response
 
 import (
 	"encoding/json"

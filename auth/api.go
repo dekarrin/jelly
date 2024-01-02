@@ -11,9 +11,9 @@ import (
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelmid"
-	"github.com/dekarrin/jelly/jelresult"
-	"github.com/dekarrin/jelly/jeltoken"
+	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
+	"github.com/dekarrin/jelly/token"
 )
 
 // LoginAPI holds endpoint frontend for the login service.
@@ -70,7 +70,7 @@ func (api LoginAPI) HTTPGetInfo() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetInfo)
 }
 
-func (api LoginAPI) epGetInfo(req *http.Request) jelresult.Result {
+func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
 	loggedIn := req.Context().Value(jelmid.AuthLoggedIn).(bool)
 
 	var resp InfoModel
@@ -81,7 +81,7 @@ func (api LoginAPI) epGetInfo(req *http.Request) jelresult.Result {
 		user := req.Context().Value(jelmid.AuthUser).(dao.User)
 		userStr = "user '" + user.Username + "'"
 	}
-	return jelresult.OK(resp, "%s got API info", userStr)
+	return response.OK(resp, "%s got API info", userStr)
 }
 
 // HTTPCreateLogin returns a HandlerFunc that uses the API to log in a user with
@@ -90,41 +90,41 @@ func (api LoginAPI) HTTPCreateLogin() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateLogin)
 }
 
-func (api LoginAPI) epCreateLogin(req *http.Request) jelresult.Result {
+func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
 	loginData := LoginRequest{}
 	err := jelly.ParseJSONRequest(req, &loginData)
 	if err != nil {
-		return jelresult.BadRequest(err.Error(), err.Error())
+		return response.BadRequest(err.Error(), err.Error())
 	}
 
 	if loginData.Username == "" {
-		return jelresult.BadRequest("username: property is empty or missing from request", "empty username")
+		return response.BadRequest("username: property is empty or missing from request", "empty username")
 	}
 	if loginData.Password == "" {
-		return jelresult.BadRequest("password: property is empty or missing from request", "empty password")
+		return response.BadRequest("password: property is empty or missing from request", "empty password")
 	}
 
 	user, err := api.Service.Login(req.Context(), loginData.Username, loginData.Password)
 	if err != nil {
 		if errors.Is(err, serr.ErrBadCredentials) {
-			return jelresult.Unauthorized(serr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
+			return response.Unauthorized(serr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
 		} else {
-			return jelresult.InternalServerError(err.Error())
+			return response.InternalServerError(err.Error())
 		}
 	}
 
 	// build the token
 	// password is valid, generate token for user and return it.
-	tok, err := jeltoken.Generate(api.Secret, user)
+	tok, err := token.Generate(api.Secret, user)
 	if err != nil {
-		return jelresult.InternalServerError("could not generate JWT: " + err.Error())
+		return response.InternalServerError("could not generate JWT: " + err.Error())
 	}
 
 	resp := LoginResponse{
 		Token:  tok,
 		UserID: user.ID.String(),
 	}
-	return jelresult.Created(resp, "user '"+user.Username+"' successfully logged in")
+	return response.Created(resp, "user '"+user.Username+"' successfully logged in")
 }
 
 // HTTPDeleteLogin returns a HandlerFunc that deletes active login for some
@@ -138,7 +138,7 @@ func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epDeleteLogin)
 }
 
-func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
+func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
@@ -150,22 +150,22 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
 		// if there was another user, find out now
 		if err != nil {
 			if !errors.Is(err, serr.ErrNotFound) {
-				return jelresult.InternalServerError("retrieve user for perm checking: %s", err.Error())
+				return response.InternalServerError("retrieve user for perm checking: %s", err.Error())
 			}
 			otherUserStr = fmt.Sprintf("%d", id)
 		} else {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
 
-		return jelresult.Forbidden("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr)
+		return response.Forbidden("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr)
 	}
 
 	loggedOutUser, err := api.Service.Logout(req.Context(), id)
 	if err != nil {
 		if errors.Is(err, serr.ErrNotFound) {
-			return jelresult.NotFound()
+			return response.NotFound()
 		}
-		return jelresult.InternalServerError("could not log out user: " + err.Error())
+		return response.InternalServerError("could not log out user: " + err.Error())
 	}
 
 	var otherStr string
@@ -175,7 +175,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
 		otherStr = "self"
 	}
 
-	return jelresult.NoContent("user '%s' successfully logged out %s", user.Username, otherStr)
+	return response.NoContent("user '%s' successfully logged out %s", user.Username, otherStr)
 }
 
 // HTTPCreateToken returns a HandlerFunc that creates a new token for the user
@@ -188,19 +188,19 @@ func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateToken)
 }
 
-func (api LoginAPI) epCreateToken(req *http.Request) jelresult.Result {
+func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
-	tok, err := jeltoken.Generate(api.Secret, user)
+	tok, err := token.Generate(api.Secret, user)
 	if err != nil {
-		return jelresult.InternalServerError("could not generate JWT: " + err.Error())
+		return response.InternalServerError("could not generate JWT: " + err.Error())
 	}
 
 	resp := LoginResponse{
 		Token:  tok,
 		UserID: user.ID.String(),
 	}
-	return jelresult.Created(resp, "user '"+user.Username+"' successfully created new token")
+	return response.Created(resp, "user '"+user.Username+"' successfully created new token")
 }
 
 // HTTPGetAllUsers returns a HandlerFunc that retrieves all existing users. Only
@@ -214,16 +214,16 @@ func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
 }
 
 // GET /users: get all users (admin auth required).
-func (api LoginAPI) epGetAllUsers(req *http.Request) jelresult.Result {
+func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
-		return jelresult.Forbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
+		return response.Forbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
 	}
 
 	users, err := api.Service.GetAllUsers(req.Context())
 	if err != nil {
-		return jelresult.InternalServerError(err.Error())
+		return response.InternalServerError(err.Error())
 	}
 
 	resp := make([]UserModel, len(users))
@@ -244,7 +244,7 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) jelresult.Result {
 		}
 	}
 
-	return jelresult.OK(resp, "user '%s' got all users", user.Username)
+	return response.OK(resp, "user '%s' got all users", user.Username)
 }
 
 // HTTPCreateUser returns a HandlerFunc that creates a new user entity. Only an
@@ -257,41 +257,41 @@ func (api LoginAPI) HTTPCreateUser() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateUser)
 }
 
-func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
+func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
-		return jelresult.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
+		return response.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
 	var createUser UserModel
 	err := jelly.ParseJSONRequest(req, &createUser)
 	if err != nil {
-		return jelresult.BadRequest(err.Error(), err.Error())
+		return response.BadRequest(err.Error(), err.Error())
 	}
 	if createUser.Username == "" {
-		return jelresult.BadRequest("username: property is empty or missing from request", "empty username")
+		return response.BadRequest("username: property is empty or missing from request", "empty username")
 	}
 	if createUser.Password == "" {
-		return jelresult.BadRequest("password: property is empty or missing from request", "empty password")
+		return response.BadRequest("password: property is empty or missing from request", "empty password")
 	}
 
 	role := dao.Unverified
 	if createUser.Role != "" {
 		role, err = dao.ParseRole(createUser.Role)
 		if err != nil {
-			return jelresult.BadRequest("role: "+err.Error(), "role: %s", err.Error())
+			return response.BadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
 	}
 
 	newUser, err := api.Service.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
-			return jelresult.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+			return response.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
 		} else if errors.Is(err, serr.ErrBadArgument) {
-			return jelresult.BadRequest(err.Error(), err.Error())
+			return response.BadRequest(err.Error(), err.Error())
 		} else {
-			return jelresult.InternalServerError(err.Error())
+			return response.InternalServerError(err.Error())
 		}
 	}
 
@@ -310,7 +310,7 @@ func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
 		resp.Email = newUser.Email.Address
 	}
 
-	return jelresult.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
+	return response.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
 // HTTPGetUser returns a HandlerFunc that gets an existing user. All users may
@@ -325,7 +325,7 @@ func (api LoginAPI) HTTPGetUser() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetUser)
 }
 
-func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
+func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
@@ -341,17 +341,17 @@ func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
 
-		return jelresult.Forbidden("user '%s' (role %s) get user %s: forbidden", user.Username, user.Role, otherUserStr)
+		return response.Forbidden("user '%s' (role %s) get user %s: forbidden", user.Username, user.Role, otherUserStr)
 	}
 
 	userInfo, err := api.Service.GetUser(req.Context(), id.String())
 	if err != nil {
 		if errors.Is(err, serr.ErrBadArgument) {
-			return jelresult.BadRequest(err.Error(), err.Error())
+			return response.BadRequest(err.Error(), err.Error())
 		} else if errors.Is(err, serr.ErrNotFound) {
-			return jelresult.NotFound()
+			return response.NotFound()
 		}
-		return jelresult.InternalServerError("could not get user: " + err.Error())
+		return response.InternalServerError("could not get user: " + err.Error())
 	}
 
 	// put it into a model to return
@@ -380,7 +380,7 @@ func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
 		otherStr = "self"
 	}
 
-	return jelresult.OK(resp, "user '%s' successfully got %s", user.Username, otherStr)
+	return response.OK(resp, "user '%s' successfully got %s", user.Username, otherStr)
 }
 
 // HTTPUpdateUser returns a HandlerFunc that updates an existing user. Only
@@ -396,7 +396,7 @@ func (api LoginAPI) HTTPUpdateUser() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epUpdateUser)
 }
 
-func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
+func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
@@ -410,7 +410,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
 
-		return jelresult.Forbidden("user '%s' (role %s) update user %s: forbidden", user.Username, user.Role, otherUserStr)
+		return response.Forbidden("user '%s' (role %s) update user %s: forbidden", user.Username, user.Role, otherUserStr)
 	}
 
 	var updateReq UserUpdateRequest
@@ -421,11 +421,11 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 			var normalUser UserModel
 			err2 := jelly.ParseJSONRequest(req, &normalUser)
 			if err2 == nil {
-				return jelresult.BadRequest("updated fields must be objects with keys {'u': true, 'v': NEW_VALUE}", "request is UserModel, not UserUpdateRequest")
+				return response.BadRequest("updated fields must be objects with keys {'u': true, 'v': NEW_VALUE}", "request is UserModel, not UserUpdateRequest")
 			}
 		}
 
-		return jelresult.BadRequest(err.Error(), err.Error())
+		return response.BadRequest(err.Error(), err.Error())
 	}
 
 	// pre-parse updateRole if needed so we return bad request before hitting
@@ -434,16 +434,16 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	if updateReq.Role.Update {
 		updateRole, err = dao.ParseRole(updateReq.Role.Value)
 		if err != nil {
-			return jelresult.BadRequest(err.Error(), err.Error())
+			return response.BadRequest(err.Error(), err.Error())
 		}
 	}
 
 	existing, err := api.Service.GetUser(req.Context(), id.String())
 	if err != nil {
 		if errors.Is(err, serr.ErrNotFound) {
-			return jelresult.NotFound()
+			return response.NotFound()
 		}
-		return jelresult.InternalServerError(err.Error())
+		return response.InternalServerError(err.Error())
 	}
 
 	var newEmail string
@@ -471,18 +471,18 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	updated, err := api.Service.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
-			return jelresult.Conflict(err.Error(), err.Error())
+			return response.Conflict(err.Error(), err.Error())
 		} else if errors.Is(err, serr.ErrNotFound) {
-			return jelresult.NotFound()
+			return response.NotFound()
 		}
-		return jelresult.InternalServerError(err.Error())
+		return response.InternalServerError(err.Error())
 	}
 	if updateReq.Password.Update {
 		updated, err = api.Service.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
 		if errors.Is(err, serr.ErrNotFound) {
-			return jelresult.NotFound()
+			return response.NotFound()
 		}
-		return jelresult.InternalServerError(err.Error())
+		return response.InternalServerError(err.Error())
 	}
 
 	resp := UserModel{
@@ -500,7 +500,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 		resp.Email = updated.Email.Address
 	}
 
-	return jelresult.Created(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
+	return response.Created(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
 }
 
 // HTTPReplaceUser returns a HandlerFunc that replaces a user entity with a
@@ -515,59 +515,59 @@ func (api LoginAPI) HTTPReplaceUser() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epReplaceUser)
 }
 
-func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
+func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
-		return jelresult.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
+		return response.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
 	var createUser UserModel
 	err := jelly.ParseJSONRequest(req, &createUser)
 	if err != nil {
-		return jelresult.BadRequest(err.Error(), err.Error())
+		return response.BadRequest(err.Error(), err.Error())
 	}
 	if createUser.Username == "" {
-		return jelresult.BadRequest("username: property is empty or missing from request", "empty username")
+		return response.BadRequest("username: property is empty or missing from request", "empty username")
 	}
 	if createUser.Password == "" {
-		return jelresult.BadRequest("password: property is empty or missing from request", "empty password")
+		return response.BadRequest("password: property is empty or missing from request", "empty password")
 	}
 	if createUser.ID == "" {
 		createUser.ID = id.String()
 	}
 	if createUser.ID != id.String() {
-		return jelresult.BadRequest("id: must be same as ID in URI", "body ID different from URI ID")
+		return response.BadRequest("id: must be same as ID in URI", "body ID different from URI ID")
 	}
 
 	role := dao.Unverified
 	if createUser.Role != "" {
 		role, err = dao.ParseRole(createUser.Role)
 		if err != nil {
-			return jelresult.BadRequest("role: "+err.Error(), "role: %s", err.Error())
+			return response.BadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
 	}
 
 	newUser, err := api.Service.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
-			return jelresult.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+			return response.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
 		} else if errors.Is(err, serr.ErrBadArgument) {
-			return jelresult.BadRequest(err.Error(), err.Error())
+			return response.BadRequest(err.Error(), err.Error())
 		}
-		return jelresult.InternalServerError(err.Error())
+		return response.InternalServerError(err.Error())
 	}
 
 	// but also update it immediately to set its user ID
 	newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
-			return jelresult.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+			return response.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
 		} else if errors.Is(err, serr.ErrBadArgument) {
-			return jelresult.BadRequest(err.Error(), err.Error())
+			return response.BadRequest(err.Error(), err.Error())
 		}
-		return jelresult.InternalServerError(err.Error())
+		return response.InternalServerError(err.Error())
 	}
 
 	resp := UserModel{
@@ -585,7 +585,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 		resp.Email = newUser.Email.Address
 	}
 
-	return jelresult.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
+	return response.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
 // HTTPDeleteUser returns a HandlerFunc that deletes a user entity. All users
@@ -599,7 +599,7 @@ func (api LoginAPI) HTTPDeleteUser() http.HandlerFunc {
 	return jelly.HttpEndpoint(api.UnauthDelay, api.epDeleteUser)
 }
 
-func (api LoginAPI) epDeleteUser(req *http.Request) jelresult.Result {
+func (api LoginAPI) epDeleteUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(dao.User)
 
@@ -614,15 +614,15 @@ func (api LoginAPI) epDeleteUser(req *http.Request) jelresult.Result {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
 
-		return jelresult.Forbidden("user '%s' (role %s) delete user %s: forbidden", user.Username, user.Role, otherUserStr)
+		return response.Forbidden("user '%s' (role %s) delete user %s: forbidden", user.Username, user.Role, otherUserStr)
 	}
 
 	deletedUser, err := api.Service.DeleteUser(req.Context(), id.String())
 	if err != nil && !errors.Is(err, serr.ErrNotFound) {
 		if errors.Is(err, serr.ErrBadArgument) {
-			return jelresult.BadRequest(err.Error(), err.Error())
+			return response.BadRequest(err.Error(), err.Error())
 		}
-		return jelresult.InternalServerError("could not delete user: " + err.Error())
+		return response.InternalServerError("could not delete user: " + err.Error())
 	}
 
 	var otherStr string
@@ -636,5 +636,5 @@ func (api LoginAPI) epDeleteUser(req *http.Request) jelresult.Result {
 		otherStr = "self"
 	}
 
-	return jelresult.NoContent("user '%s' successfully deleted %s", user.Username, otherStr)
+	return response.NoContent("user '%s' successfully deleted %s", user.Username, otherStr)
 }

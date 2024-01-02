@@ -7,7 +7,7 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/jelmid"
-	"github.com/dekarrin/jelly/jelresult"
+	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -30,13 +30,13 @@ func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
 	r.HandleFunc("/info/", jelly.RedirectNoTrailingSlash)
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
-		res := jelresult.NotFound()
+		res := response.NotFound()
 		res.WriteResponse(w)
 		res.Log(req)
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(api.UnauthDelay)
-		res := jelresult.MethodNotAllowed(req)
+		res := response.MethodNotAllowed(req)
 		res.WriteResponse(w)
 		res.Log(req)
 	})

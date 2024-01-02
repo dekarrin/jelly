@@ -1,6 +1,6 @@
-// Package jeltoken provides JWT functionality for use with the built-in user
+// Package token provides JWT functionality for use with the built-in user
 // authentication methods in jelly.
-package jeltoken
+package token
 
 import (
 	"context"

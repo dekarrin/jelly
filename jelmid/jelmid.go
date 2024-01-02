@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/jelresult"
-	"github.com/dekarrin/jelly/jeltoken"
+	"github.com/dekarrin/jelly/response"
+	"github.com/dekarrin/jelly/token"
 )
 
 type mwFunc http.HandlerFunc
@@ -53,7 +53,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var loggedIn bool
 	user := ah.defaultUser
 
-	tok, err := jeltoken.Get(req)
+	tok, err := token.Get(req)
 	if err != nil {
 		// deliberately leaving as embedded if instead of &&
 		if ah.required {
@@ -61,7 +61,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// expected format, which for all intents and purposes is non-existent).
 			// This is not okay if auth is required.
 
-			r := jelresult.Unauthorized("", err.Error())
+			r := response.Unauthorized("", err.Error())
 			time.Sleep(ah.unauthedDelay)
 			r.WriteResponse(w)
 			r.Log(req)
@@ -69,14 +69,14 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	} else {
 		// validate the token
-		lookupUser, err := jeltoken.Validate(req.Context(), tok, ah.secret, ah.db)
+		lookupUser, err := token.Validate(req.Context(), tok, ah.secret, ah.db)
 		if err != nil {
 			// deliberately leaving as embedded if instead of &&
 			if ah.required {
 				// there was a validation error. the user does not count as logged in.
 				// if logging in is required, that's not okay.
 
-				r := jelresult.Unauthorized("", err.Error())
+				r := response.Unauthorized("", err.Error())
 				time.Sleep(ah.unauthedDelay)
 				r.WriteResponse(w)
 				r.Log(req)
@@ -135,7 +135,7 @@ func DontPanic() Middleware {
 
 func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{}) {
 	if panicErr := recover(); panicErr != nil {
-		r := jelresult.TextErr(
+		r := response.TextErr(
 			http.StatusInternalServerError,
 			"An internal server error occurred",
 			fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/jelresult"
+	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -25,7 +25,7 @@ var (
 	}
 )
 
-type EndpointFunc func(req *http.Request) jelresult.Result
+type EndpointFunc func(req *http.Request) response.Result
 
 // PathParam translates strings of the form "name:type" to a URI path parameter
 // string of the form "{name:regex}" compatible with the routers used in the
@@ -77,7 +77,7 @@ func PathParam(nameType string) string {
 // request but with no trailing slash.
 func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
 	redirPath := strings.TrimRight(req.URL.Path, "/")
-	r := jelresult.Redirection(redirPath)
+	r := response.Redirection(redirPath)
 	r.WriteResponse(w)
 	r.Log(req)
 }
