@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/jelapi"
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelmid"
@@ -67,7 +67,7 @@ func (api *LoginAPI) Shutdown(ctx context.Context) error {
 // requirements are not met it may return an HTTP-500. The context must contain
 // a value denoting whether the client making the request is logged-in.
 func (api LoginAPI) HTTPGetInfo() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epGetInfo)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetInfo)
 }
 
 func (api LoginAPI) epGetInfo(req *http.Request) jelresult.Result {
@@ -87,12 +87,12 @@ func (api LoginAPI) epGetInfo(req *http.Request) jelresult.Result {
 // HTTPCreateLogin returns a HandlerFunc that uses the API to log in a user with
 // a username and password and return the auth token for that user.
 func (api LoginAPI) HTTPCreateLogin() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epCreateLogin)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateLogin)
 }
 
 func (api LoginAPI) epCreateLogin(req *http.Request) jelresult.Result {
 	loginData := LoginRequest{}
-	err := jelapi.ParseJSONRequest(req, &loginData)
+	err := jelly.ParseJSONRequest(req, &loginData)
 	if err != nil {
 		return jelresult.BadRequest(err.Error(), err.Error())
 	}
@@ -135,11 +135,11 @@ func (api LoginAPI) epCreateLogin(req *http.Request) jelresult.Result {
 // the ID of the user to log out and the logged-in user of the client making the
 // request.
 func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epDeleteLogin)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epDeleteLogin)
 }
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
-	id := jelapi.RequireIDParam(req)
+	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
 
 	// is the user trying to delete someone else's login? they'd betta be the
@@ -185,7 +185,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) jelresult.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epCreateToken)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateToken)
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) jelresult.Result {
@@ -210,7 +210,7 @@ func (api LoginAPI) epCreateToken(req *http.Request) jelresult.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epGetAllUsers)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetAllUsers)
 }
 
 // GET /users: get all users (admin auth required).
@@ -254,7 +254,7 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) jelresult.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPCreateUser() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epCreateUser)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateUser)
 }
 
 func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
@@ -265,7 +265,7 @@ func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
 	}
 
 	var createUser UserModel
-	err := jelapi.ParseJSONRequest(req, &createUser)
+	err := jelly.ParseJSONRequest(req, &createUser)
 	if err != nil {
 		return jelresult.BadRequest(err.Error(), err.Error())
 	}
@@ -322,11 +322,11 @@ func (api LoginAPI) epCreateUser(req *http.Request) jelresult.Result {
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
 func (api LoginAPI) HTTPGetUser() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epGetUser)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetUser)
 }
 
 func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
-	id := jelapi.RequireIDParam(req)
+	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
@@ -393,11 +393,11 @@ func (api LoginAPI) epGetUser(req *http.Request) jelresult.Result {
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
 func (api LoginAPI) HTTPUpdateUser() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epUpdateUser)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epUpdateUser)
 }
 
 func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
-	id := jelapi.RequireIDParam(req)
+	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
 
 	if id != user.ID && user.Role != jeldao.Admin {
@@ -414,12 +414,12 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 	}
 
 	var updateReq UserUpdateRequest
-	err := jelapi.ParseJSONRequest(req, &updateReq)
+	err := jelly.ParseJSONRequest(req, &updateReq)
 	if err != nil {
 		if errors.Is(err, jelerr.ErrBodyUnmarshal) {
 			// did they send a normal user?
 			var normalUser UserModel
-			err2 := jelapi.ParseJSONRequest(req, &normalUser)
+			err2 := jelly.ParseJSONRequest(req, &normalUser)
 			if err2 == nil {
 				return jelresult.BadRequest("updated fields must be objects with keys {'u': true, 'v': NEW_VALUE}", "request is UserModel, not UserUpdateRequest")
 			}
@@ -512,11 +512,11 @@ func (api LoginAPI) epUpdateUser(req *http.Request) jelresult.Result {
 // the ID of the user being replaced and the logged-in user of the client making
 // the request.
 func (api LoginAPI) HTTPReplaceUser() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epReplaceUser)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epReplaceUser)
 }
 
 func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
-	id := jelapi.RequireIDParam(req)
+	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
 
 	if user.Role != jeldao.Admin {
@@ -524,7 +524,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 	}
 
 	var createUser UserModel
-	err := jelapi.ParseJSONRequest(req, &createUser)
+	err := jelly.ParseJSONRequest(req, &createUser)
 	if err != nil {
 		return jelresult.BadRequest(err.Error(), err.Error())
 	}
@@ -596,11 +596,11 @@ func (api LoginAPI) epReplaceUser(req *http.Request) jelresult.Result {
 // the ID of the user being deleted and the logged-in user of the client making
 // the request.
 func (api LoginAPI) HTTPDeleteUser() http.HandlerFunc {
-	return jelapi.HttpEndpoint(api.UnauthDelay, api.epDeleteUser)
+	return jelly.HttpEndpoint(api.UnauthDelay, api.epDeleteUser)
 }
 
 func (api LoginAPI) epDeleteUser(req *http.Request) jelresult.Result {
-	id := jelapi.RequireIDParam(req)
+	id := jelly.RequireIDParam(req)
 	user := req.Context().Value(jelmid.AuthUser).(jeldao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!

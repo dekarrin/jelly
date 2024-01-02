@@ -1,13 +1,7 @@
-// Package jelapi has API interfaces for compatibility with the rest of the
-// jelly framework.
-//
-// TODO: the way this is shaping up, this package could probably just be merged
-// with jelly.
-package jelapi
+package jelly
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelerr"
 	"github.com/dekarrin/jelly/jelresult"
 	"github.com/go-chi/chi/v5"
@@ -34,36 +26,6 @@ var (
 )
 
 type EndpointFunc func(req *http.Request) jelresult.Result
-
-// API holds parameters for endpoints needed to run and a service layer that
-// will perform most of the actual logic. To use API, create one and then
-// assign the result of its HTTP* methods as handlers to a router or some other
-// kind of server mux.
-type API interface {
-
-	// Init creates the API initially and does any setup other than routing its
-	// endpoints. It takes in a complete config object and a map of dbs to
-	// connected stores. Only those stores requested in the API's config in the
-	// 'uses' key will be included here.
-	//
-	// After Init returns, the API is prepared to return its routes with Routes.
-	Init(cfg config.APIConfig, g config.Globals, dbs map[string]jeldao.Store) error
-
-	// Routes returns a router that leads to all accessible routes in the API.
-	// Additionally, returns whether the API's router contains subpaths beyond
-	// just setting methods on its relative root; this affects whether
-	// path-terminal slashes are redirected in the base router the API
-	// router is mounted in.
-	//
-	// Init must be called before Routes is called.
-	Routes() (router chi.Router, subpaths bool)
-
-	// Shutdown terminates any pending operations cleanly and releases any held
-	// resources. It will be called after the server listener socket is shut
-	// down. Implementors should examine the context's Done() channel to see if
-	// they should halt during long-running operations, and do so if requested.
-	Shutdown(ctx context.Context) error
-}
 
 // PathParam translates strings of the form "name:type" to a URI path parameter
 // string of the form "{name:regex}" compatible with the routers used in the

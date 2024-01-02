@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dekarrin/jelly/jelapi"
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/dekarrin/jelly/jelresult"
@@ -12,7 +12,7 @@ import (
 )
 
 func p(s string) (pathParam string) {
-	return jelapi.PathParam(s)
+	return jelly.PathParam(s)
 }
 
 func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
@@ -27,7 +27,7 @@ func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
 	r.Mount("/tokens", tokens)
 	r.Mount("/users", users)
 	r.Mount("/info", info)
-	r.HandleFunc("/info/", jelapi.RedirectNoTrailingSlash)
+	r.HandleFunc("/info/", jelly.RedirectNoTrailingSlash)
 
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
 		res := jelresult.NotFound()
@@ -51,7 +51,7 @@ func (api LoginAPI) routesForLogin() chi.Router {
 
 	r.Post("/", api.HTTPCreateLogin())
 	r.With(reqAuth).Delete("/"+p("id:uuid"), api.HTTPDeleteLogin())
-	r.HandleFunc("/"+p("id:uuid")+"/", jelapi.RedirectNoTrailingSlash)
+	r.HandleFunc("/"+p("id:uuid")+"/", jelly.RedirectNoTrailingSlash)
 
 	return r
 }

@@ -10,13 +10,42 @@ import (
 	"sync"
 
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/jelapi"
 	"github.com/dekarrin/jelly/jeldao"
 	"github.com/dekarrin/jelly/jelmid"
 	"github.com/go-chi/chi/v5"
 )
 
-var autoAPIProviders = map[string]func() jelapi.API{}
+var autoAPIProviders = map[string]func() API{}
+
+// API holds parameters for endpoints needed to run and a service layer that
+// will perform most of the actual logic. To use API, create one and then
+// assign the result of its HTTP* methods as handlers to a router or some other
+// kind of server mux.
+type API interface {
+
+	// Init creates the API initially and does any setup other than routing its
+	// endpoints. It takes in a complete config object and a map of dbs to
+	// connected stores. Only those stores requested in the API's config in the
+	// 'uses' key will be included here.
+	//
+	// After Init returns, the API is prepared to return its routes with Routes.
+	Init(cfg config.APIConfig, g config.Globals, dbs map[string]jeldao.Store) error
+
+	// Routes returns a router that leads to all accessible routes in the API.
+	// Additionally, returns whether the API's router contains subpaths beyond
+	// just setting methods on its relative root; this affects whether
+	// path-terminal slashes are redirected in the base router the API
+	// router is mounted in.
+	//
+	// Init must be called before Routes is called.
+	Routes() (router chi.Router, subpaths bool)
+
+	// Shutdown terminates any pending operations cleanly and releases any held
+	// resources. It will be called after the server listener socket is shut
+	// down. Implementors should examine the context's Done() channel to see if
+	// they should halt during long-running operations, and do so if requested.
+	Shutdown(ctx context.Context) error
+}
 
 // RegisterAuto marks an API as being in-use and gives functions to provide a
 // new empty instance of the API and a new empty instance of its associated
@@ -28,7 +57,7 @@ var autoAPIProviders = map[string]func() jelapi.API{}
 // New(). Note that if this function is not called for an API, you will need to
 // call config.Register() in order to set the config type for the API, and Add()
 // on server instances in order to actually add and configure the API.
-func RegisterAuto(name string, provider func() jelapi.API, confProvider func() config.APIConfig) error {
+func RegisterAuto(name string, provider func() API, confProvider func() config.APIConfig) error {
 	normName := strings.ToLower(name)
 	if _, ok := autoAPIProviders[normName]; ok {
 		return fmt.Errorf("duplicate API name: %q is already registered", name)
@@ -54,7 +83,7 @@ type RESTServer struct {
 	http       *http.Server
 	rootRouter chi.Router
 	baseRouter chi.Router
-	apis       map[string]jelapi.API
+	apis       map[string]API
 	usedBases  map[string]string // used for tracking that APIs do not eat each other
 	dbs        map[string]jeldao.Store
 	cfg        config.Config // config that it was started with.
@@ -101,7 +130,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 	}
 
 	rs := RESTServer{
-		apis:       map[string]jelapi.API{},
+		apis:       map[string]API{},
 		rootRouter: root,
 		baseRouter: baseRouter,
 		http:       &http.Server{Handler: root},
@@ -130,7 +159,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 // on the same RESTServer.
 //
 // Returns an error if there is any issue initializing the API.
-func (rs *RESTServer) Add(name string, api jelapi.API) error {
+func (rs *RESTServer) Add(name string, api API) error {
 	normName := strings.ToLower(name)
 
 	if _, ok := rs.apis[name]; ok {
@@ -141,7 +170,7 @@ func (rs *RESTServer) Add(name string, api jelapi.API) error {
 	return rs.initAPI(normName, rs.apis[normName])
 }
 
-func (rs *RESTServer) initAPI(name string, api jelapi.API) error {
+func (rs *RESTServer) initAPI(name string, api API) error {
 	apiConf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
 		return fmt.Errorf("missing config for API %q", name)
@@ -186,7 +215,7 @@ func (rs *RESTServer) initAPI(name string, api jelapi.API) error {
 
 	rs.baseRouter.Mount(base, r)
 	if !subpaths {
-		rs.baseRouter.HandleFunc(base+"/", jelapi.RedirectNoTrailingSlash)
+		rs.baseRouter.HandleFunc(base+"/", RedirectNoTrailingSlash)
 	}
 
 	return nil

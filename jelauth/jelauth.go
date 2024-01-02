@@ -4,7 +4,6 @@ package jelauth
 import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/jelapi"
 )
 
 const (
@@ -13,7 +12,7 @@ const (
 
 func init() {
 	jelly.RegisterAuto("jellyauth",
-		func() jelapi.API { return &LoginAPI{} },
+		func() jelly.API { return &LoginAPI{} },
 		func() config.APIConfig { return &Config{} },
 	)
 }
