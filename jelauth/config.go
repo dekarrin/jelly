@@ -32,10 +32,10 @@ func (cfg *Config) FillDefaults() config.APIConfig {
 
 	// if no other options are specified except for enable, fill with standard
 	if newCFG.CommonConf.Enabled {
-		if config.GetString(newCFG, config.KeyAPIBase) == "" {
+		if config.Get[string](newCFG, config.KeyAPIBase) == "" {
 			newCFG.Set(config.KeyAPIBase, "/auth")
 		}
-		if len(config.GetStringSlice(newCFG, config.KeyAPIDBs)) < 1 {
+		if len(config.Get[[]string](newCFG, config.KeyAPIDBs)) < 1 {
 			newCFG.Set(config.KeyAPIDBs, []string{"auth"})
 		}
 	}

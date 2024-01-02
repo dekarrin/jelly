@@ -1,0 +1,17 @@
+# This is a sample configuration file for a jelly-based server.
+
+# "listen" - string - default: "localhost:8080"
+#
+# The bind address that the server listens on. This can be a host address and a
+# port formatted as ADDRESS:PORT, just an address formatted as ADDRESS, or just
+# a port formatted as :PORT. If the address is missing, it defaults to
+# 'localhost'. If the port is missing, it defaults to 8080. If this key is
+# missing altogether, both are set to their defaults.
+listen: localhost:8080
+
+# "base" - string - default: "/"
+#
+# The base URI that all APIs are rooted on. If missing or blank, it defaults to
+# "/", the server root path.
+base: /
+

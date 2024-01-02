@@ -30,7 +30,6 @@ type marshaledAPI struct {
 type marshaledConfig struct {
 	Listen      string                       `yaml:"listen" json:"listen"`
 	Base        string                       `yaml:"base" json:"base"`
-	Secret      []byte                       `yaml:"secret" json:"secret"`
 	DBs         map[string]marshaledDatabase `yaml:"dbs" json:"dbs"`
 	UnauthDelay int                          `yaml:"unauth_delay" json:"unauth_delay"`
 	APIs        map[string]marshaledAPI      `yaml:"apis" json:"apis"`
@@ -226,14 +225,6 @@ func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 		mc.Base = baseStr
 		delete(m, "base")
 	}
-	if secret, ok := m["secret"]; ok {
-		secretStr, convOk := secret.(string)
-		if !convOk {
-			return fmt.Errorf("secret: should be a string but was of type %T", secret)
-		}
-		mc.Secret = []byte(secretStr)
-		delete(m, "secret")
-	}
 	if unauthDelay, ok := m["unauth_delay"]; ok {
 		unauthDelayInt, convOk := unauthDelay.(int)
 		if !convOk {
@@ -330,14 +321,6 @@ func (mc *marshaledConfig) UnmarshalJSON(b []byte) error {
 		}
 		mc.Base = baseStr
 		delete(m, "base")
-	}
-	if secret, ok := m["secret"]; ok {
-		secretStr, convOk := secret.(string)
-		if !convOk {
-			return fmt.Errorf("secret: should be a string but was of type %T", secret)
-		}
-		mc.Secret = []byte(secretStr)
-		delete(m, "secret")
 	}
 	if unauthDelay, ok := m["unauth_delay"]; ok {
 		unauthDelayInt, convOk := unauthDelay.(int)
