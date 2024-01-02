@@ -10,7 +10,7 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/jelmid"
+	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/token"
@@ -71,14 +71,14 @@ func (api LoginAPI) HTTPGetInfo() http.HandlerFunc {
 }
 
 func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
-	loggedIn := req.Context().Value(jelmid.AuthLoggedIn).(bool)
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 
 	var resp InfoModel
 	resp.Version.Auth = Version
 
 	userStr := "unauthed client"
 	if loggedIn {
-		user := req.Context().Value(jelmid.AuthUser).(dao.User)
+		user := req.Context().Value(middle.AuthUser).(dao.User)
 		userStr = "user '" + user.Username + "'"
 	}
 	return response.OK(resp, "%s got API info", userStr)
@@ -140,7 +140,7 @@ func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	// is the user trying to delete someone else's login? they'd betta be the
 	// admin if so!
@@ -189,7 +189,7 @@ func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	tok, err := token.Generate(api.Secret, user)
 	if err != nil {
@@ -215,7 +215,7 @@ func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
 
 // GET /users: get all users (admin auth required).
 func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
 		return response.Forbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
@@ -258,7 +258,7 @@ func (api LoginAPI) HTTPCreateUser() http.HandlerFunc {
 }
 
 func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
 		return response.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
@@ -327,7 +327,7 @@ func (api LoginAPI) HTTPGetUser() http.HandlerFunc {
 
 func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
 	if id != user.ID && user.Role != dao.Admin {
@@ -398,7 +398,7 @@ func (api LoginAPI) HTTPUpdateUser() http.HandlerFunc {
 
 func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	if id != user.ID && user.Role != dao.Admin {
 		var otherUserStr string
@@ -517,7 +517,7 @@ func (api LoginAPI) HTTPReplaceUser() http.HandlerFunc {
 
 func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
 		return response.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
@@ -601,7 +601,7 @@ func (api LoginAPI) HTTPDeleteUser() http.HandlerFunc {
 
 func (api LoginAPI) epDeleteUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(jelmid.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
 	if id != user.ID && user.Role != dao.Admin {

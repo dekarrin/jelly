@@ -1,5 +1,5 @@
-// Package jelmid contains middleware for use with the jelly server framework.
-package jelmid
+// Package middle contains middleware for use with the jelly server framework.
+package middle
 
 import (
 	"context"

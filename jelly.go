@@ -11,7 +11,7 @@ import (
 
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/jelmid"
+	"github.com/dekarrin/jelly/middle"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -120,7 +120,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 
 	// Create root router
 	root := chi.NewRouter()
-	root.Use(jelmid.DontPanic())
+	root.Use(middle.DontPanic())
 
 	// make API router
 	baseRouter := root
