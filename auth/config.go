@@ -35,8 +35,8 @@ func (cfg *Config) FillDefaults() config.APIConfig {
 		if config.Get[string](newCFG, config.KeyAPIBase) == "" {
 			newCFG.Set(config.KeyAPIBase, "/auth")
 		}
-		if len(config.Get[[]string](newCFG, config.KeyAPIDBs)) < 1 {
-			newCFG.Set(config.KeyAPIDBs, []string{"auth"})
+		if len(config.Get[[]string](newCFG, config.KeyAPIUsesDBs)) < 1 {
+			newCFG.Set(config.KeyAPIUsesDBs, []string{"auth"})
 		}
 	}
 

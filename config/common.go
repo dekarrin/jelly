@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+const (
+	KeyAPIName               = "name"
+	KeyAPIBase               = "base"
+	KeyAPIEnabled            = "enabled"
+	KeyAPIUsesDBs            = "uses_dbs"
+	KeyAPIUsesAuthenticators = "uses_authenticators"
+)
+
 // Common holds configuration options common to all APIs.
 type Common struct {
 	// Name is the name of the API. Must be unique.
@@ -21,11 +29,18 @@ type Common struct {
 	// server config that this API is a part of.
 	Base string
 
-	// UsesDBs is a list of names of data stores that the API uses directly.
-	// When Init is called, it is passed active connections to each of the DBs.
-	// There must be a corresponding entry for each name in the root DBs listing
-	// in the Config this API is a part of.
+	// UsesDBs is a list of names of data stores and authenticators that the API
+	// uses directly. When Init is called, it is passed active connections to
+	// each of the DBs. There must be a corresponding entry for each DB name in
+	// the root DBs listing in the Config this API is a part of. The
+	// Authenticators slice should contain only authenticators that are provided
+	// by other APIs; see their documentation for which they provide.
 	UsesDBs []string
+
+	// UsesAuthenticators is a list of names of authenticators that the API will
+	// use directly in code by name. Should contain only authenticators that are
+	// provided by other APIs; see their documentation for which they provide.
+	UsesAuthenticators []string
 }
 
 // FillDefaults returns a new *Common identical to cc but with unset values set
@@ -56,7 +71,7 @@ func (cc *Common) Common() Common {
 }
 
 func (cc *Common) Keys() []string {
-	return []string{KeyAPIName, KeyAPIEnabled, KeyAPIBase, KeyAPIDBs}
+	return []string{KeyAPIName, KeyAPIEnabled, KeyAPIBase, KeyAPIUsesDBs, KeyAPIUsesAuthenticators}
 }
 
 func (cc *Common) Get(key string) interface{} {
@@ -67,8 +82,10 @@ func (cc *Common) Get(key string) interface{} {
 		return cc.Enabled
 	case KeyAPIBase:
 		return cc.Base
-	case KeyAPIDBs:
+	case KeyAPIUsesDBs:
 		return cc.UsesDBs
+	case KeyAPIUsesAuthenticators:
+		return cc.UsesAuthenticators
 	default:
 		return nil
 	}
@@ -97,12 +114,19 @@ func (cc *Common) Set(key string, value interface{}) error {
 		} else {
 			return fmt.Errorf("key '"+KeyAPIBase+"' requires a string but got a %T", value)
 		}
-	case KeyAPIDBs:
+	case KeyAPIUsesDBs:
 		if valueStrSlice, ok := value.([]string); ok {
 			cc.UsesDBs = valueStrSlice
 			return nil
 		} else {
-			return fmt.Errorf("key '"+KeyAPIDBs+"' requires a []string but got a %T", value)
+			return fmt.Errorf("key '"+KeyAPIUsesDBs+"' requires a []string but got a %T", value)
+		}
+	case KeyAPIUsesAuthenticators:
+		if valueStrSlice, ok := value.([]string); ok {
+			cc.UsesAuthenticators = valueStrSlice
+			return nil
+		} else {
+			return fmt.Errorf("key '"+KeyAPIUsesAuthenticators+"' requires a []string but got a %T", value)
 		}
 	default:
 		return fmt.Errorf("not a valid key: %q", key)
@@ -119,7 +143,7 @@ func (cc *Common) SetFromString(key string, value string) error {
 			return err
 		}
 		return cc.Set(key, b)
-	case KeyAPIDBs:
+	case KeyAPIUsesDBs, KeyAPIUsesAuthenticators:
 		if value == "" {
 			return cc.Set(key, []string{})
 		}

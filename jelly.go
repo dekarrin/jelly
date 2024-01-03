@@ -29,6 +29,8 @@ type API interface {
 	// 'uses' key will be included here.
 	//
 	// After Init returns, the API is prepared to return its routes with Routes.
+	// The API should not expect that any other API has yet been initialized,
+	// and should not attempt to use auth middleware that relies on other APIs
 	Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error
 
 	// Authenticators returns any configured authenticators that this API
@@ -84,16 +86,17 @@ func RegisterAuto(name string, provider func() API, confProvider func() config.A
 // a RESTServer should not be used directly; call New() to get one ready for
 // use.
 type RESTServer struct {
-	mtx        *sync.Mutex
-	closing    bool
-	serving    bool
-	http       *http.Server
-	rootRouter chi.Router
-	baseRouter chi.Router
-	apis       map[string]API
-	usedBases  map[string]string // used for tracking that APIs do not eat each other
-	dbs        map[string]dao.Store
-	cfg        config.Config // config that it was started with.
+	mtx            *sync.Mutex
+	closing        bool
+	serving        bool
+	http           *http.Server
+	rootRouter     chi.Router
+	baseRouter     chi.Router
+	apis           map[string]API
+	usedBases      map[string]string // used for tracking that APIs do not eat each other
+	dbs            map[string]dao.Store
+	cfg            config.Config // config that it was started with.
+	authenticators map[string]middle.Authenticator
 }
 
 // New creates a new RESTServer ready to have new APIs added to it. All
@@ -157,8 +160,12 @@ func New(cfg *config.Config) (RESTServer, error) {
 		}
 	}
 
+	//
+
 	return rs, nil
 }
+
+func setupAllServers
 
 // Add adds the given API and initializes it with the configuration section that
 // matches its name. The name is case-insensitive and will be normalized to
@@ -185,7 +192,7 @@ func (rs *RESTServer) initAPI(name string, api API) error {
 
 	// find the actual dbs it uses
 	usedDBs := map[string]dao.Store{}
-	usedDBNames := config.Get[[]string](apiConf, config.KeyAPIDBs)
+	usedDBNames := config.Get[[]string](apiConf, config.KeyAPIUsesDBs)
 
 	for _, dbName := range usedDBNames {
 		connectedDB, ok := rs.dbs[strings.ToLower(dbName)]

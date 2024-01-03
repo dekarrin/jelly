@@ -19,10 +19,15 @@ type marshaledDatabase struct {
 	File string `yaml:"file" json:"file"`
 }
 
+type marshaledUses struct {
+	DBs            []string `yaml:"dbs" json:"dbs"`
+	Authenticators []string `yaml:"authenticators" json:"authenticators"`
+}
+
 type marshaledAPI struct {
-	Base    string   `yaml:"base" json:"base"`
-	Enabled bool     `yaml:"enabled" json:"enabled"`
-	Uses    []string `yaml:"uses" json:"uses"`
+	Base    string        `yaml:"base" json:"base"`
+	Enabled bool          `yaml:"enabled" json:"enabled"`
+	Uses    marshaledUses `yaml:"uses" json:"uses"`
 
 	others map[string]interface{}
 }
@@ -71,8 +76,6 @@ func Load(file string) (Config, error) {
 		return cfg, fmt.Errorf("%q: incompatible format; must be .json, .yml, or .yaml file", file)
 	}
 
-	// TODO: insert the default loaded stuff (like an auto jellyauth) here.
-
 	err := cfg.unmarshal(mc)
 	return cfg, err
 }
@@ -112,8 +115,11 @@ func unmarshalAPI(ma marshaledAPI, name string) (APIConfig, error) {
 	if err := api.Set(KeyAPIBase, ma.Base); err != nil {
 		return nil, fmt.Errorf(KeyAPIBase+": %w", err)
 	}
-	if err := api.Set(KeyAPIDBs, ma.Uses); err != nil {
-		return nil, fmt.Errorf(KeyAPIDBs+": %w", err)
+	if err := api.Set(KeyAPIUsesDBs, ma.Uses.DBs); err != nil {
+		return nil, fmt.Errorf(KeyAPIUsesDBs+": %w", err)
+	}
+	if err := api.Set(KeyAPIUsesAuthenticators, ma.Uses.Authenticators); err != nil {
+		return nil, fmt.Errorf(KeyAPIUsesAuthenticators+": %w", err)
 	}
 
 	for k, v := range ma.others {

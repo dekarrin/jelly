@@ -8,13 +8,6 @@ import (
 	"time"
 )
 
-const (
-	KeyAPIName    = "name"
-	KeyAPIBase    = "base"
-	KeyAPIEnabled = "enabled"
-	KeyAPIDBs     = "uses"
-)
-
 // Globals are the values of global configuration values from the top level
 // config. These values are shared with every API.
 type Globals struct {
@@ -207,7 +200,7 @@ func (cfg Config) FillDefaults() Config {
 	if authConf, ok := newCFG.APIs["jellyauth"]; ok {
 		// make shore the first DB exists
 		if Get[bool](authConf, KeyAPIEnabled) {
-			dbs := Get[[]string](authConf, KeyAPIDBs)
+			dbs := Get[[]string](authConf, KeyAPIUsesDBs)
 			if len(dbs) > 0 {
 				// make shore this DB exists
 				if _, ok := newCFG.DBs[dbs[0]]; !ok {
