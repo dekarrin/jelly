@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/dekarrin/jelly/dao"
@@ -30,6 +31,48 @@ const (
 	AuthLoggedIn AuthKey = iota
 	AuthUser
 )
+
+var (
+	authProviders = map[string]Authenticator{}
+)
+
+func RegisterAuthenticator(name string, prov Authenticator) error {
+	normName := strings.ToLower(name)
+	if _, ok := authProviders[normName]; ok {
+		return fmt.Errorf("authenticator called %q already exists", normName)
+	}
+
+	if prov == nil {
+		return fmt.Errorf("authenticator cannot be nil")
+	}
+
+	authProviders[normName] = prov
+	return nil
+}
+
+// Authenticator is middleware for an endpoint that will accept a request,
+// extract the token used for authentication, and make calls to get a User
+// entity that represents the logged in user from the token.
+//
+// Keys are added to the request context before the request is passed to the
+// next step in the chain. AuthUser will contain the logged-in user, and
+// AuthLoggedIn will return whether the user is logged in (only applies for
+// optional logins; for non-optional, not being logged in will result in an
+// HTTP error being returned before the request is passed to the next handler).
+type Authenticator interface {
+
+	// Authenticate retrieves the user details from the request using whatever
+	// method is correct for the auth handler. Returns the user, whether the
+	// user is currently logged in, and any error that occured. If the user is
+	// not logged in but no error actually occured, a default user and logged-in
+	// = false are returned with a nil error. An error should only be returned
+	// if there is an issue authenticating the user, and a user not being logged
+	// in does not count as an issue.
+	//
+	// If the user is logged-in, returns the logged-in user, true, and a nil
+	// error.
+	Authenticate(req *http.Request) (dao.User, bool, error)
+}
 
 // AuthHandler is middleware that will accept a request, extract the token used
 // for authentication, and make calls to get a User entity that represents the

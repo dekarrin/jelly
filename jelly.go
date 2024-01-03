@@ -31,6 +31,13 @@ type API interface {
 	// After Init returns, the API is prepared to return its routes with Routes.
 	Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error
 
+	// Authenticators returns any configured authenticators that this API
+	// provides. Other APIs will be able to refer to these authenticators by
+	// name.
+	//
+	// Init must be called before Authenticators is called.
+	Authenticators() map[string]middle.Authenticator
+
 	// Routes returns a router that leads to all accessible routes in the API.
 	// Additionally, returns whether the API's router contains subpaths beyond
 	// just setting methods on its relative root; this affects whether

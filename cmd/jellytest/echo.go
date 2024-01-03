@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly/config"
+	"github.com/dekarrin/jelly/dao"
 )
 
 const (
@@ -12,8 +13,22 @@ const (
 )
 
 type EchoAPI struct {
-	// Messages is a list of messages that a flavored echo can reply with.
+	// Messages is a list of messages that an echo can reply with. Each should
+	// be a format string that expects to receive the message sent by the user
+	// as its first argument.
 	Messages []string
+}
+
+func (echo *EchoAPI) Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
+	echoCfg, ok := cfg.(*EchoConfig)
+	if !ok {
+		return fmt.Errorf("wrong config type, expected *EchoConfig but got %T", cfg)
+	}
+
+	echo.Messages = make([]string, len(echoCfg.Messages))
+	copy(echo.Messages, echoCfg.Messages)
+
+	return nil
 }
 
 type EchoConfig struct {

@@ -56,6 +56,7 @@ func Validate(ctx context.Context, tok string, secret []byte, db dao.AuthUserRep
 	return user, nil
 }
 
+// Get gets the token from the Authorization header as a bearer token.
 func Get(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 

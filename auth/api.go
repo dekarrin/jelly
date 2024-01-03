@@ -54,6 +54,15 @@ func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[str
 	return nil
 }
 
+func (api *LoginAPI) Authenticators() map[string]middle.Authenticator {
+	// this provides one and only one authenticator, the jwt one.
+
+	// we will have had Init called, ergo secret and the service db will exist
+	return map[string]middle.Authenticator{
+		"jellyauthjwt": JWTAuthProvider{secret: api.Secret, db: api.Service.Provider.AuthUsers()},
+	}
+}
+
 // Shutdown shuts down the login API. This is added to implement jelapi.API, and
 // has no effect on the login API but to return the error of the context.
 func (api *LoginAPI) Shutdown(ctx context.Context) error {
