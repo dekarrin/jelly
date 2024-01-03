@@ -7,11 +7,10 @@ import (
 )
 
 const (
-	KeyAPIName               = "name"
-	KeyAPIBase               = "base"
-	KeyAPIEnabled            = "enabled"
-	KeyAPIUsesDBs            = "uses_dbs"
-	KeyAPIUsesAuthenticators = "uses_authenticators"
+	KeyAPIName    = "name"
+	KeyAPIBase    = "base"
+	KeyAPIEnabled = "enabled"
+	KeyAPIUsesDBs = "uses"
 )
 
 // Common holds configuration options common to all APIs.
@@ -36,11 +35,6 @@ type Common struct {
 	// Authenticators slice should contain only authenticators that are provided
 	// by other APIs; see their documentation for which they provide.
 	UsesDBs []string
-
-	// UsesAuthenticators is a list of names of authenticators that the API will
-	// use directly in code by name. Should contain only authenticators that are
-	// provided by other APIs; see their documentation for which they provide.
-	UsesAuthenticators []string
 }
 
 // FillDefaults returns a new *Common identical to cc but with unset values set
@@ -71,7 +65,7 @@ func (cc *Common) Common() Common {
 }
 
 func (cc *Common) Keys() []string {
-	return []string{KeyAPIName, KeyAPIEnabled, KeyAPIBase, KeyAPIUsesDBs, KeyAPIUsesAuthenticators}
+	return []string{KeyAPIName, KeyAPIEnabled, KeyAPIBase, KeyAPIUsesDBs}
 }
 
 func (cc *Common) Get(key string) interface{} {
@@ -84,8 +78,6 @@ func (cc *Common) Get(key string) interface{} {
 		return cc.Base
 	case KeyAPIUsesDBs:
 		return cc.UsesDBs
-	case KeyAPIUsesAuthenticators:
-		return cc.UsesAuthenticators
 	default:
 		return nil
 	}
@@ -121,13 +113,6 @@ func (cc *Common) Set(key string, value interface{}) error {
 		} else {
 			return fmt.Errorf("key '"+KeyAPIUsesDBs+"' requires a []string but got a %T", value)
 		}
-	case KeyAPIUsesAuthenticators:
-		if valueStrSlice, ok := value.([]string); ok {
-			cc.UsesAuthenticators = valueStrSlice
-			return nil
-		} else {
-			return fmt.Errorf("key '"+KeyAPIUsesAuthenticators+"' requires a []string but got a %T", value)
-		}
 	default:
 		return fmt.Errorf("not a valid key: %q", key)
 	}
@@ -143,7 +128,7 @@ func (cc *Common) SetFromString(key string, value string) error {
 			return err
 		}
 		return cc.Set(key, b)
-	case KeyAPIUsesDBs, KeyAPIUsesAuthenticators:
+	case KeyAPIUsesDBs:
 		if value == "" {
 			return cc.Set(key, []string{})
 		}

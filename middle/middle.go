@@ -11,7 +11,6 @@ import (
 
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/response"
-	"github.com/dekarrin/jelly/token"
 )
 
 type mwFunc http.HandlerFunc
@@ -84,50 +83,25 @@ type Authenticator interface {
 // optional logins; for non-optional, not being logged in will result in an
 // HTTP error being returned before the request is passed to the next handler).
 type AuthHandler struct {
-	db            dao.AuthUserRepo
-	secret        []byte
+	provider      Authenticator
 	required      bool
-	defaultUser   dao.User
 	unauthedDelay time.Duration
 	next          http.Handler
 }
 
 func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	var loggedIn bool
-	user := ah.defaultUser
+	user, loggedIn, err := ah.provider.Authenticate(req)
 
-	tok, err := token.Get(req)
-	if err != nil {
-		// deliberately leaving as embedded if instead of &&
-		if ah.required {
-			// error here means token isn't present (or at least isn't in the
-			// expected format, which for all intents and purposes is non-existent).
-			// This is not okay if auth is required.
+	if ah.required {
+		if err != nil || (err == nil && !loggedIn) {
+			// there was a validation error or no error but not logged in.
+			// if logging in is required, that's not okay.
 
 			r := response.Unauthorized("", err.Error())
 			time.Sleep(ah.unauthedDelay)
 			r.WriteResponse(w)
 			r.Log(req)
 			return
-		}
-	} else {
-		// validate the token
-		lookupUser, err := token.Validate(req.Context(), tok, ah.secret, ah.db)
-		if err != nil {
-			// deliberately leaving as embedded if instead of &&
-			if ah.required {
-				// there was a validation error. the user does not count as logged in.
-				// if logging in is required, that's not okay.
-
-				r := response.Unauthorized("", err.Error())
-				time.Sleep(ah.unauthedDelay)
-				r.WriteResponse(w)
-				r.Log(req)
-				return
-			}
-		} else {
-			user = lookupUser
-			loggedIn = true
 		}
 	}
 
@@ -138,26 +112,42 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ah.next.ServeHTTP(w, req)
 }
 
-func RequireAuth(db dao.AuthUserRepo, secret []byte, unauthDelay time.Duration, defaultUser dao.User) Middleware {
+// RequireAuth returns middleware that requires that auth be used. The
+// authenticator must be the name of one that was registered as an Authenticator
+// with this package.
+//
+// If the given authenticator does not exist, panics.
+func RequireAuth(authenticator string, unauthDelay time.Duration) Middleware {
+	prov, ok := authProviders[strings.ToLower(authenticator)]
+	if !ok {
+		panic(fmt.Sprintf("not a valid auth provider: %q", strings.ToLower(authenticator)))
+	}
+
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
-			db:            db,
-			secret:        secret,
+			provider:      prov,
 			unauthedDelay: unauthDelay,
-			defaultUser:   dao.User{},
 			required:      true,
 			next:          next,
 		}
 	}
 }
 
-func OptionalAuth(db dao.AuthUserRepo, secret []byte, unauthDelay time.Duration, defaultUser dao.User) Middleware {
+// RequireAuth returns middleware that allows auth be used to retrieved the
+// logged-in user. The authenticator must be the name of one that was registered
+// as an Authenticator with this package.
+//
+// If the given authenticator does not exist, panics.
+func OptionalAuth(authenticator string, unauthDelay time.Duration) Middleware {
+	prov, ok := authProviders[strings.ToLower(authenticator)]
+	if !ok {
+		panic(fmt.Sprintf("not a valid auth provider: %q", strings.ToLower(authenticator)))
+	}
+
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
-			db:            db,
-			secret:        secret,
+			provider:      prov,
 			unauthedDelay: unauthDelay,
-			defaultUser:   dao.User{},
 			required:      false,
 			next:          next,
 		}

@@ -59,7 +59,7 @@ func (api *LoginAPI) Authenticators() map[string]middle.Authenticator {
 
 	// we will have had Init called, ergo secret and the service db will exist
 	return map[string]middle.Authenticator{
-		"jellyauthjwt": JWTAuthProvider{secret: api.Secret, db: api.Service.Provider.AuthUsers()},
+		"jwt": JWTAuthProvider{secret: api.Secret, db: api.Service.Provider.AuthUsers()},
 	}
 }
 

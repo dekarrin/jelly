@@ -28,16 +28,23 @@ type API interface {
 	// connected stores. Only those stores requested in the API's config in the
 	// 'uses' key will be included here.
 	//
-	// After Init returns, the API is prepared to return its routes with Routes.
 	// The API should not expect that any other API has yet been initialized,
-	// and should not attempt to use auth middleware that relies on other APIs
+	// during a call to Init, and should not attempt to use auth middleware that
+	// relies on other APIs (such as jellyauth's jwt provider). Defer actual
+	// usage to another function, such as Routes.
 	Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error
 
 	// Authenticators returns any configured authenticators that this API
 	// provides. Other APIs will be able to refer to these authenticators by
 	// name.
 	//
-	// Init must be called before Authenticators is called.
+	// Init must be called before Authenticators is called. It is not gauranteed
+	// that all APIs in the server will have had Init called by the time a given
+	// API has Authenticators called on it.
+	//
+	// Any Authenticator returned from this is automatically registered as an
+	// Authenticator with the Auth middleware engine. Do not do so manually or
+	// there may be conflicts.
 	Authenticators() map[string]middle.Authenticator
 
 	// Routes returns a router that leads to all accessible routes in the API.
@@ -46,7 +53,9 @@ type API interface {
 	// path-terminal slashes are redirected in the base router the API
 	// router is mounted in.
 	//
-	// Init must be called before Routes is called.
+	// Init is guaranteed to have been called for all APIs in the server before
+	// Routes is called, and it is safe to refer to middleware services that
+	// rely on other APIs within.
 	Routes() (router chi.Router, subpaths bool)
 
 	// Shutdown terminates any pending operations cleanly and releases any held
@@ -86,17 +95,15 @@ func RegisterAuto(name string, provider func() API, confProvider func() config.A
 // a RESTServer should not be used directly; call New() to get one ready for
 // use.
 type RESTServer struct {
-	mtx            *sync.Mutex
-	closing        bool
-	serving        bool
-	http           *http.Server
-	rootRouter     chi.Router
-	baseRouter     chi.Router
-	apis           map[string]API
-	usedBases      map[string]string // used for tracking that APIs do not eat each other
-	dbs            map[string]dao.Store
-	cfg            config.Config // config that it was started with.
-	authenticators map[string]middle.Authenticator
+	mtx         *sync.Mutex
+	closing     bool
+	serving     bool
+	http        *http.Server
+	apis        map[string]API
+	apiBases    map[string]string
+	basesToAPIs map[string]string // used for tracking that APIs do not eat each other
+	dbs         map[string]dao.Store
+	cfg         config.Config // config that it was started with.
 }
 
 // New creates a new RESTServer ready to have new APIs added to it. All
@@ -128,26 +135,13 @@ func New(cfg *config.Config) (RESTServer, error) {
 		dbs[strings.ToLower(name)] = db
 	}
 
-	// Create root router
-	root := chi.NewRouter()
-	root.Use(middle.DontPanic())
-
-	// make API router
-	baseRouter := root
-	if cfg.Globals.URIBase != "/" {
-		baseRouter = chi.NewRouter()
-		root.Mount(cfg.Globals.URIBase, baseRouter)
-	}
-
 	rs := RESTServer{
-		apis:       map[string]API{},
-		rootRouter: root,
-		baseRouter: baseRouter,
-		http:       &http.Server{Handler: root},
-		mtx:        &sync.Mutex{},
-		usedBases:  map[string]string{},
-		dbs:        dbs,
-		cfg:        *cfg,
+		apis:        map[string]API{},
+		apiBases:    map[string]string{},
+		mtx:         &sync.Mutex{},
+		basesToAPIs: map[string]string{},
+		dbs:         dbs,
+		cfg:         *cfg,
 	}
 
 	// check on pre-rolled APIs
@@ -160,12 +154,34 @@ func New(cfg *config.Config) (RESTServer, error) {
 		}
 	}
 
-	//
-
 	return rs, nil
 }
 
-func setupAllServers
+// routeAllAPIs is called just before serving. it gets all routes and mounts
+// them in the base router.
+func (rs *RESTServer) routeAllAPIs() chi.Router {
+	// Create root router
+	root := chi.NewRouter()
+	root.Use(middle.DontPanic())
+
+	// make server base router
+	r := root
+	if rs.cfg.Globals.URIBase != "/" {
+		r = chi.NewRouter()
+		root.Mount(rs.cfg.Globals.URIBase, r)
+	}
+
+	for name, api := range rs.apis {
+		base := rs.apiBases[name]
+		apiRouter, subpaths := api.Routes()
+		r.Mount(base, apiRouter)
+		if !subpaths {
+			r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+		}
+	}
+
+	return root
+}
 
 // Add adds the given API and initializes it with the configuration section that
 // matches its name. The name is case-insensitive and will be normalized to
@@ -180,14 +196,29 @@ func (rs *RESTServer) Add(name string, api API) error {
 		return fmt.Errorf("API named %q has already been added", normName)
 	}
 
+	base, err := rs.initAPI(normName, api)
+	if err != nil {
+		return err
+	}
+
+	auths := api.Authenticators()
+	for aName, a := range auths {
+		fullName := name + "." + aName
+
+		// TODO: probs shouldn't have a struct type call a global-affecting func.
+		middle.RegisterAuthenticator(fullName, a)
+	}
+
 	rs.apis[normName] = api
-	return rs.initAPI(normName, rs.apis[normName])
+	rs.apiBases[normName] = base
+
+	return nil
 }
 
-func (rs *RESTServer) initAPI(name string, api API) error {
+func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 	apiConf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
-		return fmt.Errorf("missing config for API %q", name)
+		return "", fmt.Errorf("missing config for API %q", name)
 	}
 
 	// find the actual dbs it uses
@@ -197,7 +228,7 @@ func (rs *RESTServer) initAPI(name string, api API) error {
 	for _, dbName := range usedDBNames {
 		connectedDB, ok := rs.dbs[strings.ToLower(dbName)]
 		if !ok {
-			return fmt.Errorf("API refers to missing DB %q", strings.ToLower(dbName))
+			return "", fmt.Errorf("API refers to missing DB %q", strings.ToLower(dbName))
 		}
 		usedDBs[strings.ToLower(dbName)] = connectedDB
 	}
@@ -214,25 +245,18 @@ func (rs *RESTServer) initAPI(name string, api API) error {
 	// which case we make zero assumptions)
 	if base != "/" {
 		checkBase := strings.ToLower(base)
-		if curUser, ok := rs.usedBases[checkBase]; ok {
-			return fmt.Errorf("API %q and %q specify effectively identical API route bases of %q", name, curUser, base)
+		if curUser, ok := rs.basesToAPIs[checkBase]; ok {
+			return "", fmt.Errorf("API %q and %q specify effectively identical API route bases of %q", name, curUser, base)
 		}
-		rs.usedBases[checkBase] = name
+		rs.basesToAPIs[checkBase] = name
 	}
 	apiConf.Set(config.KeyAPIBase, base)
 
 	if err := api.Init(apiConf, rs.cfg.Globals, usedDBs); err != nil {
-		return fmt.Errorf("init API %q: Init(): %w", name, err)
+		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
 
-	r, subpaths := api.Routes()
-
-	rs.baseRouter.Mount(base, r)
-	if !subpaths {
-		rs.baseRouter.HandleFunc(base+"/", RedirectNoTrailingSlash)
-	}
-
-	return nil
+	return base, nil
 }
 
 // ServeForever begins listening on the server's configured address and port for
@@ -257,7 +281,9 @@ func (rs *RESTServer) ServeForever() error {
 		rs.mtx.Unlock()
 	}()
 
-	rs.http.Addr = fmt.Sprintf("%s:%d", rs.cfg.Globals.Address, rs.cfg.Globals.Port)
+	addr := fmt.Sprintf("%s:%d", rs.cfg.Globals.Address, rs.cfg.Globals.Port)
+	rtr := rs.routeAllAPIs()
+	rs.http = &http.Server{Addr: addr, Handler: rtr}
 
 	return rs.http.ListenAndServe()
 }
@@ -287,12 +313,12 @@ func (rs *RESTServer) Shutdown(ctx context.Context) error {
 
 	var fullError error
 
-	if rs.http.Addr != "" {
+	if rs.http != nil {
 		err := rs.http.Shutdown(ctx)
 		if err != nil {
 			fullError = fmt.Errorf("stop HTTP server: %w", err)
 		}
-		rs.http = &http.Server{Handler: rs.rootRouter}
+		rs.http = nil
 		if err != nil && err == ctx.Err() {
 			// if its due to the context expiring or timing out, we should
 			// immediately exit without waiting for clean shutdown of the APIs.
