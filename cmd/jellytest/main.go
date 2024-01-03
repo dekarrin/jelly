@@ -7,9 +7,13 @@ Usage:
 	jellytest [flags]
 
 Once started, the server will listen for HTTP requests and respond to them as
-configured. The main endpoints of interest are /echo, which will reply with what
-the user said, /hello/polite, which requests a polite greeting, and /hello/rude,
-which requests a rude greeting.
+configured. The main endpoints of interest are:
+
+  - /echo - request a reply with what the user said
+  - /hello/nice - requests a polite greeting
+  - /hello/rude - requests a rude greeting
+  - /hello/random - requests a random greeting, either nice or rude
+  - /hello/secret - requests a secret greeting that requires login
 
 Additionally, the jelly auth API is started with its endpoints under /auth under
 the base URI for the server, if one is configured.
