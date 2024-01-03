@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
+	"github.com/go-chi/chi/v5"
 )
 
 const (
@@ -30,7 +32,7 @@ func (cfg *EchoConfig) FillDefaults() config.APIConfig {
 	newCFG := new(EchoConfig)
 	*newCFG = *cfg
 
-	newCFG.CommonConf = *newCFG.CommonConf.FillDefaults()
+	newCFG.CommonConf = newCFG.CommonConf.FillDefaults().Common()
 
 	if len(newCFG.Messages) < 1 {
 		newCFG.Messages = []string{"%s"}
@@ -134,24 +136,50 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// HTTPGetEcho returns a HandlerFunc that echoes the user message.
-func (api EchoAPI) HTTPGetEcho() http.HandlerFunc {
-	return jelly.Endpoint(0, api.epEcho)
+func (api *EchoAPI) Routes() (router chi.Router, subpaths bool) {
+	optAuth := middle.OptionalAuth("jellyauth.jwt", api.UnauthDelay)
+
+	r := chi.NewRouter()
+
+	r.With(optAuth).Get("/", api.HTTPGetEcho())
+
+	return r, false
 }
 
-type EchoResponse struct {
+type EchoRequestBody struct {
+	Message string `json:"message"`
+}
+
+type EchoResponseBody struct {
+	Recipient string `json:"recipient,omitempty"`
+	Message   string `json:"message"`
+}
+
+// HTTPGetEcho returns a HandlerFunc that echoes the user message.
+func (api EchoAPI) HTTPGetEcho() http.HandlerFunc {
+	return jelly.Endpoint(api.UnauthDelay, api.epEcho)
 }
 
 func (api EchoAPI) epEcho(req *http.Request) response.Result {
-	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+	var echoData EchoRequestBody
 
-	var resp InfoModel
-	resp.Version.Auth = Version
+	err := jelly.ParseJSONRequest(req, &echoData)
+	if err != nil {
+		return response.BadRequest(err.Error(), err.Error())
+	}
+
+	msgNum := rand.Intn(len(api.Messages))
+	resp := EchoResponseBody{
+		Message: fmt.Sprintf(api.Messages[msgNum], echoData.Message),
+	}
 
 	userStr := "unauthed client"
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 	if loggedIn {
 		user := req.Context().Value(middle.AuthUser).(dao.User)
+		resp.Recipient = user.Username
 		userStr = "user '" + user.Username + "'"
 	}
-	return response.OK(resp, "%s got API info", userStr)
+
+	return response.OK(resp, "%s requested echo (msg len=%d)", userStr, len(echoData.Message))
 }

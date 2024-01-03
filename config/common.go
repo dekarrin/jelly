@@ -39,7 +39,7 @@ type Common struct {
 
 // FillDefaults returns a new *Common identical to cc but with unset values set
 // to their defaults and values normalized.
-func (cc *Common) FillDefaults() *Common {
+func (cc *Common) FillDefaults() APIConfig {
 	newCC := new(Common)
 
 	if newCC.Base == "" {

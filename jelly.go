@@ -157,8 +157,8 @@ func New(cfg *config.Config) (RESTServer, error) {
 	return rs, nil
 }
 
-// routeAllAPIs is called just before serving. it gets all routes and mounts
-// them in the base router.
+// routeAllAPIs is called just before serving. it gets all enabled routes and
+// mounts them in the base router.
 func (rs *RESTServer) routeAllAPIs() chi.Router {
 	// Create root router
 	root := chi.NewRouter()
@@ -172,11 +172,20 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 	}
 
 	for name, api := range rs.apis {
-		base := rs.apiBases[name]
-		apiRouter, subpaths := api.Routes()
-		r.Mount(base, apiRouter)
-		if !subpaths {
-			r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+		apiConf, ok := rs.cfg.APIs[name]
+		if !ok {
+			apiConf = (&config.Common{Name: name}).FillDefaults()
+		}
+		if config.Get[bool](apiConf, config.KeyAPIEnabled) {
+			base := rs.apiBases[name]
+			apiRouter, subpaths := api.Routes()
+
+			if apiRouter != nil {
+				r.Mount(base, apiRouter)
+				if !subpaths {
+					r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+				}
+			}
 		}
 	}
 
@@ -196,21 +205,27 @@ func (rs *RESTServer) Add(name string, api API) error {
 		return fmt.Errorf("API named %q has already been added", normName)
 	}
 
-	base, err := rs.initAPI(normName, api)
-	if err != nil {
-		return err
-	}
-
-	auths := api.Authenticators()
-	for aName, a := range auths {
-		fullName := name + "." + aName
-
-		// TODO: probs shouldn't have a struct type call a global-affecting func.
-		middle.RegisterAuthenticator(fullName, a)
+	apiConf, ok := rs.cfg.APIs[normName]
+	if !ok {
+		return fmt.Errorf("missing config for API %q", name)
 	}
 
 	rs.apis[normName] = api
-	rs.apiBases[normName] = base
+	if config.Get[bool](apiConf, config.KeyAPIEnabled) {
+		base, err := rs.initAPI(normName, api)
+		if err != nil {
+			return err
+		}
+		rs.apiBases[normName] = base
+
+		auths := api.Authenticators()
+		for aName, a := range auths {
+			fullName := name + "." + aName
+
+			// TODO: probs shouldn't have a struct type call a global-affecting func.
+			middle.RegisterAuthenticator(fullName, a)
+		}
+	}
 
 	return nil
 }
@@ -328,6 +343,14 @@ func (rs *RESTServer) Shutdown(ctx context.Context) error {
 
 	// call life-cycle shutdown on each API
 	for name, api := range rs.apis {
+		apiConf, ok := rs.cfg.APIs[name]
+		if !ok {
+			apiConf = (&config.Common{Name: name}).FillDefaults()
+		}
+		if !config.Get[bool](apiConf, config.KeyAPIEnabled) {
+			continue
+		}
+
 		select {
 		case <-ctx.Done():
 			apiErr := ctx.Err()

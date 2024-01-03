@@ -1,36 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dekarrin/jelly/config"
+	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/middle"
+	"github.com/go-chi/chi/v5"
 )
 
 const (
 	ConfigKeyRudeness = "rudeness"
 )
-
-type HelloAPI struct {
-	// NiceMessages is a list of polite messages. This is randomly selected from
-	// when a nice greeting is requested.
-	NiceMessages []string
-
-	// RudeMessages is a list of not-nice messages. This is randomly selected
-	// from when a rude greeting is requested.
-	RudeMessages []string
-
-	// RudeChance is the liklihood of getting a Rude reply when asking for a
-	// random greeting. Float between 0 and 1 for percentage.
-	RudeChance float64
-
-	// UnauthDelay is the amount of time that a request will pause before
-	// responding with an HTTP-403, HTTP-401, or HTTP-500 to deprioritize such
-	// requests from processing and I/O.
-	UnauthDelay time.Duration
-}
 
 type HelloConfig struct {
 	CommonConf config.Common
@@ -44,7 +29,7 @@ func (cfg *HelloConfig) FillDefaults() config.APIConfig {
 	newCFG := new(HelloConfig)
 	*newCFG = *cfg
 
-	newCFG.CommonConf = *newCFG.CommonConf.FillDefaults()
+	newCFG.CommonConf = newCFG.CommonConf.FillDefaults().Common()
 
 	if newCFG.Rudeness <= 0.00000001 {
 		newCFG.Rudeness = 1.0
@@ -115,4 +100,41 @@ func (cfg *HelloConfig) SetFromString(key string, value string) error {
 	default:
 		return cfg.CommonConf.SetFromString(key, value)
 	}
+}
+
+type HelloAPI struct {
+	// NiceMessages is a list of polite messages. This is randomly selected from
+	// when a nice greeting is requested.
+	NiceMessages []string
+
+	// RudeMessages is a list of not-nice messages. This is randomly selected
+	// from when a rude greeting is requested.
+	RudeMessages []string
+
+	// RudeChance is the liklihood of getting a Rude reply when asking for a
+	// random greeting. Float between 0 and 1 for percentage.
+	RudeChance float64
+
+	// UnauthDelay is the amount of time that a request will pause before
+	// responding with an HTTP-403, HTTP-401, or HTTP-500 to deprioritize such
+	// requests from processing and I/O.
+	UnauthDelay time.Duration
+}
+
+func (echo *HelloAPI) Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
+	return fmt.Errorf("not impelmented")
+}
+
+func (echo *HelloAPI) Authenticators() map[string]middle.Authenticator {
+	return nil
+}
+
+// Shutdown shuts down the API. This is added to implement jelly.API, and
+// has no effect on the API but to return the error of the context.
+func (echo *HelloAPI) Shutdown(ctx context.Context) error {
+	return ctx.Err()
+}
+
+func (api *HelloAPI) Routes() (router chi.Router, subpaths bool) {
+	panic("not implemented")
 }

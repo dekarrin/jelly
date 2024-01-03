@@ -40,7 +40,7 @@ func (cfg *Config) FillDefaults() config.APIConfig {
 		}
 	}
 
-	newCFG.CommonConf = *newCFG.CommonConf.FillDefaults()
+	newCFG.CommonConf = newCFG.CommonConf.FillDefaults().Common()
 
 	if newCFG.Secret == nil {
 		newCFG.Secret = []byte("DEFAULT_NONPROD_TOKEN_SECRET")

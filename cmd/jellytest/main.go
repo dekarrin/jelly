@@ -107,6 +107,10 @@ func main() {
 		return
 	}
 
+	// add the APIs
+	server.Add("echo", &EchoAPI{})
+	server.Add("hello", &HelloAPI{})
+
 	logger.Info("Starting server...")
 
 	go func() {

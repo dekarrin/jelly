@@ -1,0 +1,14 @@
+listen: localhost:8080
+dbs:
+  auth:
+    type: sqlite3
+    dir: ./authdb
+  
+jellyauth:
+  enabled: true
+
+echo:
+  enabled: true
+
+hello:
+  enabled: false
