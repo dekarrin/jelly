@@ -106,35 +106,18 @@ example:
   # a whole. This can be "/" to leave paths rooted to the server base.
   base: /
 
-  # "APINAME.uses" - map of lists - default: (none)
+  # "APINAME.uses" - list of strings - default: (none)
   #
-  # Gives a list of the services that this API uses under dbs and
-  # authenticators.
+  # Gives a list of the databases that this API uses. Only the databases with a
+  # corresponding entry under the top-level DBs can be listed (with the
+  # exception of built-in autoconfiguration as is done with jellyauth). Each DB
+  # listed here will be passed in as an active connection to the associated
+  # datastore.
+  #
+  # If left blank, no datastores are passed in.
   uses:
-
-    # "APINAME.uses.dbs" - list of strings - default: (none)
-    #
-    # Gives a list of the databases that this API uses. Only the databases with
-    # a corresponding entry under the top-level DBs can be listed (with the
-    # exception of built-in autoconfiguration as is done with jellyauth). Each
-    # DB listed here will be passed in as an active connection to the associated
-    # datastore.
-    #
-    # If left blank, no datastores are passed in.
     dbs:
       - main
-
-    # "APINAME.uses.authenticators" - list of strings - default: (none)
-    #
-    # Gives the list of authenticators from either itself or other APIs that
-    # this API will rely on, in "APINAME.AUTHENTICATOR" format. Generally, this
-    # is the names of authenticators that the API will put into its requests for
-    # auth middleware. Each entry's APINAME part must be the name of an API
-    # (including the API it is defined in if using the API's own Authenticator)
-    # that is a part of the server, and the AUTHENTICATOR part must be the name
-    # of an authenticator that the API provides.
-    authenticators:
-      - jellyauth.jwt
 
 # jellyauth API config
 #
@@ -164,8 +147,7 @@ jellyauth:
   # list. Only the first DB in this list is actually used by jellyauth; any
   # others will be ignored.
   uses:
-    dbs:
-      - auth
+    - auth
 
   # "jellyauth.secret" - string - default: (a value unsuitable in prod)
   #

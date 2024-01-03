@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
@@ -45,7 +44,7 @@ func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
 }
 
 func (api LoginAPI) routesForLogin() chi.Router {
-	reqAuth := middle.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
+	reqAuth := middle.RequireAuth(api.name+".jwt", api.UnauthDelay)
 
 	r := chi.NewRouter()
 
@@ -57,7 +56,7 @@ func (api LoginAPI) routesForLogin() chi.Router {
 }
 
 func (api LoginAPI) routesForToken() chi.Router {
-	reqAuth := middle.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
+	reqAuth := middle.RequireAuth(api.name+".jwt", api.UnauthDelay)
 
 	r := chi.NewRouter()
 
@@ -67,7 +66,7 @@ func (api LoginAPI) routesForToken() chi.Router {
 }
 
 func (api LoginAPI) routesForAuthUser() chi.Router {
-	reqAuth := middle.RequireAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
+	reqAuth := middle.RequireAuth(api.name+".jwt", api.UnauthDelay)
 
 	r := chi.NewRouter()
 
@@ -87,7 +86,7 @@ func (api LoginAPI) routesForAuthUser() chi.Router {
 }
 
 func (api LoginAPI) routesForInfo() chi.Router {
-	optAuth := middle.OptionalAuth(api.Service.Provider.AuthUsers(), api.Secret, api.UnauthDelay, dao.User{})
+	optAuth := middle.OptionalAuth(api.name+".jwt", api.UnauthDelay)
 
 	r := chi.NewRouter()
 

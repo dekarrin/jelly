@@ -134,7 +134,7 @@ func GetURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 	return val, nil
 }
 
-func HttpEndpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
+func Endpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		r := ep(req)
 

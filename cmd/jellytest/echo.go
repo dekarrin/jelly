@@ -1,35 +1,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strings"
+	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/middle"
+	"github.com/dekarrin/jelly/response"
 )
 
 const (
 	ConfigKeyMessages = "messages"
 )
-
-type EchoAPI struct {
-	// Messages is a list of messages that an echo can reply with. Each should
-	// be a format string that expects to receive the message sent by the user
-	// as its first argument.
-	Messages []string
-}
-
-func (echo *EchoAPI) Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
-	echoCfg, ok := cfg.(*EchoConfig)
-	if !ok {
-		return fmt.Errorf("wrong config type, expected *EchoConfig but got %T", cfg)
-	}
-
-	echo.Messages = make([]string, len(echoCfg.Messages))
-	copy(echo.Messages, echoCfg.Messages)
-
-	return nil
-}
 
 type EchoConfig struct {
 	CommonConf config.Common
@@ -111,4 +98,60 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 	default:
 		return cfg.CommonConf.SetFromString(key, value)
 	}
+}
+
+type EchoAPI struct {
+	// Messages is a list of messages that an echo can reply with. Each should
+	// be a format string that expects to receive the message sent by the user
+	// as its first argument.
+	Messages []string
+
+	// UnauthDelay should eventually be mitigated by referring to an
+	// authenticator.
+	UnauthDelay time.Duration
+}
+
+func (echo *EchoAPI) Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
+	echoCfg, ok := cfg.(*EchoConfig)
+	if !ok {
+		return fmt.Errorf("wrong config type, expected *EchoConfig but got %T", cfg)
+	}
+
+	echo.Messages = make([]string, len(echoCfg.Messages))
+	copy(echo.Messages, echoCfg.Messages)
+	echo.UnauthDelay = g.UnauthDelay()
+
+	return nil
+}
+
+func (echo *EchoAPI) Authenticators() map[string]middle.Authenticator {
+	return nil
+}
+
+// Shutdown shuts down the login API. This is added to implement jelly.API, and
+// has no effect on the API but to return the error of the context.
+func (echo *EchoAPI) Shutdown(ctx context.Context) error {
+	return ctx.Err()
+}
+
+// HTTPGetEcho returns a HandlerFunc that echoes the user message.
+func (api EchoAPI) HTTPGetEcho() http.HandlerFunc {
+	return jelly.Endpoint(0, api.epEcho)
+}
+
+type EchoResponse struct {
+}
+
+func (api EchoAPI) epEcho(req *http.Request) response.Result {
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+
+	var resp InfoModel
+	resp.Version.Auth = Version
+
+	userStr := "unauthed client"
+	if loggedIn {
+		user := req.Context().Value(middle.AuthUser).(dao.User)
+		userStr = "user '" + user.Username + "'"
+	}
+	return response.OK(resp, "%s got API info", userStr)
 }

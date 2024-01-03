@@ -31,6 +31,10 @@ type LoginAPI struct {
 	Secret []byte
 
 	pathPrefix string
+
+	// the name this API is configured under, used to find the name of own
+	// auth provider
+	name string
 }
 
 func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
@@ -39,6 +43,7 @@ func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[str
 		return fmt.Errorf("bad config type %T", rawCfg)
 	}
 
+	api.name = config.Get[string](cfg, config.KeyAPIName)
 	api.Secret = cfg.Secret
 	api.UnauthDelay = g.UnauthDelay()
 	authRaw := dbs["auth"]
@@ -76,7 +81,7 @@ func (api *LoginAPI) Shutdown(ctx context.Context) error {
 // requirements are not met it may return an HTTP-500. The context must contain
 // a value denoting whether the client making the request is logged-in.
 func (api LoginAPI) HTTPGetInfo() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetInfo)
+	return jelly.Endpoint(api.UnauthDelay, api.epGetInfo)
 }
 
 func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
@@ -96,7 +101,7 @@ func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
 // HTTPCreateLogin returns a HandlerFunc that uses the API to log in a user with
 // a username and password and return the auth token for that user.
 func (api LoginAPI) HTTPCreateLogin() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateLogin)
+	return jelly.Endpoint(api.UnauthDelay, api.epCreateLogin)
 }
 
 func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
@@ -144,7 +149,7 @@ func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
 // the ID of the user to log out and the logged-in user of the client making the
 // request.
 func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epDeleteLogin)
+	return jelly.Endpoint(api.UnauthDelay, api.epDeleteLogin)
 }
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
@@ -194,7 +199,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateToken)
+	return jelly.Endpoint(api.UnauthDelay, api.epCreateToken)
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
@@ -219,7 +224,7 @@ func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetAllUsers)
+	return jelly.Endpoint(api.UnauthDelay, api.epGetAllUsers)
 }
 
 // GET /users: get all users (admin auth required).
@@ -263,7 +268,7 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPCreateUser() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epCreateUser)
+	return jelly.Endpoint(api.UnauthDelay, api.epCreateUser)
 }
 
 func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
@@ -331,7 +336,7 @@ func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
 func (api LoginAPI) HTTPGetUser() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epGetUser)
+	return jelly.Endpoint(api.UnauthDelay, api.epGetUser)
 }
 
 func (api LoginAPI) epGetUser(req *http.Request) response.Result {
@@ -402,7 +407,7 @@ func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
 func (api LoginAPI) HTTPUpdateUser() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epUpdateUser)
+	return jelly.Endpoint(api.UnauthDelay, api.epUpdateUser)
 }
 
 func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
@@ -521,7 +526,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 // the ID of the user being replaced and the logged-in user of the client making
 // the request.
 func (api LoginAPI) HTTPReplaceUser() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epReplaceUser)
+	return jelly.Endpoint(api.UnauthDelay, api.epReplaceUser)
 }
 
 func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
@@ -605,7 +610,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 // the ID of the user being deleted and the logged-in user of the client making
 // the request.
 func (api LoginAPI) HTTPDeleteUser() http.HandlerFunc {
-	return jelly.HttpEndpoint(api.UnauthDelay, api.epDeleteUser)
+	return jelly.Endpoint(api.UnauthDelay, api.epDeleteUser)
 }
 
 func (api LoginAPI) epDeleteUser(req *http.Request) response.Result {
