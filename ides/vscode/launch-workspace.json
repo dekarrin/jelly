@@ -9,11 +9,11 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/jellytest/",
+            "program": "${workspaceFolder}/jelly/cmd/jellytest/",
             "cwd": "${workspaceFolder}",
             "args": [
                 "-c",
-                "${workspaceFolder}/config.example.yml"
+                "${workspaceFolder}/jelly/config.example.yml"
             ]
         },
         {
@@ -21,11 +21,11 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/cmd/jellytest/",
+            "program": "${workspaceFolder}/jelly/cmd/jellytest/",
             "cwd": "${workspaceFolder}",
             "args": [
                 "-c",
-                "${workspaceFolder}/cmd/jellytest/jelly.yml"
+                "${workspaceFolder}/jelly/cmd/jellytest/jelly.yml"
             ]
         },
         {
