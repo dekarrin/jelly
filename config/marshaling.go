@@ -198,7 +198,7 @@ func (db *Database) unmarshal(m marshaledDatabase) error {
 
 func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 	var m map[string]interface{}
-	if err := yaml.Unmarshal([]byte(n.Value), &m); err != nil {
+	if err := n.Decode(&m); err != nil {
 		return err
 	}
 
