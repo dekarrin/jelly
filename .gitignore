@@ -1,5 +1,8 @@
-/.idea
+.idea/
+.vscode/
 *.swp
 .DS_Store
 
 authdb/
+/jellytest
+*.exe

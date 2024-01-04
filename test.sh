@@ -2,10 +2,14 @@
 
 # use this script to boot up the test server and see it in action
 
+set -e
+
 script_path="$(dirname "$0")"
 
-cd "$0"
+cd "$script_path"
 
-env CGO_ENABLED=0 go build -o jellytest cmd/jellytest/main.go
+echo "Building..."
+env CGO_ENABLED=0 go build -o jellytest cmd/jellytest/*.go
 
-./jellytest -c cmd/jellytest/config.yml
+echo "Running..."
+./jellytest -c cmd/jellytest/jelly.yml
