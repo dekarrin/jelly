@@ -17,7 +17,7 @@ import (
 
 // todo: this should probs be called component providers and functionality of
 // RegisterAuto be merged with the Use function.
-var autoAPIProviders = map[string]func() API{}
+var componentProviders = map[string]func() API{}
 
 // API holds parameters for endpoints needed to run and a service layer that
 // will perform most of the actual logic. To use API, create one and then
@@ -88,7 +88,7 @@ type Component interface {
 // component with the same name will cause a panic.
 func Use(c Component) {
 	normName := strings.ToLower(c.Name())
-	if _, ok := autoAPIProviders[normName]; ok {
+	if _, ok := componentProviders[normName]; ok {
 		panic(fmt.Sprintf("duplicate component: %q is already in-use", c.Name()))
 	}
 
@@ -96,7 +96,7 @@ func Use(c Component) {
 		panic(fmt.Sprintf("register component config section: %v", err))
 	}
 
-	autoAPIProviders[normName] = c.API
+	componentProviders[normName] = c.API
 }
 
 // RESTServer is an HTTP REST server that provides resources. The zero-value of
@@ -153,9 +153,9 @@ func New(cfg *config.Config) (RESTServer, error) {
 		cfg:         *cfg,
 	}
 
-	// check on pre-rolled APIs
-	for name, prov := range autoAPIProviders {
-		if prConf, ok := cfg.APIs[name]; ok && config.Get[bool](prConf, config.KeyAPIEnabled) {
+	// check on pre-rolled components
+	for name, prov := range componentProviders {
+		if _, ok := cfg.APIs[name]; ok {
 			preRolled := prov()
 			if err := rs.Add(name, preRolled); err != nil {
 				return RESTServer{}, fmt.Errorf("auto-add enabled API %s: create API: %w", name, err)
