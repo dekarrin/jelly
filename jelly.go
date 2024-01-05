@@ -15,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// todo: this should probs be called component providers and functionality of
+// RegisterAuto be merged with the Use function.
 var autoAPIProviders = map[string]func() API{}
 
 // API holds parameters for endpoints needed to run and a service layer that
@@ -90,36 +92,11 @@ func Use(c Component) {
 		panic(fmt.Sprintf("duplicate component: %q is already in-use", c.Name()))
 	}
 
-	err := RegisterAuto(c.Name(), c.API, c.Config)
-	if err != nil {
-		panic(fmt.Sprintf("register component auto API: %v", err))
-	}
-}
-
-// RegisterAuto marks an API as being in-use and gives functions to provide a
-// new empty instance of the API and a new empty instance of its associated
-// config. This will make the API automatically instantiating in calls
-// subsequent calls to New().
-//
-// Calling this function for every API to be used is not required, but it is for
-// those that are to be automatically configured when the server is created with
-// New(). Note that if this function is not called for an API, you will need to
-// call config.Register() in order to set the config type for the API, and Add()
-// on server instances in order to actually add and configure the API.
-func RegisterAuto(name string, provider func() API, confProvider func() config.APIConfig) error {
-	normName := strings.ToLower(name)
-	if _, ok := autoAPIProviders[normName]; ok {
-		return fmt.Errorf("duplicate API name: %q is already registered", name)
-	}
-	if err := config.Register(name, confProvider); err != nil {
-		return fmt.Errorf("register API config section: %w", err)
-	}
-	if provider == nil {
-		return fmt.Errorf("API instance provider function cannot be nil")
+	if err := config.Register(normName, c.Config); err != nil {
+		panic(fmt.Sprintf("register component config section: %v", err))
 	}
 
-	autoAPIProviders[normName] = provider
-	return nil
+	autoAPIProviders[normName] = c.API
 }
 
 // RESTServer is an HTTP REST server that provides resources. The zero-value of
@@ -245,10 +222,10 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 	return root
 }
 
-// Add adds the given API and initializes it with the configuration section that
-// matches its name. The name is case-insensitive and will be normalized to
-// lowercase. It is an error to use the same normalized name in two calls to Add
-// on the same RESTServer.
+// Add adds the given API to the server. If it is enabled in its config, it will
+// be initialized with the configuration section that matches its name. The name
+// is case-insensitive and will be normalized to lowercase. It is an error to
+// use the same normalized name in two calls to Add on the same RESTServer.
 //
 // Returns an error if there is any issue initializing the API.
 func (rs *RESTServer) Add(name string, api API) error {
