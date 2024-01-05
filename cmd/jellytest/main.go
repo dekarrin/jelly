@@ -33,10 +33,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/dekarrin/jellog"
 	"github.com/dekarrin/jelly"
+	jellyauth "github.com/dekarrin/jelly/auth"
 	"github.com/dekarrin/jelly/config"
 	"github.com/spf13/pflag"
 )
@@ -53,6 +56,49 @@ var exitCode int
 var (
 	flagConf = pflag.StringP("config", "c", "jelly.yml", "Path to configuration file")
 )
+
+func stacktraceSkip(stack []byte, skipLevels int) string {
+	s := string(stack)
+	var preContent strings.Builder
+
+	const sourceTab = "\n\t"
+
+	// first find the nth tabbed-in part; this is a source file
+	var start int
+	for skipped := 0; skipped < skipLevels && start < len(s); {
+		rest := s[start:]
+
+		// if the line we are on matches a goroutine header or empty space, keep
+		// it no matter what
+		eolIdx := strings.Index(rest, "\n")
+		if eolIdx < 0 {
+			eolIdx = len(rest)
+		}
+		line := rest[:eolIdx] + "\n"
+		if strings.HasPrefix(line, "goroutine ") || strings.TrimSpace(line) == "" {
+			preContent.WriteString(line)
+			start = eolIdx + 1
+			continue
+		}
+
+		// if its not empty and not a goroutine header, assume its part of a
+		// level of the trace and remove accordingly
+
+		idx := strings.Index(rest, sourceTab)
+		if idx < 0 {
+			break
+		}
+		sourceEnd := strings.Index(rest[idx+1:], "\n")
+		if sourceEnd < 0 {
+			start = len(s)
+			break
+		}
+		start += idx + 1 + sourceEnd + 1
+		skipped++
+	}
+
+	return preContent.String() + s[start:]
+}
 
 func main() {
 	// context for signal handling. might be overkill, taking this from example
@@ -77,9 +123,17 @@ func main() {
 		os.Exit(exitInterrupt)
 	}()
 
+	var logger jellog.Logger[string]
+	loggerSetup := false
+
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
-			fmt.Fprintf(os.Stderr, "fatal panic: %v\n", panicErr)
+			if loggerSetup {
+				logger.Errorf("fatal panic: %v", panicErr)
+				logger.Debugf("stacktrace:\n%v", stacktraceSkip(debug.Stack(), 3))
+			} else {
+				fmt.Fprintf(os.Stderr, "fatal panic: %v\n", panicErr)
+			}
 			exitCode = exitPanic
 		}
 		os.Exit(exitCode)
@@ -88,9 +142,10 @@ func main() {
 	pflag.Parse()
 
 	stdErrOutput := jellog.NewStderrHandler(nil)
-	logger := jellog.New(jellog.Defaults[string]().
+	logger = jellog.New(jellog.Defaults[string]().
 		WithComponent("jelly"))
 	logger.AddHandler(jellog.LvTrace, stdErrOutput)
+	loggerSetup = true
 
 	logger.Infof("Loading config file %s...", *flagConf)
 	conf, err := config.Load(*flagConf)
@@ -99,6 +154,9 @@ func main() {
 		exitCode = exitError
 		return
 	}
+
+	// mark jellyauth as in-use
+	jelly.Use(jellyauth.Component)
 
 	server, err := jelly.New(&conf)
 	if err != nil {

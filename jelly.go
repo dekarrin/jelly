@@ -65,6 +65,37 @@ type API interface {
 	Shutdown(ctx context.Context) error
 }
 
+type Component interface {
+	// Name returns the name of the component, which must be unique across all
+	// components that jelly is set up to use.
+	Name() string
+
+	// API returns a new, uninitialized API that the Component uses as its
+	// server frontend. This instance will be initialized and passed its config
+	// object at config loading time.
+	API() API
+
+	// Config returns a new APIConfig instance that the Component's config
+	// section is loaded into.
+	Config() config.APIConfig
+}
+
+// Use enables the given component and its section. Required to be called at
+// least once for every pre-rolled component in use (such as jelly/auth) prior
+// to loading config that contains its section. Calling Use twice with a
+// component with the same name will cause a panic.
+func Use(c Component) {
+	normName := strings.ToLower(c.Name())
+	if _, ok := autoAPIProviders[normName]; ok {
+		panic(fmt.Sprintf("duplicate component: %q is already in-use", c.Name()))
+	}
+
+	err := RegisterAuto(c.Name(), c.API, c.Config)
+	if err != nil {
+		panic(fmt.Sprintf("register component auto API: %v", err))
+	}
+}
+
 // RegisterAuto marks an API as being in-use and gives functions to provide a
 // new empty instance of the API and a new empty instance of its associated
 // config. This will make the API automatically instantiating in calls

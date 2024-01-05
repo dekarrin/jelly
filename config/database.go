@@ -38,7 +38,7 @@ func ParseDBType(s string) (DBType, error) {
 	case DatabaseOWDB.String():
 		return DatabaseOWDB, nil
 	default:
-		return DatabaseNone, fmt.Errorf("DB type not one of 'sqlite', 'owdb', or 'inmem': %q", s)
+		return DatabaseNone, fmt.Errorf("DB type %q is not one of 'sqlite', 'owdb', or 'inmem'", s)
 	}
 }
 

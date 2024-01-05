@@ -94,12 +94,14 @@ func Register(name string, provider func() APIConfig) error {
 func unmarshalAPI(ma marshaledAPI, name string) (APIConfig, error) {
 	nameNorm := strings.ToLower(name)
 
+	var api APIConfig
 	prov, ok := apiConfigProviders[nameNorm]
-	if !ok {
-		return nil, fmt.Errorf("no provider exists for API config section named %q", nameNorm)
+	if ok {
+		api = prov()
+	} else {
+		// fallback - if it fails to provide one, it just gets a common config
+		api = &Common{}
 	}
-
-	api := prov()
 
 	if err := api.Set(KeyAPIName, nameNorm); err != nil {
 		return nil, fmt.Errorf(KeyAPIName+": %w", err)
