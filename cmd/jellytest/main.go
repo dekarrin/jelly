@@ -180,6 +180,10 @@ func main() {
 		}
 	}()
 
+	routes := server.RoutesIndex()
+	logger.Debugf("Configured routes:\n%s", routes)
+	logger.InsertBreak(jellog.LvDebug)
+
 	logger.Info("Jelly test server started; Ctrl-C (SIGINT) to stop")
 
 	// wait forever, checking for interrupt and doing clean shutdown if we get

@@ -127,6 +127,7 @@ func RegisterAuto(name string, provider func() API, confProvider func() config.A
 // use.
 type RESTServer struct {
 	mtx         *sync.Mutex
+	rtr         chi.Router
 	closing     bool
 	serving     bool
 	http        *http.Server
@@ -147,7 +148,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 	if cfg == nil {
 		cfg = &config.Config{}
 	} else {
-		var copy *config.Config
+		copy := new(config.Config)
 		*copy = *cfg
 		cfg = copy
 	}
@@ -188,9 +189,28 @@ func New(cfg *config.Config) (RESTServer, error) {
 	return rs, nil
 }
 
+// RoutesIndex returns a human-readable formatted string that lists all routes
+// and methods currently available in the server.
+func (rs *RESTServer) RoutesIndex() string {
+	var sb strings.Builder
+	r := rs.routeAllAPIs()
+	chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		sb.WriteString(fmt.Sprintf("* %s %s\n", strings.ToUpper(method), route))
+		return nil
+	})
+	return strings.TrimSpace(sb.String())
+}
+
 // routeAllAPIs is called just before serving. it gets all enabled routes and
 // mounts them in the base router.
 func (rs *RESTServer) routeAllAPIs() chi.Router {
+	rs.mtx.Lock()
+	defer rs.mtx.Unlock()
+
+	if rs.rtr != nil {
+		return rs.rtr
+	}
+
 	// Create root router
 	root := chi.NewRouter()
 	root.Use(middle.DontPanic())
@@ -220,6 +240,8 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		}
 	}
 
+	rs.rtr = root
+
 	return root
 }
 
@@ -240,6 +262,14 @@ func (rs *RESTServer) Add(name string, api API) error {
 	if !ok {
 		return fmt.Errorf("missing config for API %q", name)
 	}
+
+	// aquire mtx to modify the stored router
+	rs.mtx.Lock()
+	defer func() {
+		rs.mtx.Unlock()
+	}()
+	// make shore to reset the router so we don't re-use it
+	rs.rtr = nil
 
 	rs.apis[normName] = api
 	if config.Get[bool](apiConf, config.KeyAPIEnabled) {
