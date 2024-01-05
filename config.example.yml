@@ -156,4 +156,4 @@ jellyauth:
   # restarted, any logins that existed on shutdown will become invalid.
   #
   # This value should be changed from its default for production use.
-  secret: DEFAULT_NONPROD_TOKEN_SECRET
+  secret: DEFAULT_NONPROD_TOKEN_SECRET_DO_NOT_USE

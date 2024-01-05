@@ -147,6 +147,9 @@ func main() {
 	logger.AddHandler(jellog.LvTrace, stdErrOutput)
 	loggerSetup = true
 
+	// mark jellyauth as in-use before loading config
+	jelly.Use(jellyauth.Component)
+
 	logger.Infof("Loading config file %s...", *flagConf)
 	conf, err := config.Load(*flagConf)
 	if err != nil {
@@ -154,9 +157,6 @@ func main() {
 		exitCode = exitError
 		return
 	}
-
-	// mark jellyauth as in-use
-	jelly.Use(jellyauth.Component)
 
 	server, err := jelly.New(&conf)
 	if err != nil {
@@ -181,6 +181,9 @@ func main() {
 	}()
 
 	routes := server.RoutesIndex()
+	if routes == "" {
+		routes = "(no routes)"
+	}
 	logger.Debugf("Configured routes:\n%s", routes)
 	logger.InsertBreak(jellog.LvDebug)
 

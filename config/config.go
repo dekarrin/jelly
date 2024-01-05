@@ -229,10 +229,10 @@ func (cfg Config) Validate() error {
 		com := cfg.APIs[name].Common()
 
 		if name != com.Name && com.Name != "" {
-			return fmt.Errorf("apis: %s: name mismatch; API.Name is set to %q", name, com.Name)
+			return fmt.Errorf("%s: name mismatch; API.Name is set to %q", name, com.Name)
 		}
 		if err := api.Validate(); err != nil {
-			return fmt.Errorf("apis: %s: %w", name, err)
+			return fmt.Errorf("%s: %w", name, err)
 		}
 	}
 

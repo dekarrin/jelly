@@ -43,7 +43,7 @@ func (cfg *Config) FillDefaults() config.APIConfig {
 	newCFG.CommonConf = newCFG.CommonConf.FillDefaults().Common()
 
 	if newCFG.Secret == nil {
-		newCFG.Secret = []byte("DEFAULT_NONPROD_TOKEN_SECRET")
+		newCFG.Secret = []byte("DEFAULT_NONPROD_TOKEN_SECRET_DO_NOT_USE")
 	}
 
 	return newCFG
@@ -58,10 +58,10 @@ func (cfg *Config) Validate() error {
 	}
 
 	if len(cfg.Secret) < MinSecretSize {
-		return fmt.Errorf("token secret: must be at least %d bytes, but is %d", MinSecretSize, len(cfg.Secret))
+		return fmt.Errorf("secret: must be at least %d bytes, but is %d", MinSecretSize, len(cfg.Secret))
 	}
 	if len(cfg.Secret) > MaxSecretSize {
-		return fmt.Errorf("token secret: must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.Secret))
+		return fmt.Errorf("secret: must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.Secret))
 	}
 
 	return nil
