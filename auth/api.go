@@ -39,8 +39,8 @@ type LoginAPI struct {
 
 func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
 	api.name = cb.Name()
-	api.Secret = cb.GetByteSlice()
-	api.UnauthDelay = g.UnauthDelay()
+	api.Secret = cb.GetByteSlice(ConfigKeySecret)
+	api.UnauthDelay = cb.ServerUnauthDelay()
 	authRaw := dbs["auth"]
 	authStore, ok := authRaw.(dao.AuthUserStore)
 	if !ok {
@@ -49,7 +49,7 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
 	api.Service = LoginService{
 		Provider: authStore,
 	}
-	api.pathPrefix = g.URIBase + cfg.CommonConf.Base
+	api.pathPrefix = cb.Base()
 
 	return nil
 }

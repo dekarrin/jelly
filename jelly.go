@@ -305,7 +305,8 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 	}
 	apiConf.Set(config.KeyAPIBase, base)
 
-	if err := api.Init(apiConf, rs.cfg.Globals, usedDBs); err != nil {
+	// make config bundle for them
+	if err := api.Init(config.NewBundle(apiConf, rs.cfg.Globals), usedDBs); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
 

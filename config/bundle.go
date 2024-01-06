@@ -12,6 +12,10 @@ type Bundle struct {
 	g   Globals
 }
 
+func NewBundle(api APIConfig, g Globals) Bundle {
+	return Bundle{api: api, g: g}
+}
+
 // ServerPort returns the port that the server the API is being initialized for
 // will listen on.
 func (bnd Bundle) ServerPort() int {

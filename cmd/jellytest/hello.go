@@ -121,7 +121,7 @@ type HelloAPI struct {
 	UnauthDelay time.Duration
 }
 
-func (echo *HelloAPI) Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
+func (echo *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
 	return fmt.Errorf("not impelmented")
 }
 

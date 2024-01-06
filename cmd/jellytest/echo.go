@@ -113,15 +113,11 @@ type EchoAPI struct {
 	UnauthDelay time.Duration
 }
 
-func (echo *EchoAPI) Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
-	echoCfg, ok := cfg.(*EchoConfig)
-	if !ok {
-		return fmt.Errorf("wrong config type, expected *EchoConfig but got %T", cfg)
-	}
-
-	echo.Messages = make([]string, len(echoCfg.Messages))
-	copy(echo.Messages, echoCfg.Messages)
-	echo.UnauthDelay = g.UnauthDelay()
+func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
+	msgs := cb.GetSlice(ConfigKeyMessages)
+	echo.Messages = make([]string, len(msgs))
+	copy(echo.Messages, msgs)
+	echo.UnauthDelay = cb.ServerUnauthDelay()
 
 	return nil
 }
