@@ -46,7 +46,7 @@ func (bnd Bundle) ServerUnauthDelay() time.Duration {
 // doubled-slashes.
 func (bnd Bundle) Base() string {
 	svBase := bnd.ServerBase()
-	apiBase := bnd.Base()
+	apiBase := bnd.APIBase()
 
 	var base string
 	if svBase != "" && svBase != "/" {
