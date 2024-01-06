@@ -148,7 +148,7 @@ func main() {
 	loggerSetup = true
 
 	// mark jellyauth as in-use before loading config
-	jelly.Use(jellyauth.Component)
+	jelly.UseComponent(jellyauth.Component)
 
 	logger.Infof("Loading config file %s...", *flagConf)
 	conf, err := config.Load(*flagConf)

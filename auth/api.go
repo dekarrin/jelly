@@ -37,14 +37,9 @@ type LoginAPI struct {
 	name string
 }
 
-func (api *LoginAPI) Init(rawCfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error {
-	cfg, ok := rawCfg.(*Config)
-	if !ok {
-		return fmt.Errorf("bad config type %T", rawCfg)
-	}
-
-	api.name = config.Get[string](cfg, config.KeyAPIName)
-	api.Secret = cfg.Secret
+func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
+	api.name = cb.Name()
+	api.Secret = cb.GetByteSlice()
 	api.UnauthDelay = g.UnauthDelay()
 	authRaw := dbs["auth"]
 	authStore, ok := authRaw.(dao.AuthUserStore)

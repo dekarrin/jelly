@@ -34,7 +34,7 @@ type API interface {
 	// during a call to Init, and should not attempt to use auth middleware that
 	// relies on other APIs (such as jellyauth's jwt provider). Defer actual
 	// usage to another function, such as Routes.
-	Init(cfg config.APIConfig, g config.Globals, dbs map[string]dao.Store) error
+	Init(cb config.Bundle, dbs map[string]dao.Store) error
 
 	// Authenticators returns any configured authenticators that this API
 	// provides. Other APIs will be able to refer to these authenticators by
@@ -82,11 +82,11 @@ type Component interface {
 	Config() config.APIConfig
 }
 
-// Use enables the given component and its section. Required to be called at
-// least once for every pre-rolled component in use (such as jelly/auth) prior
-// to loading config that contains its section. Calling Use twice with a
-// component with the same name will cause a panic.
-func Use(c Component) {
+// UseComponent enables the given component and its section in config. Required
+// to be called at least once for every pre-rolled component in use (such as
+// jelly/auth) prior to loading config that contains its section. Calling
+// UseComponent twice with a component with the same name will cause a panic.
+func UseComponent(c Component) {
 	normName := strings.ToLower(c.Name())
 	if _, ok := componentProviders[normName]; ok {
 		panic(fmt.Sprintf("duplicate component: %q is already in-use", c.Name()))
