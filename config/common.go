@@ -41,6 +41,7 @@ type Common struct {
 // to their defaults and values normalized.
 func (cc *Common) FillDefaults() APIConfig {
 	newCC := new(Common)
+	*newCC = *cc
 
 	if newCC.Base == "" {
 		newCC.Base = "/"

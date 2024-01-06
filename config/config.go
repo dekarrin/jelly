@@ -189,7 +189,7 @@ func (cfg Config) FillDefaults() Config {
 	for name, api := range newCFG.APIs {
 		if Get[string](api, KeyAPIName) == "" {
 			if err := api.Set(KeyAPIName, name); err != nil {
-				panic(fmt.Sprintf("setting a common property failed; should never happen: %v", err))
+				panic(fmt.Sprintf("setting a config global failed; should never happen: %v", err))
 			}
 		}
 		api = api.FillDefaults()
