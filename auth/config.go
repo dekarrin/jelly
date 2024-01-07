@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	ConfigKeySecret = "secret"
+	ConfigKeySecret   = "secret"
+	ConfigKeySetAdmin = "set_admin"
 )
 
 const (
@@ -63,14 +64,40 @@ func (cfg *Config) Validate() error {
 		return err
 	}
 
+	if len(cfg.CommonConf.UsesDBs) < 1 {
+		return fmt.Errorf("use of at least one database must be declared")
+	}
+
 	if len(cfg.Secret) < MinSecretSize {
-		return fmt.Errorf("secret: must be at least %d bytes, but is %d", MinSecretSize, len(cfg.Secret))
+		return fmt.Errorf(ConfigKeySecret+": must be at least %d bytes, but is %d", MinSecretSize, len(cfg.Secret))
 	}
 	if len(cfg.Secret) > MaxSecretSize {
-		return fmt.Errorf("secret: must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.Secret))
+		return fmt.Errorf(ConfigKeySecret+": must be no more than %d bytes, but is %d", MaxSecretSize, len(cfg.Secret))
+	}
+
+	if cfg.SetAdmin != "" {
+		_, _, err := parseSetAdmin(cfg.SetAdmin)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+func parseSetAdmin(s string) (user, pass string, err error) {
+	parts := strings.SplitN(s, ":", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf(ConfigKeySetAdmin + ": not in USERNAME:PASSWORD format")
+	}
+	if len(parts[0]) < 1 {
+		return "", "", fmt.Errorf(ConfigKeySetAdmin + ": username cannot be blank")
+	}
+	if len(parts[1]) < 1 {
+		return "", "", fmt.Errorf(ConfigKeySetAdmin + ": password cannot be blank")
+	}
+
+	return parts[0], parts[1], nil
 }
 
 func (cfg *Config) Common() config.Common {
@@ -79,7 +106,7 @@ func (cfg *Config) Common() config.Common {
 
 func (cfg *Config) Keys() []string {
 	keys := cfg.CommonConf.Keys()
-	keys = append(keys, ConfigKeySecret)
+	keys = append(keys, ConfigKeySecret, ConfigKeySetAdmin)
 	return keys
 }
 
@@ -87,6 +114,8 @@ func (cfg *Config) Get(key string) interface{} {
 	switch strings.ToLower(key) {
 	case ConfigKeySecret:
 		return cfg.Secret
+	case ConfigKeySetAdmin:
+		return cfg.SetAdmin
 	default:
 		return cfg.CommonConf.Get(key)
 	}
@@ -94,6 +123,13 @@ func (cfg *Config) Get(key string) interface{} {
 
 func (cfg *Config) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
+	case ConfigKeySetAdmin:
+		if valueStr, ok := value.(string); ok {
+			cfg.SetAdmin = valueStr
+			return nil
+		} else {
+			return fmt.Errorf("key '"+ConfigKeySetAdmin+"' requires a string but got a %T", value)
+		}
 	case ConfigKeySecret:
 		if valueStr, ok := value.([]byte); ok {
 			cfg.Secret = valueStr
@@ -108,7 +144,7 @@ func (cfg *Config) Set(key string, value interface{}) error {
 
 func (cfg *Config) SetFromString(key string, value string) error {
 	switch strings.ToLower(key) {
-	case ConfigKeySecret:
+	case ConfigKeySecret, ConfigKeySetAdmin:
 		return cfg.Set(key, value)
 	default:
 		return cfg.CommonConf.SetFromString(key, value)

@@ -124,6 +124,38 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (dao.User, error
 	return user, nil
 }
 
+// GetUserByUsername returns the user with the given username.
+//
+// The returned error, if non-nil, will return true for various calls to
+// errors.Is depending on what caused the error. If no user with that ID exists,
+// it will match serr.ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
+// with one of the arguments, it will match serr.ErrBadArgument.
+func (svc LoginService) GetUserByUsername(ctx context.Context, username string) (dao.User, error) {
+	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
+	if err != nil {
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.ErrNotFound
+		}
+		return dao.User{}, serr.WrapDB("could not get user", err)
+	}
+
+	return user, nil
+}
+
+func hashUserPass(password string) (string, error) {
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		if err == bcrypt.ErrPasswordTooLong {
+			return "", serr.New("password is too long", err, serr.ErrBadArgument)
+		} else {
+			return "", serr.New("password could not be encrypted", err)
+		}
+	}
+
+	return base64.StdEncoding.EncodeToString(passHash), nil
+}
+
 // CreateUser creates a new user with the given username, password, and email
 // combo. Returns the newly-created user as it exists after creation.
 //
@@ -156,16 +188,10 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 		return dao.User{}, serr.WrapDB("", err)
 	}
 
-	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	storedPass, err := hashUserPass(password)
 	if err != nil {
-		if err == bcrypt.ErrPasswordTooLong {
-			return dao.User{}, serr.New("password is too long", err, serr.ErrBadArgument)
-		} else {
-			return dao.User{}, serr.New("password could not be encrypted", err)
-		}
+		return dao.User{}, err
 	}
-
-	storedPass := base64.StdEncoding.EncodeToString(passHash)
 
 	newUser := dao.User{
 		Username: username,

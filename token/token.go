@@ -81,7 +81,7 @@ func Get(req *http.Request) (string, error) {
 
 func Generate(secret []byte, u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
-		"iss":        "tqs",
+		"iss":        Issuer,
 		"exp":        time.Now().Add(time.Hour).Unix(),
 		"sub":        u.ID.String(),
 		"authorized": true,

@@ -45,7 +45,7 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 	api.log = log
 	api.Secret = cb.GetByteSlice(ConfigKeySecret)
 	api.UnauthDelay = cb.ServerUnauthDelay()
-	authRaw := dbs["auth"]
+	authRaw := dbs[cb.UsesDBs()[0]]
 	authStore, ok := authRaw.(dao.AuthUserStore)
 	if !ok {
 		return fmt.Errorf("DB provided under 'auth' does not implement jeldao.AuthUserStore")
@@ -54,6 +54,44 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 		Provider: authStore,
 	}
 	api.pathPrefix = cb.Base()
+
+	ctx := context.Background()
+	setAdmin := cb.Get(ConfigKeySetAdmin)
+	if setAdmin != "" {
+		username, pass, err := parseSetAdmin(setAdmin)
+		if err != nil {
+			return fmt.Errorf(ConfigKeySetAdmin+": %w", err)
+		}
+
+		existing, err := api.Service.GetUserByUsername(ctx, username)
+		if err == nil {
+			// a user exists. we need to update it.
+			user, err := api.Service.UpdatePassword(ctx, existing.ID.String(), pass)
+			if err != nil {
+				return fmt.Errorf("update password for user %q: %w", username, err)
+			}
+			api.log.Debug("updated user %s's password due to set-admin config")
+			// make shore their role is set to admin as well
+			if user.Role != dao.Admin {
+				_, err = api.Service.UpdateUser(ctx, user.ID.String(), user.ID.String(), user.Username, user.Email.String(), dao.Admin)
+				if err != nil {
+					return fmt.Errorf("update role to admin for user %q: %w", username, err)
+				}
+				api.log.Debug("updated user %s's role to admin due to set-admin config")
+			}
+		} else {
+			if !errors.Is(err, serr.ErrNotFound) {
+				return fmt.Errorf("retrieve user for admin promotion: %w", err)
+			}
+
+			_, err = api.Service.CreateUser(ctx, username, pass, "", dao.Admin)
+			if err != nil {
+				return fmt.Errorf("creating admin user: %w", err)
+			}
+
+			api.log.Debug("created user %s as admin due to set-admin config")
+		}
+	}
 
 	return nil
 }
