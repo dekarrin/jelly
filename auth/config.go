@@ -22,6 +22,12 @@ type Config struct {
 	// Secret is the secret used for signing tokens. If not provided, a default
 	// key is used.
 	Secret []byte
+
+	// SetAdmin sets the initial admin user in the DB. If it doesn't exist,
+	// it's created on initialization. Format must be USERNAME:PASSWORD. This
+	// will not default; if none is provided, no user is created. If the user
+	// already exists, it will have its password set to the given one.
+	SetAdmin string
 }
 
 // FillDefaults returns a new *Config identical to cfg but with unset values set

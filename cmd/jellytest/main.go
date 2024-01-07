@@ -18,6 +18,9 @@ configured. The main endpoints of interest are:
 Additionally, the jelly auth API is started with its endpoints under /auth under
 the base URI for the server, if one is configured.
 
+An authorized admin user is created by default with username and password both
+set to 'admin'. This can be used to create further users.
+
 The flags are:
 
 	-c, --conf PATH
