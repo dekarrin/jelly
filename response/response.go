@@ -313,6 +313,7 @@ func (r Result) WriteResponse(w http.ResponseWriter) {
 	}
 }
 
+// TODO: detangle this and make it use the actual log provider.
 func (r Result) Log(req *http.Request) {
 	if r.IsErr {
 		LogHTTPResponse("ERROR", req, r.Status, r.InternalMsg)

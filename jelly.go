@@ -5,7 +5,6 @@ package jelly
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"sort"
 	"strings"
@@ -248,7 +247,6 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 	r := root
 	if rs.cfg.Globals.URIBase != "/" {
 		r = chi.NewRouter()
-		log.Printf("Mount API Base @%s", rs.cfg.Globals.URIBase)
 		root.Mount(rs.cfg.Globals.URIBase, r)
 	}
 
@@ -259,7 +257,6 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 			apiRouter, subpaths := api.Routes()
 
 			if apiRouter != nil {
-				log.Printf("Mount API %q @%s", name, base)
 				r.Mount(base, apiRouter)
 				if !subpaths && base != "/" {
 					r.HandleFunc(base+"/", RedirectNoTrailingSlash)

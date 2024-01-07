@@ -2,9 +2,11 @@ package logging
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/dekarrin/jellog"
+	"github.com/dekarrin/jelly/response"
 )
 
 type Provider int
@@ -93,6 +95,9 @@ type Logger interface {
 	// meaning of a break varies based on the underlying log; for text-based
 	// logs, it is generally a newline character.
 	WarnBreak()
+
+	// LogResult logs a request and the response to that request.
+	LogResult(req *http.Request, r response.Result)
 }
 
 // New creates a new logger of the given provider. If filename is blank, it will
@@ -130,21 +135,22 @@ func New(p Provider, filename string) (Logger, error) {
 // NoOpLogger is a logger that performs no operations.
 type NoOpLogger struct{}
 
-func (log NoOpLogger) Debug(msg string)                    {}
-func (log NoOpLogger) Warn(msg string)                     {}
-func (log NoOpLogger) Trace(msg string)                    {}
-func (log NoOpLogger) Info(msg string)                     {}
-func (log NoOpLogger) Error(msg string)                    {}
-func (log NoOpLogger) Debugf(msg string, a ...interface{}) {}
-func (log NoOpLogger) Warnf(msg string, a ...interface{})  {}
-func (log NoOpLogger) Tracef(msg string, a ...interface{}) {}
-func (log NoOpLogger) Infof(msg string, a ...interface{})  {}
-func (log NoOpLogger) Errorf(msg string, a ...interface{}) {}
-func (log NoOpLogger) ErrorBreak()                         {}
-func (log NoOpLogger) InfoBreak()                          {}
-func (log NoOpLogger) WarnBreak()                          {}
-func (log NoOpLogger) TraceBreak()                         {}
-func (log NoOpLogger) DebugBreak()                         {}
+func (log NoOpLogger) Debug(msg string)                               {}
+func (log NoOpLogger) Warn(msg string)                                {}
+func (log NoOpLogger) Trace(msg string)                               {}
+func (log NoOpLogger) Info(msg string)                                {}
+func (log NoOpLogger) Error(msg string)                               {}
+func (log NoOpLogger) Debugf(msg string, a ...interface{})            {}
+func (log NoOpLogger) Warnf(msg string, a ...interface{})             {}
+func (log NoOpLogger) Tracef(msg string, a ...interface{})            {}
+func (log NoOpLogger) Infof(msg string, a ...interface{})             {}
+func (log NoOpLogger) Errorf(msg string, a ...interface{})            {}
+func (log NoOpLogger) ErrorBreak()                                    {}
+func (log NoOpLogger) InfoBreak()                                     {}
+func (log NoOpLogger) WarnBreak()                                     {}
+func (log NoOpLogger) TraceBreak()                                    {}
+func (log NoOpLogger) DebugBreak()                                    {}
+func (log NoOpLogger) LogResult(req *http.Request, r response.Result) {}
 
 type jellogLogger struct {
 	j jellog.Logger[string]
@@ -208,4 +214,27 @@ func (log jellogLogger) TraceBreak() {
 
 func (log jellogLogger) DebugBreak() {
 	log.j.InsertBreak(jellog.LvDebug)
+}
+
+func (log jellogLogger) LogResult(req *http.Request, r response.Result) {
+	if r.IsErr {
+		log.logHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
+	} else {
+		log.logHTTPResponse("INFO", req, r.Status, r.InternalMsg)
+	}
+}
+
+func (log jellogLogger) logHTTPResponse(level string, req *http.Request, respStatus int, msg string) {
+	// we don't really care about the ephemeral port from the client end
+	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
+	remoteIP := remoteAddrParts[0]
+
+	if level == "ERROR" {
+		log.Errorf("%s %s %s: HTTP-%d %s", remoteIP, req.Method, req.URL.Path, respStatus, msg)
+	} else {
+		log.Infof("%s %s %s: HTTP-%d %s", remoteIP, req.Method, req.URL.Path, respStatus, msg)
+	}
+
+	// original "log" provider style.
+	// log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }

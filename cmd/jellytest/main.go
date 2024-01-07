@@ -157,6 +157,7 @@ func main() {
 		exitCode = exitError
 		return
 	}
+	conf = conf.FillDefaults()
 
 	server, err := jelly.New(&conf)
 	if err != nil {
@@ -187,7 +188,7 @@ func main() {
 	logger.Debugf("Configured routes:\n%s", routes)
 	logger.InsertBreak(jellog.LvDebug)
 
-	logger.Info("Jelly test server started; Ctrl-C (SIGINT) to stop")
+	logger.Infof("Jelly test server listening on %s:%d; Ctrl-C (SIGINT) to stop", conf.Globals.Address, conf.Globals.Port)
 
 	// wait forever, checking for interrupt and doing clean shutdown if we get
 	// it
