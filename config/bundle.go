@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 )
 
@@ -29,9 +30,22 @@ func (bnd Bundle) ServerAddress() string {
 }
 
 // ServerBase returns the base path that all APIs in the server are mounted at.
-// Can be useful for establishing "complete" paths to entities.
+// It will perform any needed normalization of the base string to ensure that it
+// is non-empty, starts with a slash, and does not end with a slash except if it
+// is "/". Can be useful for establishing "complete" paths to entities, although
+// if a complete base path to the API is needed, [Bundle.Base] can be called.
 func (bnd Bundle) ServerBase() string {
-	return bnd.g.URIBase
+	base := bnd.g.URIBase
+
+	for base[len(base)-1] == '/' {
+		// do not end with a slash, please
+		base = base[:len(base)-1]
+	}
+	if len(base) == 0 || base[0] != '/' {
+		base = "/" + base
+	}
+
+	return strings.ToLower(base)
 }
 
 // ServerUnauthDelay returns the amount of time that the server is configured to
@@ -80,12 +94,25 @@ func (bnd Bundle) Name() string {
 }
 
 // APIBase returns the base path of the API that its routes are all mounted at.
-// This is relative to the ServerBase; combine both ServerBase and APIBase to
-// get the complete URI base path, or call Base() to do it for you.
+// It will perform any needed normalization of the base string to ensure that it
+// is non-empty, starts with a slash, and does not end with a slash except if it
+// is "/". The returned base path is relative to the ServerBase; combine both
+// ServerBase and APIBase to get the complete URI base path, or call Base() to
+// do it for you.
 //
 // This is a convenience function equivalent to calling bnd.Get(KeyAPIBase).
 func (bnd Bundle) APIBase() string {
-	return bnd.Get(KeyAPIBase)
+	base := bnd.Get(KeyAPIBase)
+
+	for base[len(base)-1] == '/' {
+		// do not end with a slash, please
+		base = base[:len(base)-1]
+	}
+	if len(base) == 0 || base[0] != '/' {
+		base = "/" + base
+	}
+
+	return strings.ToLower(base)
 }
 
 // UsesDBs returns the list of database names that the API is configured to

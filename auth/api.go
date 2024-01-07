@@ -10,6 +10,7 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
@@ -35,10 +36,13 @@ type LoginAPI struct {
 	// the name this API is configured under, used to find the name of own
 	// auth provider
 	name string
+
+	log logging.Logger
 }
 
-func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
+func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
 	api.name = cb.Name()
+	api.log = log
 	api.Secret = cb.GetByteSlice(ConfigKeySecret)
 	api.UnauthDelay = cb.ServerUnauthDelay()
 	authRaw := dbs["auth"]

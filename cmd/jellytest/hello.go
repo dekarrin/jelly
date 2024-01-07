@@ -9,6 +9,7 @@ import (
 
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/go-chi/chi/v5"
 )
@@ -121,7 +122,7 @@ type HelloAPI struct {
 	UnauthDelay time.Duration
 }
 
-func (echo *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
+func (echo *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
 	return fmt.Errorf("not impelmented")
 }
 

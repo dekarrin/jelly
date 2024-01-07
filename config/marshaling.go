@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dekarrin/jelly/logging"
 	"gopkg.in/yaml.v3"
 )
 
@@ -33,6 +34,13 @@ type marshaledConfig struct {
 	DBs         map[string]marshaledDatabase `yaml:"dbs" json:"dbs"`
 	UnauthDelay int                          `yaml:"unauth_delay" json:"unauth_delay"`
 	APIs        map[string]marshaledAPI      `yaml:"apis" json:"apis"`
+	Logging     marshaledLog                 `yaml:"logging" json:"logging"`
+}
+
+type marshaledLog struct {
+	Enabled  bool   `yaml:"enabled" json:"enabled"`
+	Provider string `yaml:"provider" json:"provider"`
+	File     string `yaml:"file" json:"file"`
 }
 
 // Load loads a configuration from a JSON or YAML file. The format of the file
@@ -129,6 +137,22 @@ func unmarshalAPI(ma marshaledAPI, name string) (APIConfig, error) {
 // unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
+func (log *Log) unmarshal(m marshaledLog) error {
+	var err error
+
+	log.Enabled = m.Enabled
+	log.Provider, err = logging.ParseProvider(m.Provider)
+	if err != nil {
+		return fmt.Errorf("provider: %w", err)
+	}
+	log.File = m.File
+
+	return nil
+}
+
+// unmarshal completely replaces all attributes.
+//
+// does no validation except that which is required for parsing.
 func (cfg *Globals) unmarshal(m marshaledConfig) error {
 	var err error
 
@@ -175,6 +199,9 @@ func (cfg *Config) unmarshal(m marshaledConfig) error {
 			return fmt.Errorf("%s: %w", n, err)
 		}
 		cfg.APIs[n] = api
+	}
+	if err := cfg.Log.unmarshal(m.Logging); err != nil {
+		return fmt.Errorf("logging: %w", err)
 	}
 
 	return nil

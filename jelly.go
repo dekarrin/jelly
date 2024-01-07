@@ -11,6 +11,7 @@ import (
 
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/go-chi/chi/v5"
 )
@@ -26,15 +27,16 @@ var componentProviders = map[string]func() API{}
 type API interface {
 
 	// Init creates the API initially and does any setup other than routing its
-	// endpoints. It takes in a complete config object and a map of dbs to
-	// connected stores. Only those stores requested in the API's config in the
-	// 'uses' key will be included here.
+	// endpoints. It takes in a complete config object, a map of dbs to
+	// connected stores, and a logger to use, which will never be nil. Only
+	// those stores requested in the API's config in the 'uses' key will be
+	// included here.
 	//
 	// The API should not expect that any other API has yet been initialized,
 	// during a call to Init, and should not attempt to use auth middleware that
 	// relies on other APIs (such as jellyauth's jwt provider). Defer actual
 	// usage to another function, such as Routes.
-	Init(cb config.Bundle, dbs map[string]dao.Store) error
+	Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error
 
 	// Authenticators returns any configured authenticators that this API
 	// provides. Other APIs will be able to refer to these authenticators by
@@ -113,6 +115,8 @@ type RESTServer struct {
 	basesToAPIs map[string]string // used for tracking that APIs do not eat each other
 	dbs         map[string]dao.Store
 	cfg         config.Config // config that it was started with.
+
+	log logging.Logger // used for logging. if logging disabled, this will be set to a no-op logger
 }
 
 // New creates a new RESTServer ready to have new APIs added to it. All
@@ -134,6 +138,17 @@ func New(cfg *config.Config) (RESTServer, error) {
 		return RESTServer{}, fmt.Errorf("config: %w", err)
 	}
 
+	var logger logging.Logger = logging.NoOpLogger{}
+	// config is loaded, make the first thing we start be our logger
+	if cfg.Log.Enabled {
+		var err error
+
+		logger, err = cfg.Log.Create()
+		if err != nil {
+			return RESTServer{}, fmt.Errorf("create logger: %w", err)
+		}
+	}
+
 	// connect DBs
 	dbs := map[string]dao.Store{}
 	for name, db := range cfg.DBs {
@@ -151,6 +166,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 		basesToAPIs: map[string]string{},
 		dbs:         dbs,
 		cfg:         *cfg,
+		log:         logger,
 	}
 
 	// check on pre-rolled components
@@ -158,7 +174,7 @@ func New(cfg *config.Config) (RESTServer, error) {
 		if _, ok := cfg.APIs[name]; ok {
 			preRolled := prov()
 			if err := rs.Add(name, preRolled); err != nil {
-				return RESTServer{}, fmt.Errorf("auto-add enabled API %s: create API: %w", name, err)
+				return RESTServer{}, fmt.Errorf("component API %s: create API: %w", name, err)
 			}
 		}
 	}
@@ -200,11 +216,8 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 	}
 
 	for name, api := range rs.apis {
-		apiConf, ok := rs.cfg.APIs[name]
-		if !ok {
-			apiConf = (&config.Common{Name: name}).FillDefaults()
-		}
-		if config.Get[bool](apiConf, config.KeyAPIEnabled) {
+		apiConf := rs.getAPIConfigBundle(name)
+		if apiConf.Enabled() {
 			base := rs.apiBases[name]
 			apiRouter, subpaths := api.Routes()
 
@@ -229,16 +242,13 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 //
 // Returns an error if there is any issue initializing the API.
 func (rs *RESTServer) Add(name string, api API) error {
-	normName := strings.ToLower(name)
+	name = strings.ToLower(name)
 
 	if _, ok := rs.apis[name]; ok {
-		return fmt.Errorf("API named %q has already been added", normName)
+		return fmt.Errorf("API named %q has already been added", name)
 	}
 
-	apiConf, ok := rs.cfg.APIs[normName]
-	if !ok {
-		return fmt.Errorf("missing config for API %q", name)
-	}
+	apiConf := rs.getAPIConfigBundle(name)
 
 	// aquire mtx to modify the stored router
 	rs.mtx.Lock()
@@ -248,13 +258,13 @@ func (rs *RESTServer) Add(name string, api API) error {
 	// make shore to reset the router so we don't re-use it
 	rs.rtr = nil
 
-	rs.apis[normName] = api
-	if config.Get[bool](apiConf, config.KeyAPIEnabled) {
-		base, err := rs.initAPI(normName, api)
+	rs.apis[name] = api
+	if apiConf.Enabled() {
+		base, err := rs.initAPI(name, api)
 		if err != nil {
 			return err
 		}
-		rs.apiBases[normName] = base
+		rs.apiBases[name] = base
 
 		auths := api.Authenticators()
 		for aName, a := range auths {
@@ -268,15 +278,27 @@ func (rs *RESTServer) Add(name string, api API) error {
 	return nil
 }
 
-func (rs *RESTServer) initAPI(name string, api API) (string, error) {
-	apiConf, ok := rs.cfg.APIs[strings.ToLower(name)]
+// will return default "common bundle" with only the name set if the named API
+// is not in the configured APIs.
+func (rs *RESTServer) getAPIConfigBundle(name string) config.Bundle {
+	conf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
-		return "", fmt.Errorf("missing config for API %q", name)
+		return config.NewBundle((&config.Common{Name: name}).FillDefaults(), rs.cfg.Globals)
 	}
+	return config.NewBundle(conf, rs.cfg.Globals)
+}
+
+func (rs *RESTServer) initAPI(name string, api API) (string, error) {
+	// using strings.ToLower is getting old. probs should just do that once on
+	// input and then assume all controlled code is good to go
+	if _, ok := rs.cfg.APIs[strings.ToLower(name)]; !ok {
+		rs.log.Warnf("config section %q is not present", name)
+	}
+	apiConf := rs.getAPIConfigBundle(name)
 
 	// find the actual dbs it uses
 	usedDBs := map[string]dao.Store{}
-	usedDBNames := config.Get[[]string](apiConf, config.KeyAPIUsesDBs)
+	usedDBNames := apiConf.UsesDBs()
 
 	for _, dbName := range usedDBNames {
 		connectedDB, ok := rs.dbs[strings.ToLower(dbName)]
@@ -286,27 +308,19 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 		usedDBs[strings.ToLower(dbName)] = connectedDB
 	}
 
-	base := config.Get[string](apiConf, config.KeyAPIBase)
-	for base[len(base)-1] == '/' {
-		// do not end with a slash, please
-		base = base[:len(base)-1]
-	}
-	if base[0] != '/' {
-		base = "/" + base
-	}
+	base := apiConf.APIBase()
 	// routing must be unique on case-insensitive basis (unless it's root, in
 	// which case we make zero assumptions)
 	if base != "/" {
-		checkBase := strings.ToLower(base)
-		if curUser, ok := rs.basesToAPIs[checkBase]; ok {
+		if curUser, ok := rs.basesToAPIs[base]; ok {
 			return "", fmt.Errorf("API %q and %q specify effectively identical API route bases of %q", name, curUser, base)
 		}
-		rs.basesToAPIs[checkBase] = name
+		rs.basesToAPIs[base] = name
 	}
-	apiConf.Set(config.KeyAPIBase, base)
 
-	// make config bundle for them
-	if err := api.Init(config.NewBundle(apiConf, rs.cfg.Globals), usedDBs); err != nil {
+	// make a sublogger
+	// TODO: after jellog is patched, add in use of api's name
+	if err := api.Init(apiConf, usedDBs, rs.log); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
 
@@ -382,11 +396,8 @@ func (rs *RESTServer) Shutdown(ctx context.Context) error {
 
 	// call life-cycle shutdown on each API
 	for name, api := range rs.apis {
-		apiConf, ok := rs.cfg.APIs[name]
-		if !ok {
-			apiConf = (&config.Common{Name: name}).FillDefaults()
-		}
-		if !config.Get[bool](apiConf, config.KeyAPIEnabled) {
+		apiConf := rs.getAPIConfigBundle(name)
+		if !apiConf.Enabled() {
 			continue
 		}
 

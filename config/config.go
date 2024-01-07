@@ -6,7 +6,51 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/dekarrin/jelly/logging"
 )
+
+// Log contains logging options. Loggers are provided to APIs in the form of
+// sub-components of the primary logger. If logging is enabled, the Jelly server
+// will configure the logger of the chosen provider and use it for messages
+// about the server itself, and will pass a sub-component logger to each API to
+// use for its own logging.
+type Log struct {
+	// Enabled is whether to enable built-in logging statements.
+	Enabled bool
+
+	// Provider must be the name of one of the logging providers. If set to
+	// None or unset, it will default to logging.Jellog.
+	Provider logging.Provider
+
+	// File to log to. If not set, all logging will be done to stderr and it
+	// will display all logging statements. If set, the file will receive all
+	// levels of log messages and stderr will show only those of Info level or
+	// higher.
+	File string
+}
+
+func (log Log) Create() (logging.Logger, error) {
+	return logging.New(log.Provider, log.File)
+}
+
+func (log Log) FillDefaults() Log {
+	newLog := log
+
+	if newLog.Provider == logging.None {
+		newLog.Provider = logging.Jellog
+	}
+
+	return newLog
+}
+
+func (g Log) Validate() error {
+	if g.Provider == logging.None {
+		return fmt.Errorf("provider: must not be empty")
+	}
+
+	return nil
+}
 
 // Globals are the values of global configuration values from the top level
 // config. These values are shared with every API.
@@ -161,6 +205,10 @@ type Config struct {
 	// it.
 	APIs map[string]APIConfig
 
+	// Log is used to configure the built-in logging system. It can be left
+	// blank to disable logging entirely.
+	Log Log
+
 	// DBConnector is a custom DB connector for overriding the defaults, which
 	// only provide jeldao.Store instances that are associated with the built-in
 	// authentication and login functionality.
@@ -195,6 +243,7 @@ func (cfg Config) FillDefaults() Config {
 		api = api.FillDefaults()
 		newCFG.APIs[name] = api
 	}
+	newCFG.Log = newCFG.Log.FillDefaults()
 
 	// if the user has enabled the jellyauth API, set defaults now.
 	if authConf, ok := newCFG.APIs["jellyauth"]; ok {
@@ -219,6 +268,9 @@ func (cfg Config) FillDefaults() Config {
 func (cfg Config) Validate() error {
 	if err := cfg.Globals.Validate(); err != nil {
 		return err
+	}
+	if err := cfg.Log.Validate(); err != nil {
+		return fmt.Errorf("logging: %w", err)
 	}
 	for name, db := range cfg.DBs {
 		if err := db.Validate(); err != nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
@@ -113,7 +114,7 @@ type EchoAPI struct {
 	UnauthDelay time.Duration
 }
 
-func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store) error {
+func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
 	msgs := cb.GetSlice(ConfigKeyMessages)
 	echo.Messages = make([]string, len(msgs))
 	copy(echo.Messages, msgs)
