@@ -37,7 +37,7 @@ func (bnd Bundle) ServerAddress() string {
 func (bnd Bundle) ServerBase() string {
 	base := bnd.g.URIBase
 
-	for base[len(base)-1] == '/' {
+	for len(base) > 0 && base[len(base)-1] == '/' {
 		// do not end with a slash, please
 		base = base[:len(base)-1]
 	}
@@ -104,7 +104,7 @@ func (bnd Bundle) Name() string {
 func (bnd Bundle) APIBase() string {
 	base := bnd.Get(KeyAPIBase)
 
-	for base[len(base)-1] == '/' {
+	for len(base) > 0 && base[len(base)-1] == '/' {
 		// do not end with a slash, please
 		base = base[:len(base)-1]
 	}
@@ -131,7 +131,7 @@ func (bnd Bundle) UsesDBs() []string {
 // This is a convenience function equivalent to calling
 // bnd.GetBool(KeyAPIEnabled).
 func (bnd Bundle) Enabled() bool {
-	return bnd.GetBool(KeyAPIUsesDBs)
+	return bnd.GetBool(KeyAPIEnabled)
 }
 
 // Get retrieves the value of a string-typed API configuration key. If it

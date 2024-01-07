@@ -5,7 +5,9 @@ package jelly
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 
@@ -185,13 +187,47 @@ func New(cfg *config.Config) (RESTServer, error) {
 // RoutesIndex returns a human-readable formatted string that lists all routes
 // and methods currently available in the server.
 func (rs *RESTServer) RoutesIndex() string {
-	var sb strings.Builder
+	routeMethods := map[string][]string{}
+
 	r := rs.routeAllAPIs()
 	chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		sb.WriteString(fmt.Sprintf("* %s %s\n", strings.ToUpper(method), route))
+		meths, ok := routeMethods[route]
+		if !ok {
+			meths = []string{}
+		}
+
+		meths = append(meths, method)
+		routeMethods[route] = meths
+
 		return nil
 	})
-	return strings.TrimSpace(sb.String())
+
+	// alphabetize the routes
+	allRoutes := []string{}
+	for name := range routeMethods {
+		allRoutes = append(allRoutes, name)
+	}
+	sort.Strings(allRoutes)
+
+	// write the sorted routes
+	var sb strings.Builder
+	for _, r := range allRoutes {
+		sb.WriteString("* ")
+		sb.WriteString(r)
+		sb.WriteString(" - ")
+
+		meths := routeMethods[r]
+		sort.Strings(meths)
+		for i, m := range meths {
+			sb.WriteString(m)
+			if i+1 < len(meths) {
+				sb.WriteString(", ")
+			}
+		}
+		sb.WriteRune('\n')
+	}
+
+	return unpathParam(strings.TrimSpace(sb.String()))
 }
 
 // routeAllAPIs is called just before serving. it gets all enabled routes and
@@ -212,6 +248,7 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 	r := root
 	if rs.cfg.Globals.URIBase != "/" {
 		r = chi.NewRouter()
+		log.Printf("Mount API Base @%s", rs.cfg.Globals.URIBase)
 		root.Mount(rs.cfg.Globals.URIBase, r)
 	}
 
@@ -222,8 +259,9 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 			apiRouter, subpaths := api.Routes()
 
 			if apiRouter != nil {
+				log.Printf("Mount API %q @%s", name, base)
 				r.Mount(base, apiRouter)
-				if !subpaths {
+				if !subpaths && base != "/" {
 					r.HandleFunc(base+"/", RedirectNoTrailingSlash)
 				}
 			}

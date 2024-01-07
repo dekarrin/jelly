@@ -27,7 +27,7 @@ func (p Provider) String() string {
 
 func ParseProvider(s string) (Provider, error) {
 	switch strings.ToLower(s) {
-	case None.String():
+	case None.String(), "":
 		return None, nil
 	case Jellog.String():
 		return Jellog, nil

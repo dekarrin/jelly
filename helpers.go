@@ -27,6 +27,13 @@ var (
 
 type EndpointFunc func(req *http.Request) response.Result
 
+func unpathParam(s string) string {
+	for name, pat := range paramTypePats {
+		s = strings.ReplaceAll(s, ":"+pat+"}", ":"+name+"}")
+	}
+	return s
+}
+
 // PathParam translates strings of the form "name:type" to a URI path parameter
 // string of the form "{name:regex}" compatible with the routers used in the
 // jelly framework. Only request URIs whose path parameters match their
