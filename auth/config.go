@@ -131,11 +131,14 @@ func (cfg *Config) Set(key string, value interface{}) error {
 			return fmt.Errorf("key '"+ConfigKeySetAdmin+"' requires a string but got a %T", value)
 		}
 	case ConfigKeySecret:
-		if valueStr, ok := value.([]byte); ok {
-			cfg.Secret = valueStr
+		if valueSlice, ok := value.([]byte); ok {
+			cfg.Secret = valueSlice
+			return nil
+		} else if valueStr, ok := value.(string); ok {
+			cfg.Secret = []byte(valueStr)
 			return nil
 		} else {
-			return fmt.Errorf("key '"+ConfigKeySecret+"' requires a []byte but got a %T", value)
+			return fmt.Errorf("key '"+ConfigKeySecret+"' requires a []byte or string but got a %T", value)
 		}
 	default:
 		return cfg.CommonConf.Set(key, value)

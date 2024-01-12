@@ -72,7 +72,7 @@ dbs:
     file: "db.owv"
   
   auth:
-    type: sqlite3
+    type: sqlite
     dir: ./authdb
 
 
@@ -116,8 +116,7 @@ example:
   #
   # If left blank, no datastores are passed in.
   uses:
-    dbs:
-      - main
+    - main
 
 # jellyauth API config
 #

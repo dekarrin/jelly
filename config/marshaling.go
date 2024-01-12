@@ -59,24 +59,24 @@ func Load(file string) (Config, error) {
 		// json file
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return cfg, fmt.Errorf("%q: %w", file, err)
+			return cfg, fmt.Errorf("%s: %w", file, err)
 		}
 		err = json.Unmarshal(data, &mc)
 		if err != nil {
-			return cfg, fmt.Errorf("%q: %w", file, err)
+			return cfg, fmt.Errorf("%s: %w", file, err)
 		}
 	case ".yaml", ".yml":
 		// yaml file
 		data, err := os.ReadFile(file)
 		if err != nil {
-			return cfg, fmt.Errorf("%q: %w", file, err)
+			return cfg, fmt.Errorf("%s: %w", file, err)
 		}
 		err = yaml.Unmarshal(data, &mc)
 		if err != nil {
-			return cfg, fmt.Errorf("%q: %w", file, err)
+			return cfg, fmt.Errorf("%s: %w", file, err)
 		}
 	default:
-		return cfg, fmt.Errorf("%q: incompatible format; must be .json, .yml, or .yaml file", file)
+		return cfg, fmt.Errorf("%s: incompatible format; must be .json, .yml, or .yaml file", file)
 	}
 
 	err := cfg.unmarshal(mc)
@@ -294,10 +294,23 @@ func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 		if err != nil {
 			return fmt.Errorf("%s: re-encode: %w", name, err)
 		}
+
 		var api marshaledAPI
 		err = yaml.Unmarshal(encoded, &api)
 		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
+			// okay we need to convert lines to "nth property of"
+			// first, find the line part
+			if typeErr, ok := err.(*yaml.TypeError); ok {
+				errStr := ""
+				for i := range typeErr.Errors {
+					if i != 0 {
+						errStr += "\n"
+					}
+					errStr += "key #" + typeErr.Errors[i][len("line "):]
+				}
+				err = fmt.Errorf("%s", errStr)
+			}
+			return fmt.Errorf("API %q: %w", name, err)
 		}
 
 		// make everyfin case-insensitive
