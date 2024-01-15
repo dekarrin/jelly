@@ -36,6 +36,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -153,8 +154,9 @@ func main() {
 	// mark jellyauth as in-use before loading config
 	jelly.UseComponent(jellyauth.Component)
 
-	logger.Infof("Loading config file %s...", *flagConf)
-	conf, err := config.Load(*flagConf)
+	confPath := filepath.Clean(*flagConf)
+	logger.Infof("Loading config file %s...", confPath)
+	conf, err := config.Load(confPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
 		exitCode = exitError

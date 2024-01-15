@@ -43,6 +43,82 @@ type marshaledLog struct {
 	File     string `yaml:"file" json:"file"`
 }
 
+type Format int
+
+const (
+	NoFormat Format = iota
+	JSON
+	YAML
+)
+
+func (f Format) String() string {
+	switch f {
+	case NoFormat:
+		return "NoFormat"
+	case JSON:
+		return "JSON"
+	case YAML:
+		return "YAML"
+	default:
+		return fmt.Sprintf("Format(%d)", int(f))
+	}
+}
+
+func (f Format) Extensions() []string {
+	switch f {
+	case JSON:
+		return []string{"json", "jsn"}
+	case YAML:
+		return []string{"yaml", "yml"}
+	default:
+		return nil
+	}
+}
+
+func (f Format) Decode(data []byte) (Config, error) {
+	var cfg Config
+	var mc marshaledConfig
+	var err error
+
+	switch f {
+	case JSON:
+		err = json.Unmarshal(data, &mc)
+	case YAML:
+		err = yaml.Unmarshal(data, &mc)
+	default:
+		return cfg, fmt.Errorf("cannot unmarshal data in format %q", f.String())
+	}
+
+	if err != nil {
+		return cfg, err
+	}
+	err = cfg.unmarshal(mc)
+	return cfg, err
+}
+
+// SupportedFormats returns a list of formats that the config module supports
+// decoding. Includes all but NoFormat.
+func SupportedFormats() []Format {
+	return []Format{JSON, YAML}
+}
+
+// DetectFormat detects the format of a given configuration file and returns the
+// Format that can decode it. Returns NoFormat if the format could not be
+// detected.
+func DetectFormat(file string) Format {
+	ext := strings.ToLower(filepath.Ext(file))
+
+	for _, f := range SupportedFormats() {
+		for _, checkedExt := range f.Extensions() {
+			if ext == strings.ToLower(checkedExt) {
+				return f
+			}
+		}
+	}
+
+	return NoFormat
+}
+
 // Load loads a configuration from a JSON or YAML file. The format of the file
 // is determined by examining its extension; files ending in .json are parsed as
 // JSON files, and files ending in .yaml or .yml are parsed as YAML files. Other
@@ -54,33 +130,39 @@ func Load(file string) (Config, error) {
 	var cfg Config
 	var mc marshaledConfig
 
-	switch filepath.Ext(strings.ToLower(file)) {
-	case ".json":
-		// json file
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return cfg, fmt.Errorf("%s: %w", file, err)
+	f := DetectFormat(file)
+	if f == NoFormat {
+		var msg strings.Builder
+
+		formats := SupportedFormats()
+		for i, f := range formats {
+			exts := f.Extensions()
+			for j, ext := range exts {
+				// if on the last ext of the last format and there was at least
+				// one before, add a leading "or "
+				if j+1 >= len(exts) && i+1 >= len(formats) && msg.Len() > 0 {
+					msg.WriteString("or ")
+				}
+
+				msg.WriteRune('.')
+				msg.WriteString(ext)
+
+				// if there is at least one more extension, add an ", "
+				if j+1 < len(exts) || i+1 < len(formats) {
+					msg.WriteString(", ")
+				}
+			}
 		}
-		err = json.Unmarshal(data, &mc)
-		if err != nil {
-			return cfg, fmt.Errorf("%s: %w", file, err)
-		}
-	case ".yaml", ".yml":
-		// yaml file
-		data, err := os.ReadFile(file)
-		if err != nil {
-			return cfg, fmt.Errorf("%s: %w", file, err)
-		}
-		err = yaml.Unmarshal(data, &mc)
-		if err != nil {
-			return cfg, fmt.Errorf("%s: %w", file, err)
-		}
-	default:
-		return cfg, fmt.Errorf("%s: incompatible format; must be .json, .yml, or .yaml file", file)
+
+		return cfg, fmt.Errorf("%s: incompatible format; must be a %s file", file, msg.String())
 	}
 
-	err := cfg.unmarshal(mc)
-	return cfg, err
+	data, err := os.ReadFile(file)
+	if err != nil {
+		return cfg, fmt.Errorf("%s: %w", file, err)
+	}
+
+	return f.Decode(data)
 }
 
 // Register marks an API config name as being in use and gives a provider

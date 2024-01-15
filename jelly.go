@@ -183,6 +183,12 @@ func New(cfg *config.Config) (RESTServer, error) {
 	return rs, nil
 }
 
+// Config returns the conifguration that the server used during creation.
+// Modifying the returned config will have no effect on the server.
+func (rs RESTServer) Config() config.Config {
+	return rs.cfg.FillDefaults()
+}
+
 // RoutesIndex returns a human-readable formatted string that lists all routes
 // and methods currently available in the server.
 func (rs *RESTServer) RoutesIndex() string {
