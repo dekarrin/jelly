@@ -96,6 +96,27 @@ func (f Format) Decode(data []byte) (Config, error) {
 	return cfg, err
 }
 
+func (f Format) Encode(c Config) ([]byte, error) {
+	var cfg Config
+	var mc marshaledConfig
+	var err error
+
+	switch f {
+	case JSON:
+		err = json.Marshal(data, &mc)
+	case YAML:
+		err = yaml.Unmarshal(data, &mc)
+	default:
+		return cfg, fmt.Errorf("cannot unmarshal data in format %q", f.String())
+	}
+
+	if err != nil {
+		return cfg, err
+	}
+	err = cfg.unmarshal(mc)
+	return cfg, err
+}
+
 // SupportedFormats returns a list of formats that the config module supports
 // decoding. Includes all but NoFormat.
 func SupportedFormats() []Format {
@@ -119,6 +140,13 @@ func DetectFormat(file string) Format {
 	return NoFormat
 }
 
+// Dump dumps the configuration into a configuration-file format. This is the
+// complete representation of the current state of the Config, and if parsed by
+// Load, would result in an equivalent config.
+func (cfg Config) Dump(f Format) []byte {
+
+}
+
 // Load loads a configuration from a JSON or YAML file. The format of the file
 // is determined by examining its extension; files ending in .json are parsed as
 // JSON files, and files ending in .yaml or .yml are parsed as YAML files. Other
@@ -128,7 +156,6 @@ func DetectFormat(file string) Format {
 // before calling Load.
 func Load(file string) (Config, error) {
 	var cfg Config
-	var mc marshaledConfig
 
 	f := DetectFormat(file)
 	if f == NoFormat {
@@ -179,6 +206,32 @@ func Register(name string, provider func() APIConfig) error {
 	}
 	apiConfigProviders[normName] = provider
 	return nil
+}
+
+func marshalAPI(api APIConfig) marshaledAPI {
+	ma := marshaledAPI{
+		Enabled: Get[bool](api, KeyAPIEnabled),
+		Base:    Get[string](api, KeyAPIBase),
+		Uses:    Get[[]string](api, KeyAPIUsesDBs),
+		others:  map[string]interface{}{},
+	}
+
+	commonKeys := map[string]struct{}{}
+	for _, ck := range (&Common{}).Keys() {
+		commonKeys[ck] = struct{}{}
+	}
+
+	for _, key := range api.Keys() {
+		// skip common keys; they are already covered above
+		if _, isCommonKey := commonKeys[key]; isCommonKey {
+			continue
+		}
+
+		value := api.Get(key)
+		ma.others[key] = value
+	}
+
+	return ma
 }
 
 func unmarshalAPI(ma marshaledAPI, name string) (APIConfig, error) {
@@ -232,6 +285,16 @@ func (log *Log) unmarshal(m marshaledLog) error {
 	return nil
 }
 
+// marshal returns the marshaledLog that would re-create Log if passed to
+// unmarshal.
+func (log Log) marshal() marshaledLog {
+	return marshaledLog{
+		Enabled:  log.Enabled,
+		Provider: log.Provider.String(),
+		File:     log.File,
+	}
+}
+
 // unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
@@ -255,6 +318,14 @@ func (cfg *Globals) unmarshal(m marshaledConfig) error {
 	cfg.UnauthDelayMillis = m.UnauthDelay
 
 	return nil
+}
+
+// marshalToConfig modifies the given marshaledConfig such that it would
+// re-create cfg when it is passed to unmarshal.
+func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
+	mc.Listen = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
+	mc.Base = cfg.URIBase
+	mc.UnauthDelay = cfg.UnauthDelayMillis
 }
 
 // unmarshal completely replaces all attributes except DBConnector with the
@@ -289,6 +360,28 @@ func (cfg *Config) unmarshal(m marshaledConfig) error {
 	return nil
 }
 
+// marshal converts a config to the marshaledConfig that would recreate it if
+// passed to unmarshal.
+func (cfg Config) marshal() marshaledConfig {
+	mc := marshaledConfig{
+		DBs:     map[string]marshaledDatabase{},
+		APIs:    map[string]marshaledAPI{},
+		Logging: cfg.Log.marshal(),
+	}
+
+	cfg.Globals.marshalToConfig(&mc)
+	for n, db := range cfg.DBs {
+		mDB := db.marshal()
+		mc.DBs[n] = mDB
+	}
+	for n, api := range cfg.APIs {
+		mAPI := marshalAPI(api)
+		mc.APIs[n] = mAPI
+	}
+
+	return mc
+}
+
 // unmarshal completely replaces all attributes with the values or missing
 // values in the marshaledDatabase.
 //
@@ -307,12 +400,17 @@ func (db *Database) unmarshal(m marshaledDatabase) error {
 	return nil
 }
 
-func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
-	var m map[string]interface{}
-	if err := n.Decode(&m); err != nil {
-		return err
+// marshal converts db to the marshaledDatabase that would recreate it if
+// passed to unmarshal.
+func (db Database) marshal() marshaledDatabase {
+	return marshaledDatabase{
+		Type: db.Type.String(),
+		Dir:  db.DataDir,
+		File: db.DataFile,
 	}
+}
 
+func (mc *marshaledConfig) unmarshalMap(m map[string]interface{}, unmarshalFn func([]byte, interface{}) error, marshalFn func(interface{}) ([]byte, error)) error {
 	for k, v := range m {
 		delete(m, k)
 		m[strings.ToLower(k)] = v
@@ -342,20 +440,35 @@ func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 		mc.UnauthDelay = unauthDelayInt
 		delete(m, "unauth_delay")
 	}
+	if loggingUntyped, ok := m["logging"]; ok {
+		loggingObj, convOk := loggingUntyped.(map[string]interface{})
+		if !convOk {
+			return fmt.Errorf("logging: should be an object but was of type %T", loggingUntyped)
+		}
+		encoded, err := marshalFn(loggingObj)
+		if err != nil {
+			return fmt.Errorf("logging: re-encode: %w", err)
+		}
+		err = unmarshalFn(encoded, &mc.Logging)
+		if err != nil {
+			return fmt.Errorf("logging: %w", err)
+		}
+		delete(m, "logging")
+	}
 
 	mc.DBs = map[string]marshaledDatabase{}
 	if dbs, ok := m["dbs"]; ok {
-		dbsSlice, convOk := dbs.(map[string]interface{})
+		dbsObj, convOk := dbs.(map[string]interface{})
 		if !convOk {
 			return fmt.Errorf("dbs: should be an object but was of type %T", dbs)
 		}
-		for name, dbUntyped := range dbsSlice {
-			encoded, err := yaml.Marshal(dbUntyped)
+		for name, dbUntyped := range dbsObj {
+			encoded, err := marshalFn(dbUntyped)
 			if err != nil {
 				return fmt.Errorf("dbs: %s: re-encode: %w", name, err)
 			}
 			var db marshaledDatabase
-			err = yaml.Unmarshal(encoded, &db)
+			err = unmarshalFn(encoded, &db)
 			if err != nil {
 				return fmt.Errorf("dbs: %s: %w", name, err)
 			}
@@ -372,16 +485,18 @@ func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 			return fmt.Errorf("%s: should be an object but was of type %T", name, apiUntyped)
 		}
 
-		encoded, err := yaml.Marshal(apiMap)
+		encoded, err := marshalFn(apiMap)
 		if err != nil {
 			return fmt.Errorf("%s: re-encode: %w", name, err)
 		}
 
 		var api marshaledAPI
-		err = yaml.Unmarshal(encoded, &api)
+		err = unmarshalFn(encoded, &api)
 		if err != nil {
 			// okay we need to convert lines to "nth property of"
-			// first, find the line part
+			//
+			// rn we only have error msg lineno correction for yaml; JSON isn't
+			// currently tested
 			if typeErr, ok := err.(*yaml.TypeError); ok {
 				errStr := ""
 				for i := range typeErr.Errors {
@@ -417,99 +532,20 @@ func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 	return nil
 }
 
+func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
+	var m map[string]interface{}
+	if err := n.Decode(&m); err != nil {
+		return err
+	}
+
+	return mc.unmarshalMap(m, yaml.Unmarshal, yaml.Marshal)
+}
+
 func (mc *marshaledConfig) UnmarshalJSON(b []byte) error {
 	var m map[string]interface{}
 	if err := json.Unmarshal(b, &m); err != nil {
 		return err
 	}
 
-	for k, v := range m {
-		delete(m, k)
-		m[strings.ToLower(k)] = v
-	}
-
-	if listen, ok := m["listen"]; ok {
-		listenStr, convOk := listen.(string)
-		if !convOk {
-			return fmt.Errorf("listen: should be a string but was of type %T", listen)
-		}
-		mc.Listen = listenStr
-		delete(m, "listen")
-	}
-	if base, ok := m["base"]; ok {
-		baseStr, convOk := base.(string)
-		if !convOk {
-			return fmt.Errorf("base: should be a string but was of type %T", base)
-		}
-		mc.Base = baseStr
-		delete(m, "base")
-	}
-	if unauthDelay, ok := m["unauth_delay"]; ok {
-		unauthDelayInt, convOk := unauthDelay.(int)
-		if !convOk {
-			return fmt.Errorf("unauth_delay: should be an int but was of type %T", unauthDelay)
-		}
-		mc.UnauthDelay = unauthDelayInt
-		delete(m, "unauth_delay")
-	}
-
-	mc.DBs = map[string]marshaledDatabase{}
-	if dbs, ok := m["dbs"]; ok {
-		dbsSlice, convOk := dbs.(map[string]interface{})
-		if !convOk {
-			return fmt.Errorf("dbs: should be an object but was of type %T", dbs)
-		}
-		for name, dbUntyped := range dbsSlice {
-			encoded, err := json.Marshal(dbUntyped)
-			if err != nil {
-				return fmt.Errorf("dbs: %s: re-encode: %w", name, err)
-			}
-			var db marshaledDatabase
-			err = json.Unmarshal(encoded, &db)
-			if err != nil {
-				return fmt.Errorf("dbs: %s: %w", name, err)
-			}
-			mc.DBs[name] = db
-		}
-		delete(m, "dbs")
-	}
-
-	// ...then, all the rest are API sections that are their own config
-	mc.APIs = map[string]marshaledAPI{}
-	for name, apiUntyped := range m {
-		apiMap, convOk := apiUntyped.(map[string]interface{})
-		if !convOk {
-			return fmt.Errorf("%s: should be an object but was of type %T", name, apiUntyped)
-		}
-
-		encoded, err := json.Marshal(apiMap)
-		if err != nil {
-			return fmt.Errorf("%s: re-encode: %w", name, err)
-		}
-		var api marshaledAPI
-		err = json.Unmarshal(encoded, &api)
-		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
-		}
-
-		// make everyfin case-insensitive
-		for k, v := range apiMap {
-			delete(apiMap, k)
-			apiMap[strings.ToLower(k)] = v
-		}
-
-		// delete the base attributes from the map
-		delete(apiMap, "base")
-		delete(apiMap, "uses")
-		delete(apiMap, "enabled")
-
-		api.others = map[string]interface{}{}
-		for k, v := range apiMap {
-			api.others[k] = v
-		}
-
-		mc.APIs[name] = api
-	}
-
-	return nil
+	return mc.unmarshalMap(m, json.Unmarshal, json.Marshal)
 }

@@ -218,8 +218,6 @@ type Config struct {
 	DBConnector Connector
 }
 
-func (cfg Config) 
-
 // UnauthDelay returns the configured time for the UnauthDelay as a
 // time.Duration. If cfg.UnauthDelayMS is set to a number less than 0, this will
 // return a zero-valued time.Duration.
