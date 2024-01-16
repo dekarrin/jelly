@@ -216,6 +216,9 @@ type Config struct {
 	// Any fields in the Connector that are set to nil will use the default
 	// connection method for that DB type.
 	DBConnector Connector
+
+	// origFormat is the format of config, used in Dump.
+	origFormat Format
 }
 
 // UnauthDelay returns the configured time for the UnauthDelay as a

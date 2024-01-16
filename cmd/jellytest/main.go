@@ -58,7 +58,8 @@ const (
 var exitCode int
 
 var (
-	flagConf = pflag.StringP("config", "c", "jelly.yml", "Path to configuration file")
+	flagConf          = pflag.StringP("config", "c", "jelly.yml", "Path to configuration file")
+	flagEffectiveConf = pflag.BoolP("effective-conf", "E", false, "Show loaded configuration")
 )
 
 func stacktraceSkip(stack []byte, skipLevels int) string {
@@ -163,6 +164,9 @@ func main() {
 		return
 	}
 	conf = conf.FillDefaults()
+	if *flagEffectiveConf {
+		logger.Debugf("Effective config:\n%s", string(conf.Dump()))
+	}
 
 	server, err := jelly.New(&conf)
 	if err != nil {
