@@ -16,8 +16,8 @@ var apiConfigProviders = map[string]func() APIConfig{}
 
 type marshaledDatabase struct {
 	Type string `yaml:"type" json:"type"`
-	Dir  string `yaml:"dir" json:"dir"`
-	File string `yaml:"file" json:"file"`
+	Dir  string `yaml:"dir,omitempty" json:"dir,omitempty"`
+	File string `yaml:"file,omitempty" json:"file,omitempty"`
 }
 
 type marshaledAPI struct {
@@ -62,7 +62,7 @@ type marshaledConfig struct {
 type marshaledLog struct {
 	Enabled  bool   `yaml:"enabled" json:"enabled"`
 	Provider string `yaml:"provider" json:"provider"`
-	File     string `yaml:"file" json:"file"`
+	File     string `yaml:"file,omitempty" json:"file,omitempty"`
 }
 
 type Format int
@@ -579,6 +579,30 @@ func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
 	}
 
 	return mc.unmarshalMap(m, yaml.Unmarshal, yaml.Marshal)
+}
+
+func (mc marshaledConfig) marshalMap() interface{} {
+	m := map[string]interface{}{}
+
+	for n, api := range mc.APIs {
+		m[n] = api
+	}
+
+	m["logging"] = mc.Logging
+	m["base"] = mc.Base
+	m["dbs"] = mc.DBs
+	m["listen"] = mc.Listen
+	m["unauth_delay"] = mc.UnauthDelay
+
+	return m
+}
+
+func (mc marshaledConfig) MarshalYAML() (interface{}, error) {
+	return mc.marshalMap(), nil
+}
+
+func (mc *marshaledConfig) MarshalJSON() ([]byte, error) {
+	return json.Marshal(mc.marshalMap())
 }
 
 func (mc *marshaledConfig) UnmarshalJSON(b []byte) error {
