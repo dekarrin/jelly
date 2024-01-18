@@ -164,6 +164,9 @@ func main() {
 		return
 	}
 	conf = conf.FillDefaults()
+	if err := conf.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
+	}
 	if *flagEffectiveConf {
 		logger.Debugf("Effective config:\n%s", string(conf.Dump()))
 	}
