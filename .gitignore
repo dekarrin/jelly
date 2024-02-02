@@ -6,3 +6,5 @@
 authdb/
 /jellytest
 *.exe
+
+__debug_bin
