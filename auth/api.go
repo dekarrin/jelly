@@ -70,14 +70,14 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 			if err != nil {
 				return fmt.Errorf("update password for user %q: %w", username, err)
 			}
-			api.log.Debug("updated user %s's password due to set-admin config")
+			api.log.Debugf("updated user %s's password due to set-admin config", username)
 			// make shore their role is set to admin as well
 			if user.Role != dao.Admin {
 				_, err = api.Service.UpdateUser(ctx, user.ID.String(), user.ID.String(), user.Username, user.Email.String(), dao.Admin)
 				if err != nil {
 					return fmt.Errorf("update role to admin for user %q: %w", username, err)
 				}
-				api.log.Debug("updated user %s's role to admin due to set-admin config")
+				api.log.Debugf("updated user %s's role to admin due to set-admin config", username)
 			}
 		} else {
 			if !errors.Is(err, serr.ErrNotFound) {
@@ -89,7 +89,7 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 				return fmt.Errorf("creating admin user: %w", err)
 			}
 
-			api.log.Debug("created user %s as admin due to set-admin config")
+			api.log.Debugf("created user %s as admin due to set-admin config", username)
 		}
 	}
 

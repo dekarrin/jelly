@@ -82,6 +82,17 @@ func (cfg *EchoConfig) Set(key string, value interface{}) error {
 		if valueStr, ok := value.([]string); ok {
 			cfg.Messages = valueStr
 			return nil
+		} else if valueSlice, ok := value.([]interface{}); ok {
+			var typedValues []string
+			for i := range valueSlice {
+				if itemStr, ok := valueSlice[i].(string); ok {
+					typedValues = append(typedValues, itemStr)
+				} else {
+					return fmt.Errorf(ConfigKeyMessages+"[%d]: %q is not a valid string", i, valueSlice[i])
+				}
+			}
+			cfg.Messages = typedValues
+			return nil
 		} else {
 			return fmt.Errorf("key '"+ConfigKeyMessages+"' requires a []string but got a %T", value)
 		}
@@ -115,6 +126,7 @@ type EchoAPI struct {
 }
 
 func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
+	log.Infof("STARTING ECHO INIT")
 	msgs := cb.GetSlice(ConfigKeyMessages)
 	echo.Messages = make([]string, len(msgs))
 	copy(echo.Messages, msgs)

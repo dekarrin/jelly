@@ -146,7 +146,7 @@ func Endpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 		r := ep(req)
 
 		if r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden || r.Status == http.StatusInternalServerError {
-			// if it's one of these statusus, either the user is improperly
+			// if it's one of these statuses, either the user is improperly
 			// logging in or tried to access a forbidden resource, both of which
 			// should force the wait time before responding.
 			time.Sleep(unauthDelay)
