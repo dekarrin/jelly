@@ -241,3 +241,58 @@ func (api HelloAPI) epNice(req *http.Request) response.Result {
 
 	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
 }
+
+func (api HelloAPI) epRude(req *http.Request) response.Result {
+	msgNum := rand.Intn(len(api.RudeMessages))
+	resp := MessageResponseBody{
+		Message: api.RudeMessages[msgNum],
+	}
+
+	userStr := "unauthed client"
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+	if loggedIn {
+		user := req.Context().Value(middle.AuthUser).(dao.User)
+		resp.Recipient = user.Username
+		userStr = "user '" + user.Username + "'"
+	}
+
+	return response.OK(resp, "%s requested a rude hello (msg len=%d)", userStr)
+}
+
+func (api HelloAPI) epRandom(req *http.Request) response.Result {
+	if rand.Float64() > api.RudeChance {
+		// be rude
+	}
+
+	msgNum := rand.Intn(len(api.NiceMessages))
+	resp := MessageResponseBody{
+		Message: api.NiceMessages[msgNum],
+	}
+
+	userStr := "unauthed client"
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+	if loggedIn {
+		user := req.Context().Value(middle.AuthUser).(dao.User)
+		resp.Recipient = user.Username
+		userStr = "user '" + user.Username + "'"
+	}
+
+	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
+}
+
+func (api HelloAPI) epNice(req *http.Request) response.Result {
+	msgNum := rand.Intn(len(api.NiceMessages))
+	resp := MessageResponseBody{
+		Message: api.NiceMessages[msgNum],
+	}
+
+	userStr := "unauthed client"
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+	if loggedIn {
+		user := req.Context().Value(middle.AuthUser).(dao.User)
+		resp.Recipient = user.Username
+		userStr = "user '" + user.Username + "'"
+	}
+
+	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
+}
