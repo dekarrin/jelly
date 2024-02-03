@@ -97,7 +97,13 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// there was a validation error or no error but not logged in.
 			// if logging in is required, that's not okay.
 
-			r := response.Unauthorized("", err.Error())
+			var msg string
+			if err != nil {
+				msg = err.Error()
+			} else {
+				msg = "authorization is required"
+			}
+			r := response.Unauthorized("", msg)
 			time.Sleep(ah.unauthedDelay)
 			r.WriteResponse(w)
 			r.Log(req)

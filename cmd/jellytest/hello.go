@@ -43,7 +43,7 @@ func (cfg *HelloConfig) FillDefaults() config.APIConfig {
 	newCFG.CommonConf = newCFG.CommonConf.FillDefaults().Common()
 
 	if newCFG.Rudeness <= 0.00000001 {
-		newCFG.Rudeness = 1.0
+		newCFG.Rudeness = 0.3
 	}
 	if len(newCFG.RudeMessages) <= 1 {
 		newCFG.RudeMessages = []string{"Have a TERRIBLE day!"}
@@ -193,7 +193,7 @@ func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 	api.RudeChance = cb.GetFloat(ConfigKeyRudeness)
 	api.SecretMessages = cb.GetSlice(ConfigKeySecrets)
 	api.NiceMessages = cb.GetSlice(ConfigKeyPolites)
-	api.RudeMessages = cb.GetSlice(ConfigKeyRudeness)
+	api.RudeMessages = cb.GetSlice(ConfigKeyRudes)
 
 	api.log.Debug("Hello API initialized")
 
@@ -212,15 +212,19 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 
 func (api *HelloAPI) Routes() (router chi.Router, subpaths bool) {
 	optAuth := middle.OptionalAuth("jellyauth.jwt", api.UnauthDelay)
+	reqAuth := middle.RequireAuth("jellyauth.jwt", api.UnauthDelay)
 
 	r := chi.NewRouter()
 
 	r.With(optAuth).Get("/nice", api.HTTPGetNice())
+	r.With(optAuth).Get("/rude", api.HTTPGetRude())
+	r.With(optAuth).Get("/random", api.HTTPGetRandom())
+	r.With(reqAuth).Get("/secret", api.HTTPGetSecret())
 
 	return r, false
 }
 
-// HTTPGetNice returns a HandlerFunc that echoes the user message.
+// HTTPGetNice returns a HandlerFunc that returns a polite greeting message.
 func (api HelloAPI) HTTPGetNice() http.HandlerFunc {
 	return jelly.Endpoint(api.UnauthDelay, api.epNice)
 }
@@ -239,7 +243,12 @@ func (api HelloAPI) epNice(req *http.Request) response.Result {
 		userStr = "user '" + user.Username + "'"
 	}
 
-	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
+	return response.OK(resp, "%s requested a nice hello and got nice[%d]", userStr, msgNum)
+}
+
+// HTTPGetRude returns a HandlerFunc that returns a rude greeting message.
+func (api HelloAPI) HTTPGetRude() http.HandlerFunc {
+	return jelly.Endpoint(api.UnauthDelay, api.epRude)
 }
 
 func (api HelloAPI) epRude(req *http.Request) response.Result {
@@ -256,17 +265,32 @@ func (api HelloAPI) epRude(req *http.Request) response.Result {
 		userStr = "user '" + user.Username + "'"
 	}
 
-	return response.OK(resp, "%s requested a rude hello (msg len=%d)", userStr)
+	return response.OK(resp, "%s requested a rude hello and got rude[%d]", userStr, msgNum)
+}
+
+// HTTPGetRandom returns a HandlerFunc that returns a random greeting message.
+func (api HelloAPI) HTTPGetRandom() http.HandlerFunc {
+	return jelly.Endpoint(api.UnauthDelay, api.epRandom)
 }
 
 func (api HelloAPI) epRandom(req *http.Request) response.Result {
-	if rand.Float64() > api.RudeChance {
-		// be rude
-	}
+	var resp MessageResponseBody
+	var msgNum int
+	var selected string
+	if rand.Float64() < api.RudeChance {
+		selected = "rude"
 
-	msgNum := rand.Intn(len(api.NiceMessages))
-	resp := MessageResponseBody{
-		Message: api.NiceMessages[msgNum],
+		msgNum = rand.Intn(len(api.RudeMessages))
+		resp = MessageResponseBody{
+			Message: api.RudeMessages[msgNum],
+		}
+	} else {
+		selected = "nice"
+
+		msgNum = rand.Intn(len(api.NiceMessages))
+		resp = MessageResponseBody{
+			Message: api.NiceMessages[msgNum],
+		}
 	}
 
 	userStr := "unauthed client"
@@ -277,22 +301,24 @@ func (api HelloAPI) epRandom(req *http.Request) response.Result {
 		userStr = "user '" + user.Username + "'"
 	}
 
-	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
+	return response.OK(resp, "%s requested a random hello and got %s[%d]", userStr, selected, msgNum)
 }
 
-func (api HelloAPI) epNice(req *http.Request) response.Result {
-	msgNum := rand.Intn(len(api.NiceMessages))
+// HTTPGetSecret returns a HandlerFunc that returns a secret greeting message
+// available only for logged-in users.
+func (api HelloAPI) HTTPGetSecret() http.HandlerFunc {
+	return jelly.Endpoint(api.UnauthDelay, api.epSecret)
+}
+
+func (api HelloAPI) epSecret(req *http.Request) response.Result {
+	user := req.Context().Value(middle.AuthUser).(dao.User)
+	userStr := "user '" + user.Username + "'"
+
+	msgNum := rand.Intn(len(api.SecretMessages))
 	resp := MessageResponseBody{
-		Message: api.NiceMessages[msgNum],
+		Message:   fmt.Sprintf(api.SecretMessages[msgNum], user.Username),
+		Recipient: user.Username,
 	}
 
-	userStr := "unauthed client"
-	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
-	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
-		resp.Recipient = user.Username
-		userStr = "user '" + user.Username + "'"
-	}
-
-	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
+	return response.OK(resp, "%s requested a secret hello and got secret[%d]", userStr, msgNum)
 }

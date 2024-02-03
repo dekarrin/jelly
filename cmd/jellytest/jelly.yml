@@ -6,7 +6,7 @@ dbs:
   
 jellyauth:
   enabled: true
-  set_admin: admin:password
+#  set_admin: admin:password
 
 echo:
   enabled: true
@@ -17,7 +17,8 @@ echo:
     - Server received %s
 
 hello:
-  enabled: false
+  enabled: true
+  base: /hello
 
 logging:
   enabled: true

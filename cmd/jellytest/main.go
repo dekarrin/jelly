@@ -163,6 +163,7 @@ func main() {
 
 	// tell jelly's config module about our config structs
 	config.Register("echo", func() config.APIConfig { return &EchoConfig{} })
+	config.Register("hello", func() config.APIConfig { return &HelloConfig{} })
 
 	confPath := filepath.Clean(*flagConf)
 	logger.Infof("Loading config file %s...", confPath)
