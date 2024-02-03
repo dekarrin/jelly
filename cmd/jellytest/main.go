@@ -62,6 +62,12 @@ var (
 	flagEffectiveConf = pflag.BoolP("effective-conf", "E", false, "Show loaded configuration")
 )
 
+// MessageResponseBody is the body returned by the message-oriented endpoints.
+type MessageResponseBody struct {
+	Recipient string `json:"recipient,omitempty"`
+	Message   string `json:"message"`
+}
+
 func stacktraceSkip(stack []byte, skipLevels int) string {
 	s := string(stack)
 	var preContent strings.Builder

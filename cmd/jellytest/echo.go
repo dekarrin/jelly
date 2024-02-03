@@ -114,11 +114,12 @@ type EchoAPI struct {
 }
 
 func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
-	log.Infof("STARTING ECHO INIT")
 	msgs := cb.GetSlice(ConfigKeyMessages)
 	echo.Messages = make([]string, len(msgs))
 	copy(echo.Messages, msgs)
 	echo.UnauthDelay = cb.ServerUnauthDelay()
+
+	log.Debug("Echo API initialized")
 
 	return nil
 }
@@ -147,11 +148,6 @@ type EchoRequestBody struct {
 	Message string `json:"message"`
 }
 
-type EchoResponseBody struct {
-	Recipient string `json:"recipient,omitempty"`
-	Message   string `json:"message"`
-}
-
 // HTTPGetEcho returns a HandlerFunc that echoes the user message.
 func (api EchoAPI) HTTPGetEcho() http.HandlerFunc {
 	return jelly.Endpoint(api.UnauthDelay, api.epEcho)
@@ -166,7 +162,7 @@ func (api EchoAPI) epEcho(req *http.Request) response.Result {
 	}
 
 	msgNum := rand.Intn(len(api.Messages))
-	resp := EchoResponseBody{
+	resp := MessageResponseBody{
 		Message: fmt.Sprintf(api.Messages[msgNum], echoData.Message),
 	}
 

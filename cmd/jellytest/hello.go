@@ -3,27 +3,35 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
+	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
 )
 
 const (
+	ConfigKeyRudes    = "rudes"
+	ConfigKeyPolites  = "polites"
+	ConfigKeySecrets  = "secrets"
 	ConfigKeyRudeness = "rudeness"
 )
 
 type HelloConfig struct {
 	CommonConf config.Common
 
-	Rudeness float64
-
-	RudeMessages []string
+	Rudeness       float64
+	RudeMessages   []string
+	PoliteMessages []string
+	SecretMessages []string
 }
 
 // FillDefaults returns a new *HelloConfig identical to cfg but with unset
@@ -36,6 +44,15 @@ func (cfg *HelloConfig) FillDefaults() config.APIConfig {
 
 	if newCFG.Rudeness <= 0.00000001 {
 		newCFG.Rudeness = 1.0
+	}
+	if len(newCFG.RudeMessages) <= 1 {
+		newCFG.RudeMessages = []string{"Have a TERRIBLE day!"}
+	}
+	if len(newCFG.PoliteMessages) <= 1 {
+		newCFG.PoliteMessages = []string{"Have a nice day :)"}
+	}
+	if len(newCFG.SecretMessages) <= 1 {
+		newCFG.SecretMessages = []string{"Good morning, %s. I see you know the password for gaining access. Welcome to the crew, secret agent."}
 	}
 
 	return newCFG
@@ -50,10 +67,19 @@ func (cfg *HelloConfig) Validate() error {
 	}
 
 	if cfg.Rudeness <= 0.00000001 {
-		return fmt.Errorf("rudeness: must be greater than 0")
+		return fmt.Errorf(ConfigKeyRudeness + ": must be greater than 0")
 	}
 	if cfg.Rudeness > 100.0 {
-		return fmt.Errorf("rudeness: must be less than 100")
+		return fmt.Errorf(ConfigKeyRudeness + ": must be less than 100")
+	}
+	if len(cfg.RudeMessages) < 1 {
+		return fmt.Errorf(ConfigKeyRudes + ": must exist and have at least one item")
+	}
+	if len(cfg.PoliteMessages) < 1 {
+		return fmt.Errorf(ConfigKeyPolites + ": must exist and have at least one item")
+	}
+	if len(cfg.SecretMessages) < 1 {
+		return fmt.Errorf(ConfigKeySecrets + ": must exist and have at least one item")
 	}
 
 	return nil
@@ -65,7 +91,7 @@ func (cfg *HelloConfig) Common() config.Common {
 
 func (cfg *HelloConfig) Keys() []string {
 	keys := cfg.CommonConf.Keys()
-	keys = append(keys, ConfigKeyRudeness)
+	keys = append(keys, ConfigKeyRudeness, ConfigKeyPolites, ConfigKeyRudes, ConfigKeySecrets)
 	return keys
 }
 
@@ -73,6 +99,12 @@ func (cfg *HelloConfig) Get(key string) interface{} {
 	switch strings.ToLower(key) {
 	case ConfigKeyRudeness:
 		return cfg.Rudeness
+	case ConfigKeyPolites:
+		return cfg.PoliteMessages
+	case ConfigKeySecrets:
+		return cfg.SecretMessages
+	case ConfigKeyRudes:
+		return cfg.RudeMessages
 	default:
 		return cfg.CommonConf.Get(key)
 	}
@@ -87,6 +119,24 @@ func (cfg *HelloConfig) Set(key string, value interface{}) error {
 		} else {
 			return fmt.Errorf("key '"+ConfigKeyRudeness+"' requires a []string but got a %T", value)
 		}
+	case ConfigKeyPolites:
+		valueStr, err := config.TypedSlice[string](ConfigKeyPolites, value)
+		if err == nil {
+			cfg.PoliteMessages = valueStr
+		}
+		return err
+	case ConfigKeyRudes:
+		valueStr, err := config.TypedSlice[string](ConfigKeyRudes, value)
+		if err == nil {
+			cfg.RudeMessages = valueStr
+		}
+		return err
+	case ConfigKeySecrets:
+		valueStr, err := config.TypedSlice[string](ConfigKeySecrets, value)
+		if err == nil {
+			cfg.SecretMessages = valueStr
+		}
+		return err
 	default:
 		return cfg.CommonConf.Set(key, value)
 	}
@@ -100,12 +150,22 @@ func (cfg *HelloConfig) SetFromString(key string, value string) error {
 			return err
 		}
 		return cfg.Set(key, f)
+	case ConfigKeyRudes, ConfigKeyPolites, ConfigKeySecrets:
+		if value == "" {
+			return cfg.Set(key, []string{})
+		}
+		msgsStrSlice := strings.Split(value, ",")
+		return cfg.Set(key, msgsStrSlice)
 	default:
 		return cfg.CommonConf.SetFromString(key, value)
 	}
 }
 
 type HelloAPI struct {
+	// SecretMessages is the list of secret messages returned only to
+	// authenticated users.
+	SecretMessages []string
+
 	// NiceMessages is a list of polite messages. This is randomly selected from
 	// when a nice greeting is requested.
 	NiceMessages []string
@@ -122,22 +182,62 @@ type HelloAPI struct {
 	// responding with an HTTP-403, HTTP-401, or HTTP-500 to deprioritize such
 	// requests from processing and I/O.
 	UnauthDelay time.Duration
+
+	log logging.Logger
 }
 
-func (echo *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
-	return fmt.Errorf("not impelmented")
+func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
+	api.log = log
+
+	api.UnauthDelay = cb.ServerUnauthDelay()
+	api.RudeChance = cb.GetFloat(ConfigKeyRudeness)
+	api.SecretMessages = cb.GetSlice(ConfigKeySecrets)
+	api.NiceMessages = cb.GetSlice(ConfigKeyPolites)
+	api.RudeMessages = cb.GetSlice(ConfigKeyRudeness)
+
+	api.log.Debug("Hello API initialized")
+
+	return nil
 }
 
-func (echo *HelloAPI) Authenticators() map[string]middle.Authenticator {
+func (api *HelloAPI) Authenticators() map[string]middle.Authenticator {
 	return nil
 }
 
 // Shutdown shuts down the API. This is added to implement jelly.API, and
 // has no effect on the API but to return the error of the context.
-func (echo *HelloAPI) Shutdown(ctx context.Context) error {
+func (api *HelloAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
 func (api *HelloAPI) Routes() (router chi.Router, subpaths bool) {
-	panic("not implemented")
+	optAuth := middle.OptionalAuth("jellyauth.jwt", api.UnauthDelay)
+
+	r := chi.NewRouter()
+
+	r.With(optAuth).Get("/nice", api.HTTPGetNice())
+
+	return r, false
+}
+
+// HTTPGetNice returns a HandlerFunc that echoes the user message.
+func (api HelloAPI) HTTPGetNice() http.HandlerFunc {
+	return jelly.Endpoint(api.UnauthDelay, api.epNice)
+}
+
+func (api HelloAPI) epNice(req *http.Request) response.Result {
+	msgNum := rand.Intn(len(api.NiceMessages))
+	resp := MessageResponseBody{
+		Message: api.NiceMessages[msgNum],
+	}
+
+	userStr := "unauthed client"
+	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+	if loggedIn {
+		user := req.Context().Value(middle.AuthUser).(dao.User)
+		resp.Recipient = user.Username
+		userStr = "user '" + user.Username + "'"
+	}
+
+	return response.OK(resp, "%s requested a nice hello (msg len=%d)", userStr)
 }
