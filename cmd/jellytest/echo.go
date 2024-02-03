@@ -79,23 +79,11 @@ func (cfg *EchoConfig) Get(key string) interface{} {
 func (cfg *EchoConfig) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
 	case ConfigKeyMessages:
-		if valueStr, ok := value.([]string); ok {
+		valueStr, err := config.TypedSlice[string](ConfigKeyMessages, value)
+		if err == nil {
 			cfg.Messages = valueStr
-			return nil
-		} else if valueSlice, ok := value.([]interface{}); ok {
-			var typedValues []string
-			for i := range valueSlice {
-				if itemStr, ok := valueSlice[i].(string); ok {
-					typedValues = append(typedValues, itemStr)
-				} else {
-					return fmt.Errorf(ConfigKeyMessages+"[%d]: %q is not a valid string", i, valueSlice[i])
-				}
-			}
-			cfg.Messages = typedValues
-			return nil
-		} else {
-			return fmt.Errorf("key '"+ConfigKeyMessages+"' requires a []string but got a %T", value)
 		}
+		return err
 	default:
 		return cfg.CommonConf.Set(key, value)
 	}

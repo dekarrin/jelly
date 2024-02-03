@@ -22,6 +22,8 @@ type HelloConfig struct {
 	CommonConf config.Common
 
 	Rudeness float64
+
+	RudeMessages []string
 }
 
 // FillDefaults returns a new *HelloConfig identical to cfg but with unset

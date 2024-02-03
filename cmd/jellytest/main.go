@@ -9,7 +9,7 @@ Usage:
 Once started, the server will listen for HTTP requests and respond to them as
 configured. The main endpoints of interest are:
 
-  - /echo - request a reply with what the user said
+  - / - Request a reply with what the user said
   - /hello/nice - requests a polite greeting
   - /hello/rude - requests a rude greeting
   - /hello/random - requests a random greeting, either nice or rude
