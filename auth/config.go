@@ -2,14 +2,16 @@ package auth
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/dekarrin/jelly/config"
 )
 
 const (
-	ConfigKeySecret   = "secret"
-	ConfigKeySetAdmin = "set_admin"
+	ConfigKeySecret      = "secret"
+	ConfigKeySetAdmin    = "set_admin"
+	ConfigKeyUnauthDelay = "unauth_delay"
 )
 
 const (
@@ -29,6 +31,14 @@ type Config struct {
 	// will not default; if none is provided, no user is created. If the user
 	// already exists, it will have its password set to the given one.
 	SetAdmin string
+
+	// UnauthDelayMillis is the amount of additional time to wait
+	// (in milliseconds) before sending a response that indicates either that
+	// the client was unauthorized or the client was unauthenticated. This is
+	// something of an "anti-flood" measure for naive clients attempting
+	// non-parallel connections. If not set it will default to 1 second
+	// (1000ms). Set this to any negative number to disable the delay.
+	UnauthDelayMillis int
 }
 
 // FillDefaults returns a new *Config identical to cfg but with unset values set
@@ -51,6 +61,9 @@ func (cfg *Config) FillDefaults() config.APIConfig {
 
 	if newCFG.Secret == nil {
 		newCFG.Secret = []byte("DEFAULT_NONPROD_TOKEN_SECRET_DO_NOT_USE")
+	}
+	if newCFG.UnauthDelayMillis == 0 {
+		newCFG.UnauthDelayMillis = 1000
 	}
 
 	return newCFG
@@ -106,7 +119,7 @@ func (cfg *Config) Common() config.Common {
 
 func (cfg *Config) Keys() []string {
 	keys := cfg.CommonConf.Keys()
-	keys = append(keys, ConfigKeySecret, ConfigKeySetAdmin)
+	keys = append(keys, ConfigKeySecret, ConfigKeySetAdmin, ConfigKeyUnauthDelay)
 	return keys
 }
 
@@ -116,6 +129,8 @@ func (cfg *Config) Get(key string) interface{} {
 		return cfg.Secret
 	case ConfigKeySetAdmin:
 		return cfg.SetAdmin
+	case ConfigKeyUnauthDelay:
+		return cfg.UnauthDelayMillis
 	default:
 		return cfg.CommonConf.Get(key)
 	}
@@ -123,6 +138,13 @@ func (cfg *Config) Get(key string) interface{} {
 
 func (cfg *Config) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
+	case ConfigKeyUnauthDelay:
+		if valueStr, ok := value.(int); ok {
+			cfg.UnauthDelayMillis = valueStr
+			return nil
+		} else {
+			return fmt.Errorf("key '"+ConfigKeyUnauthDelay+"' requires an int but got a %T", value)
+		}
 	case ConfigKeySetAdmin:
 		if valueStr, ok := value.(string); ok {
 			cfg.SetAdmin = valueStr
@@ -149,6 +171,12 @@ func (cfg *Config) SetFromString(key string, value string) error {
 	switch strings.ToLower(key) {
 	case ConfigKeySecret, ConfigKeySetAdmin:
 		return cfg.Set(key, value)
+	case ConfigKeyUnauthDelay:
+		val, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("key '"+ConfigKeyUnauthDelay+"': %w", err)
+		}
+		return cfg.Set(key, val)
 	default:
 		return cfg.CommonConf.SetFromString(key, value)
 	}

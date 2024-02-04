@@ -52,6 +52,7 @@ func (mc marshaledAPI) MarshalJSON() ([]byte, error) {
 
 type marshaledConfig struct {
 	Listen      string                       `yaml:"listen" json:"listen"`
+	Auth        string                       `yaml:"auth" json:"auth"`
 	Base        string                       `yaml:"base" json:"base"`
 	DBs         map[string]marshaledDatabase `yaml:"dbs" json:"dbs"`
 	UnauthDelay int                          `yaml:"unauth_delay" json:"unauth_delay"`
@@ -356,6 +357,7 @@ func (cfg *Globals) unmarshal(m marshaledConfig) error {
 	// ...and the rest
 	cfg.URIBase = m.Base
 	cfg.UnauthDelayMillis = m.UnauthDelay
+	cfg.MainAuthProvider = m.Auth
 
 	return nil
 }
@@ -366,6 +368,7 @@ func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
 	mc.Listen = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 	mc.Base = cfg.URIBase
 	mc.UnauthDelay = cfg.UnauthDelayMillis
+	mc.Auth = cfg.MainAuthProvider
 }
 
 // unmarshal completely replaces all attributes except DBConnector with the
@@ -495,6 +498,17 @@ func (mc *marshaledConfig) unmarshalMap(m map[string]interface{}, unmarshalFn fu
 		}
 		delete(m, "logging")
 	}
+	if authProv, ok := m["auth"]; ok {
+		authProvStr, convOk := authProv.(string)
+		if !convOk {
+			return fmt.Errorf("auth: should be a string but was of type %T", authProv)
+		}
+		splitted := strings.Split(authProvStr, ".")
+		if len(splitted) != 2 {
+			return fmt.Errorf("auth: not in COMPONENT.PROVIDER format: %q", authProvStr)
+		}
+		mc.Auth = authProvStr
+	}
 
 	mc.DBs = map[string]marshaledDatabase{}
 	if dbs, ok := m["dbs"]; ok {
@@ -592,6 +606,7 @@ func (mc marshaledConfig) marshalMap() interface{} {
 	m["base"] = mc.Base
 	m["dbs"] = mc.DBs
 	m["listen"] = mc.Listen
+	m["auth"] = mc.Auth
 	m["unauth_delay"] = mc.UnauthDelay
 
 	return m

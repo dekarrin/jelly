@@ -17,9 +17,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// todo: this should probs be called component providers and functionality of
-// RegisterAuto be merged with the Use function.
-var componentProviders = map[string]func() API{}
+var (
+	componentProviders      = map[string]func() API{}
+	componentProvidersOrder = []string{}
+)
 
 // API holds parameters for endpoints needed to run and a service layer that
 // will perform most of the actual logic. To use API, create one and then
@@ -100,6 +101,7 @@ func UseComponent(c Component) {
 	}
 
 	componentProviders[normName] = c.API
+	componentProvidersOrder = append(componentProvidersOrder, normName)
 }
 
 // RESTServer is an HTTP REST server that provides resources. The zero-value of
@@ -170,14 +172,22 @@ func New(cfg *config.Config) (RESTServer, error) {
 		log:         logger,
 	}
 
-	// check on pre-rolled components
-	for name, prov := range componentProviders {
+	// check on pre-rolled components, they need to be inited first.
+	for _, name := range componentProvidersOrder {
+		prov := componentProviders[name]
 		if _, ok := cfg.APIs[name]; ok {
 			preRolled := prov()
 			if err := rs.Add(name, preRolled); err != nil {
 				return RESTServer{}, fmt.Errorf("component API %s: create API: %w", name, err)
 			}
+			logger.Debugf("Added pre-rolled component %q", name)
 		}
+	}
+
+	// okay, after the pre-rolls are initialized and authenticators added, it
+	// should be safe to set the main authenticator
+	if cfg.Globals.MainAuthProvider != "" {
+		middle.RegisterMainAuthenticator(cfg.Globals.MainAuthProvider)
 	}
 
 	return rs, nil

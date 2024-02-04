@@ -32,8 +32,51 @@ const (
 )
 
 var (
-	authProviders = map[string]Authenticator{}
+	authProviders    = map[string]Authenticator{}
+	mainAuthProvider = ""
 )
+
+// SelectAuthenticator retrieves and selects the first authenticator that
+// matches one of the names in from. If no names are provided in from, the main
+// auth for the project is returned. If from is not empty, at least one name
+// listed in it must exist, or this function will panic.
+func SelectAuthenticator(from []string) Authenticator {
+	var prov Authenticator
+	if len(from) > 0 {
+		var ok bool
+		for _, authName := range from {
+			normName := strings.ToLower(authName)
+			var ok bool
+			prov, ok = authProviders[normName]
+			if ok {
+				break
+			}
+		}
+		if !ok {
+			panic(fmt.Sprintf("no valid auth provider given in list: %q", from))
+		}
+	} else {
+		prov = getMainAuth()
+	}
+	return prov
+}
+
+func getMainAuth() Authenticator {
+	if mainAuthProvider == "" {
+		return noopAuthenticator{}
+	}
+	return authProviders[mainAuthProvider]
+}
+
+func RegisterMainAuthenticator(name string) error {
+	normName := strings.ToLower(name)
+	if _, ok := authProviders[name]; !ok {
+		return fmt.Errorf("no authenticator called %q has been registered; register one before trying to set it as main", normName)
+	}
+
+	mainAuthProvider = normName
+	return nil
+}
 
 func RegisterAuthenticator(name string, prov Authenticator) error {
 	normName := strings.ToLower(name)
@@ -71,6 +114,22 @@ type Authenticator interface {
 	// If the user is logged-in, returns the logged-in user, true, and a nil
 	// error.
 	Authenticate(req *http.Request) (dao.User, bool, error)
+
+	// UnauthDelay is the amount of time that the system should delay responding
+	// to unauthenticated requests to endpoints that require auth.
+	UnauthDelay() time.Duration
+}
+
+// noopAuthenticator is used as the active one when no others are specified.
+type noopAuthenticator struct{}
+
+func (na noopAuthenticator) Authenticate(req *http.Request) (dao.User, bool, error) {
+	return dao.User{}, false, fmt.Errorf("no authenticator provider is specified for this project")
+}
+
+func (na noopAuthenticator) UnauthDelay() time.Duration {
+	var d time.Duration
+	return d
 }
 
 // AuthHandler is middleware that will accept a request, extract the token used
@@ -83,10 +142,9 @@ type Authenticator interface {
 // optional logins; for non-optional, not being logged in will result in an
 // HTTP error being returned before the request is passed to the next handler).
 type AuthHandler struct {
-	provider      Authenticator
-	required      bool
-	unauthedDelay time.Duration
-	next          http.Handler
+	provider Authenticator
+	required bool
+	next     http.Handler
 }
 
 func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -104,7 +162,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				msg = "authorization is required"
 			}
 			r := response.Unauthorized("", msg)
-			time.Sleep(ah.unauthedDelay)
+			time.Sleep(ah.provider.UnauthDelay())
 			r.WriteResponse(w)
 			r.Log(req)
 			return
@@ -119,43 +177,52 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // RequireAuth returns middleware that requires that auth be used. The
-// authenticator must be the name of one that was registered as an Authenticator
-// with this package.
-//
-// If the given authenticator does not exist, panics.
-func RequireAuth(authenticator string, unauthDelay time.Duration) Middleware {
-	prov, ok := authProviders[strings.ToLower(authenticator)]
-	if !ok {
-		panic(fmt.Sprintf("not a valid auth provider: %q", strings.ToLower(authenticator)))
-	}
+// authenticators, if provided, must give the names of preferred providers that
+// were registered as an Authenticator with this package, in priority order. If
+// none of the given authenticators exist, this function panics. If no
+// authenticator is specified, the one set as main for the project is used.
+func RequireAuth(authenticators ...string) Middleware {
+	prov := SelectAuthenticator(authenticators)
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
-			provider:      prov,
-			unauthedDelay: unauthDelay,
-			required:      true,
-			next:          next,
+			provider: prov,
+			required: true,
+			next:     next,
 		}
 	}
 }
 
-// RequireAuth returns middleware that allows auth be used to retrieved the
-// logged-in user. The authenticator must be the name of one that was registered
-// as an Authenticator with this package.
-//
-// If the given authenticator does not exist, panics.
-func OptionalAuth(authenticator string, unauthDelay time.Duration) Middleware {
-	prov, ok := authProviders[strings.ToLower(authenticator)]
-	if !ok {
-		panic(fmt.Sprintf("not a valid auth provider: %q", strings.ToLower(authenticator)))
+// OptionalAuth returns middleware that allows auth be used to retrieved the
+// logged-in user. The authenticators, if provided, must give the names of
+// preferred providers that were registered as an Authenticator with this
+// package, in priority order. If none of the given authenticators exist, this
+// function panics. If no authenticator is specified, the one set as main for
+// the project is used.
+func OptionalAuth(authenticators ...string) Middleware {
+	var prov Authenticator
+	if len(authenticators) > 0 {
+		var ok bool
+		for _, authName := range authenticators {
+			normName := strings.ToLower(authName)
+			var ok bool
+			prov, ok = authProviders[normName]
+			if ok {
+				break
+			}
+		}
+		if !ok {
+			panic(fmt.Sprintf("no valid auth provider given in list: %q", authenticators))
+		}
+	} else {
+		prov = getMainAuth()
 	}
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
-			provider:      prov,
-			unauthedDelay: unauthDelay,
-			required:      false,
-			next:          next,
+			provider: prov,
+			required: false,
+			next:     next,
 		}
 	}
 }

@@ -2,14 +2,16 @@ package auth
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/token"
 )
 
 type JWTAuthProvider struct {
-	db     dao.AuthUserRepo
-	secret []byte
+	db          dao.AuthUserRepo
+	secret      []byte
+	unauthDelay time.Duration
 }
 
 func (ap JWTAuthProvider) Authenticate(req *http.Request) (dao.User, bool, error) {
@@ -30,4 +32,8 @@ func (ap JWTAuthProvider) Authenticate(req *http.Request) (dao.User, bool, error
 	}
 
 	return lookupUser, true, nil
+}
+
+func (ap JWTAuthProvider) UnauthDelay() time.Duration {
+	return ap.unauthDelay
 }

@@ -75,6 +75,10 @@ type Globals struct {
 	// non-parallel connections. If not set it will default to 1 second
 	// (1000ms). Set this to any negative number to disable the delay.
 	UnauthDelayMillis int
+
+	// The main auth provider to use for the project. Must be the
+	// fully-qualified name of it, e.g. COMPONENT.PROVIDER format.
+	MainAuthProvider string
 }
 
 func (g Globals) FillDefaults() Globals {
@@ -258,6 +262,9 @@ func (cfg Config) FillDefaults() Config {
 				if _, ok := newCFG.DBs[dbs[0]]; !ok {
 					newCFG.DBs[dbs[0]] = Database{Type: DatabaseInMemory}.FillDefaults()
 				}
+			}
+			if newCFG.Globals.MainAuthProvider == "" {
+				newCFG.Globals.MainAuthProvider = "jellyauth.jwt"
 			}
 		}
 	}

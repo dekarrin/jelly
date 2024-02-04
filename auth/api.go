@@ -17,6 +17,8 @@ import (
 	"github.com/dekarrin/jelly/token"
 )
 
+var useJellyauthJWT = jelly.Override{Authenticators: []string{"jellyauth.jwt"}}
+
 // LoginAPI holds endpoint frontend for the login service.
 type LoginAPI struct {
 	// Service is the service that the API calls to perform the requested
@@ -44,7 +46,14 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 	api.name = cb.Name()
 	api.log = log
 	api.Secret = cb.GetByteSlice(ConfigKeySecret)
-	api.UnauthDelay = cb.ServerUnauthDelay()
+
+	unauth := cb.GetInt(ConfigKeyUnauthDelay)
+	var d time.Duration
+	if unauth >= 0 {
+		d = time.Duration(unauth) * time.Second
+	}
+	api.UnauthDelay = d
+
 	authRaw := dbs[cb.UsesDBs()[0]]
 	authStore, ok := authRaw.(dao.AuthUserStore)
 	if !ok {
@@ -101,7 +110,11 @@ func (api *LoginAPI) Authenticators() map[string]middle.Authenticator {
 
 	// we will have had Init called, ergo secret and the service db will exist
 	return map[string]middle.Authenticator{
-		"jwt": JWTAuthProvider{secret: api.Secret, db: api.Service.Provider.AuthUsers()},
+		"jwt": JWTAuthProvider{
+			secret:      api.Secret,
+			db:          api.Service.Provider.AuthUsers(),
+			unauthDelay: api.UnauthDelay,
+		},
 	}
 }
 
@@ -118,7 +131,7 @@ func (api *LoginAPI) Shutdown(ctx context.Context) error {
 // requirements are not met it may return an HTTP-500. The context must contain
 // a value denoting whether the client making the request is logged-in.
 func (api LoginAPI) HTTPGetInfo() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epGetInfo)
+	return jelly.Endpoint(api.epGetInfo, useJellyauthJWT)
 }
 
 func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
@@ -138,7 +151,7 @@ func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
 // HTTPCreateLogin returns a HandlerFunc that uses the API to log in a user with
 // a username and password and return the auth token for that user.
 func (api LoginAPI) HTTPCreateLogin() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epCreateLogin)
+	return jelly.Endpoint(api.epCreateLogin, useJellyauthJWT)
 }
 
 func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
@@ -186,7 +199,7 @@ func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
 // the ID of the user to log out and the logged-in user of the client making the
 // request.
 func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epDeleteLogin)
+	return jelly.Endpoint(api.epDeleteLogin, useJellyauthJWT)
 }
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
@@ -236,7 +249,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epCreateToken)
+	return jelly.Endpoint(api.epCreateToken, useJellyauthJWT)
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
@@ -261,7 +274,7 @@ func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epGetAllUsers)
+	return jelly.Endpoint(api.epGetAllUsers, useJellyauthJWT)
 }
 
 // GET /users: get all users (admin auth required).

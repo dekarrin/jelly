@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/go-chi/chi/v5"
@@ -141,7 +142,26 @@ func GetURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 	return val, nil
 }
 
-func Endpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
+// Override is a per-endpoint optional overriding of a global configuration in
+// order to, for instance, use a specific Authenticator. Multiple Overrides can
+// be given in a single Endpoint; if given, they will be evaluated in order with
+// later ones taking precedence over others in cases of conflict and later ones
+// being added to lists at lower prority in cases of lists.
+type Override struct {
+	Authenticators []string
+}
+
+func combineOverrides(overs []Override) Override {
+	newOver := Override{}
+	for i := range overs {
+		newOver.Authenticators = append(newOver.Authenticators, overs[i].Authenticators...)
+	}
+	return newOver
+}
+
+func Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
+	overs := combineOverrides(overrides)
+
 	return func(w http.ResponseWriter, req *http.Request) {
 		r := ep(req)
 
@@ -149,7 +169,8 @@ func Endpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 			// if it's one of these statuses, either the user is improperly
 			// logging in or tried to access a forbidden resource, both of which
 			// should force the wait time before responding.
-			time.Sleep(unauthDelay)
+			auth := middle.SelectAuthenticator(overs.Authenticators)
+			time.Sleep(auth.UnauthDelay())
 		}
 
 		r.WriteResponse(w)
