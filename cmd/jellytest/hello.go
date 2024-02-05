@@ -211,8 +211,8 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 }
 
 func (api *HelloAPI) Routes() (router chi.Router, subpaths bool) {
-	optAuth := middle.OptionalAuth("jellyauth.jwt", api.UnauthDelay)
-	reqAuth := middle.RequireAuth("jellyauth.jwt", api.UnauthDelay)
+	optAuth := middle.OptionalAuth()
+	reqAuth := middle.RequireAuth()
 
 	r := chi.NewRouter()
 
@@ -226,7 +226,7 @@ func (api *HelloAPI) Routes() (router chi.Router, subpaths bool) {
 
 // HTTPGetNice returns a HandlerFunc that returns a polite greeting message.
 func (api HelloAPI) HTTPGetNice() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epNice)
+	return jelly.Endpoint(api.epNice)
 }
 
 func (api HelloAPI) epNice(req *http.Request) response.Result {
@@ -248,7 +248,7 @@ func (api HelloAPI) epNice(req *http.Request) response.Result {
 
 // HTTPGetRude returns a HandlerFunc that returns a rude greeting message.
 func (api HelloAPI) HTTPGetRude() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epRude)
+	return jelly.Endpoint(api.epRude)
 }
 
 func (api HelloAPI) epRude(req *http.Request) response.Result {
@@ -270,7 +270,7 @@ func (api HelloAPI) epRude(req *http.Request) response.Result {
 
 // HTTPGetRandom returns a HandlerFunc that returns a random greeting message.
 func (api HelloAPI) HTTPGetRandom() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epRandom)
+	return jelly.Endpoint(api.epRandom)
 }
 
 func (api HelloAPI) epRandom(req *http.Request) response.Result {
@@ -307,7 +307,7 @@ func (api HelloAPI) epRandom(req *http.Request) response.Result {
 // HTTPGetSecret returns a HandlerFunc that returns a secret greeting message
 // available only for logged-in users.
 func (api HelloAPI) HTTPGetSecret() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epSecret)
+	return jelly.Endpoint(api.epSecret)
 }
 
 func (api HelloAPI) epSecret(req *http.Request) response.Result {

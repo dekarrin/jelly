@@ -44,7 +44,7 @@ func (api *LoginAPI) Routes() (router chi.Router, subpaths bool) {
 }
 
 func (api LoginAPI) routesForLogin() chi.Router {
-	reqAuth := middle.RequireAuth(api.name+".jwt", api.UnauthDelay)
+	reqAuth := middle.RequireAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
 
@@ -56,7 +56,7 @@ func (api LoginAPI) routesForLogin() chi.Router {
 }
 
 func (api LoginAPI) routesForToken() chi.Router {
-	reqAuth := middle.RequireAuth(api.name+".jwt", api.UnauthDelay)
+	reqAuth := middle.RequireAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
 
@@ -66,7 +66,7 @@ func (api LoginAPI) routesForToken() chi.Router {
 }
 
 func (api LoginAPI) routesForAuthUser() chi.Router {
-	reqAuth := middle.RequireAuth(api.name+".jwt", api.UnauthDelay)
+	reqAuth := middle.RequireAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
 
@@ -86,7 +86,7 @@ func (api LoginAPI) routesForAuthUser() chi.Router {
 }
 
 func (api LoginAPI) routesForInfo() chi.Router {
-	optAuth := middle.OptionalAuth(api.name+".jwt", api.UnauthDelay)
+	optAuth := middle.OptionalAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
 

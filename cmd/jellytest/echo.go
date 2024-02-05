@@ -135,7 +135,7 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 }
 
 func (api *EchoAPI) Routes() (router chi.Router, subpaths bool) {
-	optAuth := middle.OptionalAuth("jellyauth.jwt", api.UnauthDelay)
+	optAuth := middle.OptionalAuth()
 
 	r := chi.NewRouter()
 
@@ -150,7 +150,7 @@ type EchoRequestBody struct {
 
 // HTTPGetEcho returns a HandlerFunc that echoes the user message.
 func (api EchoAPI) HTTPGetEcho() http.HandlerFunc {
-	return jelly.Endpoint(api.UnauthDelay, api.epEcho)
+	return jelly.Endpoint(api.epEcho)
 }
 
 func (api EchoAPI) epEcho(req *http.Request) response.Result {
