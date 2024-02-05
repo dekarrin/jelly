@@ -21,14 +21,6 @@ listen: localhost:8080
 # The base URI that all APIs are rooted on.
 base: /
 
-# "unauth_delay" - int - default: 1000
-#
-# The minimum amount of time that the server waits before replying to
-# unauthenticated requests to an authenticated endpoint. Built for use in the
-# jellyauth pre-configured endpoints, but is useful to any API that wishes to
-# have authenticated endpoints.
-unauth_delay: 1000
-
 ################################################################################
 # DATASTORE CONFIG                                                             #
 # ============================================================================ #
@@ -156,3 +148,10 @@ jellyauth:
   #
   # This value should be changed from its default for production use.
   secret: DEFAULT_NONPROD_TOKEN_SECRET_DO_NOT_USE
+
+  # "unauth_delay" - int - default: 1000
+  #
+  # The minimum amount of time that the server waits before replying to
+  # unauthenticated requests to an authenticated endpoint. Built for use in the
+  # jellyauth pre-configured authenticator, but can be used elsewhere.
+  unauth_delay: 1000

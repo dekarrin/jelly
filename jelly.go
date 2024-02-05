@@ -378,6 +378,12 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 	return base, nil
 }
 
+func (rs *RESTServer) checkCreatedViaNew() {
+	if rs.mtx == nil {
+		panic("server mutex is in invalid state; was this RESTServer created with New()?")
+	}
+}
+
 // ServeForever begins listening on the server's configured address and port for
 // HTTP REST client requests.
 //
@@ -385,6 +391,7 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 // result of rs.Close() being called elsewhere, it will return
 // http.ErrServerClosed.
 func (rs *RESTServer) ServeForever() error {
+	rs.checkCreatedViaNew()
 	rs.mtx.Lock()
 	if rs.serving {
 		rs.mtx.Unlock()
@@ -418,6 +425,7 @@ func (rs *RESTServer) ServeForever() error {
 //
 // Once Shutdown returns, the RESTServer should not be used again.
 func (rs *RESTServer) Shutdown(ctx context.Context) error {
+	rs.checkCreatedViaNew()
 	rs.mtx.Lock()
 	if rs.closing {
 		rs.mtx.Unlock()

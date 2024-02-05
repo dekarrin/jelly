@@ -51,13 +51,12 @@ func (mc marshaledAPI) MarshalJSON() ([]byte, error) {
 }
 
 type marshaledConfig struct {
-	Listen      string                       `yaml:"listen" json:"listen"`
-	Auth        string                       `yaml:"auth" json:"auth"`
-	Base        string                       `yaml:"base" json:"base"`
-	DBs         map[string]marshaledDatabase `yaml:"dbs" json:"dbs"`
-	UnauthDelay int                          `yaml:"unauth_delay" json:"unauth_delay"`
-	APIs        map[string]marshaledAPI      `yaml:"apis" json:"apis"`
-	Logging     marshaledLog                 `yaml:"logging" json:"logging"`
+	Listen  string                       `yaml:"listen" json:"listen"`
+	Auth    string                       `yaml:"authenticator" json:"authenticator"`
+	Base    string                       `yaml:"base" json:"base"`
+	DBs     map[string]marshaledDatabase `yaml:"dbs" json:"dbs"`
+	APIs    map[string]marshaledAPI      `yaml:"apis" json:"apis"`
+	Logging marshaledLog                 `yaml:"logging" json:"logging"`
 }
 
 type marshaledLog struct {
@@ -356,7 +355,6 @@ func (cfg *Globals) unmarshal(m marshaledConfig) error {
 
 	// ...and the rest
 	cfg.URIBase = m.Base
-	cfg.UnauthDelayMillis = m.UnauthDelay
 	cfg.MainAuthProvider = m.Auth
 
 	return nil
@@ -367,7 +365,6 @@ func (cfg *Globals) unmarshal(m marshaledConfig) error {
 func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
 	mc.Listen = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 	mc.Base = cfg.URIBase
-	mc.UnauthDelay = cfg.UnauthDelayMillis
 	mc.Auth = cfg.MainAuthProvider
 }
 
@@ -475,14 +472,6 @@ func (mc *marshaledConfig) unmarshalMap(m map[string]interface{}, unmarshalFn fu
 		mc.Base = baseStr
 		delete(m, "base")
 	}
-	if unauthDelay, ok := m["unauth_delay"]; ok {
-		unauthDelayInt, convOk := unauthDelay.(int)
-		if !convOk {
-			return fmt.Errorf("unauth_delay: should be an int but was of type %T", unauthDelay)
-		}
-		mc.UnauthDelay = unauthDelayInt
-		delete(m, "unauth_delay")
-	}
 	if loggingUntyped, ok := m["logging"]; ok {
 		loggingObj, convOk := loggingUntyped.(map[string]interface{})
 		if !convOk {
@@ -498,14 +487,14 @@ func (mc *marshaledConfig) unmarshalMap(m map[string]interface{}, unmarshalFn fu
 		}
 		delete(m, "logging")
 	}
-	if authProv, ok := m["auth"]; ok {
+	if authProv, ok := m["authenticator"]; ok {
 		authProvStr, convOk := authProv.(string)
 		if !convOk {
-			return fmt.Errorf("auth: should be a string but was of type %T", authProv)
+			return fmt.Errorf("authenticator: should be a string but was of type %T", authProv)
 		}
 		splitted := strings.Split(authProvStr, ".")
 		if len(splitted) != 2 {
-			return fmt.Errorf("auth: not in COMPONENT.PROVIDER format: %q", authProvStr)
+			return fmt.Errorf("authenticator: not in COMPONENT.PROVIDER format: %q", authProvStr)
 		}
 		mc.Auth = authProvStr
 	}
@@ -606,8 +595,7 @@ func (mc marshaledConfig) marshalMap() interface{} {
 	m["base"] = mc.Base
 	m["dbs"] = mc.DBs
 	m["listen"] = mc.Listen
-	m["auth"] = mc.Auth
-	m["unauth_delay"] = mc.UnauthDelay
+	m["authenticator"] = mc.Auth
 
 	return m
 }

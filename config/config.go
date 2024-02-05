@@ -5,7 +5,6 @@ package config
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/dekarrin/jelly/logging"
 )
@@ -68,14 +67,6 @@ type Globals struct {
 	// "/", which is equivalent to being directly on root.
 	URIBase string
 
-	// UnauthDelayMillis is the amount of additional time to wait
-	// (in milliseconds) before sending a response that indicates either that
-	// the client was unauthorized or the client was unauthenticated. This is
-	// something of an "anti-flood" measure for naive clients attempting
-	// non-parallel connections. If not set it will default to 1 second
-	// (1000ms). Set this to any negative number to disable the delay.
-	UnauthDelayMillis int
-
 	// The main auth provider to use for the project. Must be the
 	// fully-qualified name of it, e.g. COMPONENT.PROVIDER format.
 	MainAuthProvider string
@@ -84,9 +75,6 @@ type Globals struct {
 func (g Globals) FillDefaults() Globals {
 	newG := g
 
-	if newG.UnauthDelayMillis == 0 {
-		newG.UnauthDelayMillis = 1000
-	}
 	if newG.Port == 0 {
 		newG.Port = 8080
 	}
@@ -112,17 +100,6 @@ func (g Globals) Validate() error {
 	}
 
 	return nil
-}
-
-// UnauthDelay returns the configured time for the UnauthDelay as a
-// time.Duration. If cfg.UnauthDelayMS is set to a number less than 0, this will
-// return a zero-valued time.Duration.
-func (g Globals) UnauthDelay() time.Duration {
-	if g.UnauthDelayMillis < 1 {
-		var dur time.Duration
-		return dur
-	}
-	return time.Millisecond * time.Duration(g.UnauthDelayMillis)
 }
 
 type APIConfig interface {
@@ -223,13 +200,6 @@ type Config struct {
 
 	// origFormat is the format of config, used in Dump.
 	origFormat Format
-}
-
-// UnauthDelay returns the configured time for the UnauthDelay as a
-// time.Duration. If cfg.UnauthDelayMS is set to a number less than 0, this will
-// return a zero-valued time.Duration.
-func (cfg Config) UnauthDelay() time.Duration {
-	return cfg.Globals.UnauthDelay()
 }
 
 // FillDefaults returns a new Config identical to cfg but with unset values

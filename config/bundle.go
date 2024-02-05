@@ -48,13 +48,6 @@ func (bnd Bundle) ServerBase() string {
 	return strings.ToLower(base)
 }
 
-// ServerUnauthDelay returns the amount of time that the server is configured to
-// wait before serving an error resposne to unauthenticated requests. This is
-// often needed for passing into Endpoint.
-func (bnd Bundle) ServerUnauthDelay() time.Duration {
-	return bnd.g.UnauthDelay()
-}
-
 // Base returns the complete URIBase path configured for any methods. This takes
 // ServerBase() and APIBase() and appends them together, handling
 // doubled-slashes.
