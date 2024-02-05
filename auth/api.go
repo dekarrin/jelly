@@ -50,7 +50,7 @@ func (api *LoginAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 	unauth := cb.GetInt(ConfigKeyUnauthDelay)
 	var d time.Duration
 	if unauth >= 0 {
-		d = time.Duration(unauth) * time.Second
+		d = time.Duration(unauth) * time.Millisecond
 	}
 	api.UnauthDelay = d
 

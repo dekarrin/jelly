@@ -46,7 +46,6 @@ func SelectAuthenticator(from []string) Authenticator {
 		var ok bool
 		for _, authName := range from {
 			normName := strings.ToLower(authName)
-			var ok bool
 			prov, ok = authProviders[normName]
 			if ok {
 				break
@@ -200,23 +199,7 @@ func RequireAuth(authenticators ...string) Middleware {
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.
 func OptionalAuth(authenticators ...string) Middleware {
-	var prov Authenticator
-	if len(authenticators) > 0 {
-		var ok bool
-		for _, authName := range authenticators {
-			normName := strings.ToLower(authName)
-			var ok bool
-			prov, ok = authProviders[normName]
-			if ok {
-				break
-			}
-		}
-		if !ok {
-			panic(fmt.Sprintf("no valid auth provider given in list: %q", authenticators))
-		}
-	} else {
-		prov = getMainAuth()
-	}
+	prov := SelectAuthenticator(authenticators)
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
