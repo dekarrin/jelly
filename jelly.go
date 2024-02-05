@@ -17,10 +17,18 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var (
-	componentProviders      = map[string]func() API{}
-	componentProvidersOrder = []string{}
-)
+// Environment is a full Jelly environment that contains all parameters needed
+// to run a server. Creating an Environment prior to config loading allows all
+// required external functionality to be properly registered.
+type Environment struct {
+	componentProviders      map[string]func() API
+	componentProvidersOrder []string
+}
+
+var DefaultEnvironment = Environment{
+	componentProviders:      map[string]func() API{},
+	componentProvidersOrder: []string{},
+}
 
 // API holds parameters for endpoints needed to run and a service layer that
 // will perform most of the actual logic. To use API, create one and then
@@ -120,14 +128,16 @@ type RESTServer struct {
 	cfg         config.Config // config that it was started with.
 
 	log logging.Logger // used for logging. if logging disabled, this will be set to a no-op logger
+
+	env *Environment // ptr back to the environment that this server was created in.
 }
 
-// New creates a new RESTServer ready to have new APIs added to it. All
+// NewServer creates a new RESTServer ready to have new APIs added to it. All
 // configured DBs are connected to before this function returns, and the config
 // is retained for future operations. Any registered auto-APIs are automatically
 // added via Add as per the configuration; this includes both built-in and
 // user-supplied APIs.
-func New(cfg *config.Config) (RESTServer, error) {
+func (env Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 	// check config
 	if cfg == nil {
 		cfg = &config.Config{}
@@ -170,11 +180,13 @@ func New(cfg *config.Config) (RESTServer, error) {
 		dbs:         dbs,
 		cfg:         *cfg,
 		log:         logger,
+
+		env: &env,
 	}
 
 	// check on pre-rolled components, they need to be inited first.
-	for _, name := range componentProvidersOrder {
-		prov := componentProviders[name]
+	for _, name := range env.componentProvidersOrder {
+		prov := env.componentProviders[name]
 		if _, ok := cfg.APIs[name]; ok {
 			preRolled := prov()
 			if err := rs.Add(name, preRolled); err != nil {
