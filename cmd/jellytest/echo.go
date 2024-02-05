@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
@@ -107,17 +106,12 @@ type EchoAPI struct {
 	// be a format string that expects to receive the message sent by the user
 	// as its first argument.
 	Messages []string
-
-	// UnauthDelay should eventually be mitigated by referring to an
-	// authenticator.
-	UnauthDelay time.Duration
 }
 
 func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
 	msgs := cb.GetSlice(ConfigKeyMessages)
 	echo.Messages = make([]string, len(msgs))
 	copy(echo.Messages, msgs)
-	echo.UnauthDelay = cb.ServerUnauthDelay()
 
 	log.Debug("Echo API initialized")
 

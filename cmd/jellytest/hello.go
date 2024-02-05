@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
@@ -178,18 +177,12 @@ type HelloAPI struct {
 	// random greeting. Float between 0 and 1 for percentage.
 	RudeChance float64
 
-	// UnauthDelay is the amount of time that a request will pause before
-	// responding with an HTTP-403, HTTP-401, or HTTP-500 to deprioritize such
-	// requests from processing and I/O.
-	UnauthDelay time.Duration
-
 	log logging.Logger
 }
 
 func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
 	api.log = log
 
-	api.UnauthDelay = cb.ServerUnauthDelay()
 	api.RudeChance = cb.GetFloat(ConfigKeyRudeness)
 	api.SecretMessages = cb.GetSlice(ConfigKeySecrets)
 	api.NiceMessages = cb.GetSlice(ConfigKeyPolites)
