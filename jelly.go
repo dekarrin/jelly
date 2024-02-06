@@ -17,10 +17,21 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-var (
-	componentProviders      = map[string]func() API{}
-	componentProvidersOrder = []string{}
-)
+// Environment is a full Jelly environment that contains all parameters needed
+// to run a server. Creating an Environment prior to config loading allows all
+// required external functionality to be properly registered.
+type Environment struct {
+	componentProviders      map[string]func() API
+	componentProvidersOrder []string
+
+	confEnv config.Environment
+}
+
+var DefaultEnvironment = Environment{
+	componentProviders:      map[string]func() API{},
+	componentProvidersOrder: []string{},
+	confEnv:                 config.DefaultEnvironment,
+}
 
 // API holds parameters for endpoints needed to run and a service layer that
 // will perform most of the actual logic. To use API, create one and then
@@ -90,18 +101,39 @@ type Component interface {
 // to be called at least once for every pre-rolled component in use (such as
 // jelly/auth) prior to loading config that contains its section. Calling
 // UseComponent twice with a component with the same name will cause a panic.
-func UseComponent(c Component) {
+func (env *Environment) UseComponent(c Component) {
+	if env.componentProviders == nil {
+		env.componentProviders = map[string]func() API{}
+	}
+
 	normName := strings.ToLower(c.Name())
-	if _, ok := componentProviders[normName]; ok {
+	if _, ok := env.componentProviders[normName]; ok {
 		panic(fmt.Sprintf("duplicate component: %q is already in-use", c.Name()))
 	}
 
-	if err := config.Register(normName, c.Config); err != nil {
+	if err := env.RegisterConfigSection(normName, c.Config); err != nil {
 		panic(fmt.Sprintf("register component config section: %v", err))
 	}
 
-	componentProviders[normName] = c.API
-	componentProvidersOrder = append(componentProvidersOrder, normName)
+	env.componentProviders[normName] = c.API
+	env.componentProvidersOrder = append(env.componentProvidersOrder, normName)
+}
+
+// RegisterConfigSection registers a provider function, which creates an
+// implementor of config.APIConfig, to the name of the config section that
+// should be loaded into it. You must call this for every custom API config
+// sections, or they will be given the default common config only at
+// initialization.
+func (env *Environment) RegisterConfigSection(name string, provider func() config.APIConfig) error {
+	return env.confEnv.Register(name, provider)
+}
+
+// LoadConfig loads a configuration from file. Ensure that UseComponent is first
+// called on every component that will be configured (such as jelly/auth), and
+// ensure RegisterConfigSection is called for each custom config section not
+// associated with a component.
+func (env *Environment) LoadConfig(file string) (config.Config, error) {
+	return env.confEnv.Load(file)
 }
 
 // RESTServer is an HTTP REST server that provides resources. The zero-value of
@@ -120,14 +152,16 @@ type RESTServer struct {
 	cfg         config.Config // config that it was started with.
 
 	log logging.Logger // used for logging. if logging disabled, this will be set to a no-op logger
+
+	env *Environment // ptr back to the environment that this server was created in.
 }
 
-// New creates a new RESTServer ready to have new APIs added to it. All
+// NewServer creates a new RESTServer ready to have new APIs added to it. All
 // configured DBs are connected to before this function returns, and the config
 // is retained for future operations. Any registered auto-APIs are automatically
 // added via Add as per the configuration; this includes both built-in and
 // user-supplied APIs.
-func New(cfg *config.Config) (RESTServer, error) {
+func (env Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 	// check config
 	if cfg == nil {
 		cfg = &config.Config{}
@@ -170,11 +204,13 @@ func New(cfg *config.Config) (RESTServer, error) {
 		dbs:         dbs,
 		cfg:         *cfg,
 		log:         logger,
+
+		env: &env,
 	}
 
 	// check on pre-rolled components, they need to be inited first.
-	for _, name := range componentProvidersOrder {
-		prov := componentProviders[name]
+	for _, name := range env.componentProvidersOrder {
+		prov := env.componentProviders[name]
 		if _, ok := cfg.APIs[name]; ok {
 			preRolled := prov()
 			if err := rs.Add(name, preRolled); err != nil {

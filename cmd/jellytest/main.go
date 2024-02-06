@@ -158,16 +158,18 @@ func main() {
 	logger.AddHandler(jellog.LvTrace, stdErrOutput)
 	loggerSetup = true
 
+	env := jelly.Environment{}
+
 	// mark jellyauth as in-use before loading config
-	jelly.UseComponent(jellyauth.Component)
+	env.UseComponent(jellyauth.Component)
 
 	// tell jelly's config module about our config structs
-	config.Register("echo", func() config.APIConfig { return &EchoConfig{} })
-	config.Register("hello", func() config.APIConfig { return &HelloConfig{} })
+	env.RegisterConfigSection("echo", func() config.APIConfig { return &EchoConfig{} })
+	env.RegisterConfigSection("hello", func() config.APIConfig { return &HelloConfig{} })
 
 	confPath := filepath.Clean(*flagConf)
 	logger.Infof("Loading config file %s...", confPath)
-	conf, err := config.Load(confPath)
+	conf, err := env.LoadConfig(confPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
 		exitCode = exitError
@@ -181,7 +183,7 @@ func main() {
 		logger.Debugf("Effective config:\n%s", string(conf.Dump()))
 	}
 
-	server, err := jelly.New(&conf)
+	server, err := env.NewServer(&conf)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
 		exitCode = exitError
