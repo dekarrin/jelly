@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -25,12 +26,16 @@ type Environment struct {
 	componentProvidersOrder []string
 
 	confEnv config.Environment
+
+	connectors map[string]func(config.Database) (dao.Store, error)
 }
 
 var DefaultEnvironment = Environment{
 	componentProviders:      map[string]func() API{},
 	componentProvidersOrder: []string{},
 	confEnv:                 config.DefaultEnvironment,
+	connectors: 
+	},
 }
 
 // API holds parameters for endpoints needed to run and a service layer that

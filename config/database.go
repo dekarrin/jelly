@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/dekarrin/jelly/dao"
@@ -334,4 +335,114 @@ func DefaultDBConnector() Connector {
 			return owdb.Open(fullPath)
 		},
 	}
+}
+
+type DBConnectorRegistry struct {
+	c map[string]func(Database) (dao.Store, error)
+}
+
+// DefaultConnectorRegistry holds pre-rolled DB connectors (such as authuser
+// variety used by built in auth). It should generally be used in preference to
+// a new, empty registry unless the defaults need to be modified.
+//
+// Generally, users should take this and create their own copy for modification
+// using Copy().
+var DefaultConnectorRegistry = DBConnectorRegistry{
+	c: map[string]func(Database) (dao.Store, error){
+		"inmem_authuser": func(d Database) (dao.Store, error) {
+			return inmem.NewAuthUserStore(), nil
+		},
+		"sqlite_authuser": func(db Database) (dao.Store, error) {
+			err := os.MkdirAll(db.DataDir, 0770)
+			if err != nil {
+				return nil, fmt.Errorf("create data dir: %w", err)
+			}
+
+			store, err := sqlite.NewAuthUserStore(db.DataDir)
+			if err != nil {
+				return nil, fmt.Errorf("initialize sqlite: %w", err)
+			}
+
+			return store, nil
+		},
+		"owdb": func(db Database) (dao.Store, error) {
+			err := os.MkdirAll(db.DataDir, 0770)
+			if err != nil {
+				return nil, fmt.Errorf("create data dir: %w", err)
+			}
+
+			fullPath := filepath.Join(db.DataDir, db.DataFile)
+			store, err := owdb.Open(fullPath)
+			if err != nil {
+				return nil, fmt.Errorf("initialize owdb: %w", err)
+			}
+
+			return store, nil
+		},
+	},
+}
+
+// Copy returns a deep copy of the registry.
+func (reg DBConnectorRegistry) Copy() DBConnectorRegistry {
+	newReg := DBConnectorRegistry{
+		c: make(map[string]func(Database) (dao.Store, error), len(reg.c)),
+	}
+
+	for k := range reg.c {
+		newReg.c[k] = reg.c[k]
+	}
+
+	return newReg
+}
+
+func (reg *DBConnectorRegistry) Register(name string, connector func(Database) (dao.Store, error)) error {
+	if connector == nil {
+		return fmt.Errorf("connector function cannot be nil")
+	}
+	if reg.c == nil {
+		reg.c = map[string]func(Database) (dao.Store, error){}
+	}
+
+	normName := strings.ToLower(name)
+	if _, ok := reg.c[normName]; ok {
+		return fmt.Errorf("duplicate connector registration; %q already has a registered connector", normName)
+	}
+
+	reg.c[normName] = connector
+	return nil
+}
+
+// List returns an alphabetized list of all currently registered connector
+// names.
+func (reg DBConnectorRegistry) List() []string {
+	names := make([]string, len(reg.c))
+	if reg.c == nil {
+		return names
+	}
+
+	var cur int
+	for k := range reg.c {
+		names[cur] = k
+	}
+
+	sort.Strings(names)
+	return names
+}
+
+// Connect uses the given name to connect a database, returning a generic
+// dao.Store. The Store can then be cast to the appropriate type by APIs in
+// their init method.
+func (reg DBConnectorRegistry) Connect(name string, db Database) (dao.Store, error) {
+	normName := strings.ToLower(name)
+
+	if reg.c == nil {
+		return nil, fmt.Errorf("%q is not a registered connector", normName)
+	}
+
+	connector, ok := reg.c[normName]
+	if !ok {
+		return nil, fmt.Errorf("%q is not a registered connector", normName)
+	}
+
+	return connector(db)
 }
