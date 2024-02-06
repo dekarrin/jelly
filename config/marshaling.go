@@ -12,7 +12,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var apiConfigProviders = map[string]func() APIConfig{}
+// Environment holds all options such as config providers that would normally be
+// globally set. Users of Jelly are generally better off using the
+// [jelly.Environment] type, as that contains a complete environment spanning
+// the config package and any others that contain the concept of registration of
+// certain key procedures and types prior to actual use.
+type Environment struct {
+	apiConfigProviders map[string]func() APIConfig
+}
+
+var DefaultEnvironment = Environment{
+	apiConfigProviders: map[string]func() APIConfig{},
+}
 
 type marshaledDatabase struct {
 	Type string `yaml:"type" json:"type"`
@@ -97,7 +108,7 @@ func (f Format) Extensions() []string {
 	}
 }
 
-func (f Format) Decode(data []byte) (Config, error) {
+func (f Format) Decode(env *Environment, data []byte) (Config, error) {
 	var cfg Config
 	var mc marshaledConfig
 	var err error
@@ -116,7 +127,7 @@ func (f Format) Decode(data []byte) (Config, error) {
 	}
 
 	cfg.origFormat = f
-	err = cfg.unmarshal(mc)
+	err = cfg.unmarshal(env, mc)
 	return cfg, err
 }
 
@@ -190,9 +201,9 @@ func (cfg Config) Dump() []byte {
 // JSON files, and files ending in .yaml or .yml are parsed as YAML files. Other
 // extensions are not supported. The extension is not case-sensitive.
 //
-// Ensure Register is called with all config sections that will be present
-// before calling Load.
-func Load(file string) (Config, error) {
+// Ensure Register is called on the Environment (or an owning jelly.Environment)
+// with all config sections that will be present in the loaded file.
+func (env Environment) Load(file string) (Config, error) {
 	f := DetectFormat(file)
 	if f == NoFormat {
 		var msg strings.Builder
@@ -225,22 +236,22 @@ func Load(file string) (Config, error) {
 		return Config{}, fmt.Errorf("%s: %w", file, err)
 	}
 
-	return f.Decode(data)
+	return f.Decode(&env, data)
 }
 
-// Register marks an API config name as being in use and gives a provider
-// function to create instances of an APIConfig to use for that config section.
-//
-// It must be called in order to use custom config sections for APIs.
-func Register(name string, provider func() APIConfig) error {
+func (env *Environment) Register(name string, provider func() APIConfig) error {
+	if env.apiConfigProviders == nil {
+		env.apiConfigProviders = map[string]func() APIConfig{}
+	}
+
 	normName := strings.ToLower(name)
-	if _, ok := apiConfigProviders[normName]; ok {
+	if _, ok := env.apiConfigProviders[normName]; ok {
 		return fmt.Errorf("duplicate config section name: %q is already registered", name)
 	}
 	if provider == nil {
 		return fmt.Errorf("APIConfig provider function cannot be nil")
 	}
-	apiConfigProviders[normName] = provider
+	env.apiConfigProviders[normName] = provider
 	return nil
 }
 
@@ -274,11 +285,15 @@ func marshalAPI(api APIConfig) marshaledAPI {
 	return ma
 }
 
-func unmarshalAPI(ma marshaledAPI, name string) (APIConfig, error) {
+func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (APIConfig, error) {
+	if env.apiConfigProviders == nil {
+		env.apiConfigProviders = map[string]func() APIConfig{}
+	}
+
 	nameNorm := strings.ToLower(name)
 
 	var api APIConfig
-	prov, ok := apiConfigProviders[nameNorm]
+	prov, ok := env.apiConfigProviders[nameNorm]
 	if ok {
 		api = prov()
 	} else {
@@ -372,7 +387,11 @@ func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
 // values or missing values in the marshaledConfig.
 //
 // does no validation except that which is required for parsing.
-func (cfg *Config) unmarshal(m marshaledConfig) error {
+func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
+	if env == nil {
+		env = &DefaultEnvironment
+	}
+
 	if err := cfg.Globals.unmarshal(m); err != nil {
 		return err
 	}
@@ -387,7 +406,7 @@ func (cfg *Config) unmarshal(m marshaledConfig) error {
 	}
 	cfg.APIs = map[string]APIConfig{}
 	for n, mAPI := range m.APIs {
-		api, err := unmarshalAPI(mAPI, n)
+		api, err := unmarshalAPI(env, mAPI, n)
 		if err != nil {
 			return fmt.Errorf("%s: %w", n, err)
 		}

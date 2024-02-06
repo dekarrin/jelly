@@ -23,11 +23,14 @@ import (
 type Environment struct {
 	componentProviders      map[string]func() API
 	componentProvidersOrder []string
+
+	confEnv config.Environment
 }
 
 var DefaultEnvironment = Environment{
 	componentProviders:      map[string]func() API{},
 	componentProvidersOrder: []string{},
+	confEnv:                 config.DefaultEnvironment,
 }
 
 // API holds parameters for endpoints needed to run and a service layer that
@@ -98,18 +101,39 @@ type Component interface {
 // to be called at least once for every pre-rolled component in use (such as
 // jelly/auth) prior to loading config that contains its section. Calling
 // UseComponent twice with a component with the same name will cause a panic.
-func UseComponent(c Component) {
+func (env *Environment) UseComponent(c Component) {
+	if env.componentProviders == nil {
+		env.componentProviders = map[string]func() API{}
+	}
+
 	normName := strings.ToLower(c.Name())
-	if _, ok := componentProviders[normName]; ok {
+	if _, ok := env.componentProviders[normName]; ok {
 		panic(fmt.Sprintf("duplicate component: %q is already in-use", c.Name()))
 	}
 
-	if err := config.Register(normName, c.Config); err != nil {
+	if err := env.RegisterConfigSection(normName, c.Config); err != nil {
 		panic(fmt.Sprintf("register component config section: %v", err))
 	}
 
-	componentProviders[normName] = c.API
-	componentProvidersOrder = append(componentProvidersOrder, normName)
+	env.componentProviders[normName] = c.API
+	env.componentProvidersOrder = append(env.componentProvidersOrder, normName)
+}
+
+// RegisterConfigSection registers a provider function, which creates an
+// implementor of config.APIConfig, to the name of the config section that
+// should be loaded into it. You must call this for every custom API config
+// sections, or they will be given the default common config only at
+// initialization.
+func (env *Environment) RegisterConfigSection(name string, provider func() config.APIConfig) error {
+	return env.confEnv.Register(name, provider)
+}
+
+// LoadConfig loads a configuration from file. Ensure that UseComponent is first
+// called on every component that will be configured (such as jelly/auth), and
+// ensure RegisterConfigSection is called for each custom config section not
+// associated with a component.
+func (env *Environment) LoadConfig(file string) (config.Config, error) {
+	return env.confEnv.Load(file)
 }
 
 // RESTServer is an HTTP REST server that provides resources. The zero-value of
