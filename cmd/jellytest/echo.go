@@ -128,12 +128,12 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *EchoAPI) Routes() (router chi.Router, subpaths bool) {
-	optAuth := middle.OptionalAuth()
+func (api *EchoAPI) Routes(mid middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
+	optAuth := mid.OptionalAuth()
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/", api.HTTPGetEcho())
+	r.With(optAuth).Get("/", api.HTTPGetEcho(em))
 
 	return r, false
 }
@@ -143,8 +143,8 @@ type EchoRequestBody struct {
 }
 
 // HTTPGetEcho returns a HandlerFunc that echoes the user message.
-func (api EchoAPI) HTTPGetEcho() http.HandlerFunc {
-	return jelly.Endpoint(api.epEcho)
+func (api EchoAPI) HTTPGetEcho(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epEcho)
 }
 
 func (api EchoAPI) epEcho(req *http.Request) response.Result {

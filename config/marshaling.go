@@ -21,8 +21,10 @@ type Environment struct {
 	apiConfigProviders map[string]func() APIConfig
 }
 
-var DefaultEnvironment = Environment{
-	apiConfigProviders: map[string]func() APIConfig{},
+func DefaultEnvironment() Environment {
+	return Environment{
+		apiConfigProviders: map[string]func() APIConfig{},
+	}
 }
 
 type marshaledDatabase struct {
@@ -389,7 +391,8 @@ func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
 // does no validation except that which is required for parsing.
 func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 	if env == nil {
-		env = &DefaultEnvironment
+		def := DefaultEnvironment()
+		env = &def
 	}
 
 	if err := cfg.Globals.unmarshal(m); err != nil {

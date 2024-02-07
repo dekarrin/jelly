@@ -159,7 +159,11 @@ func combineOverrides(overs []Override) Override {
 	return newOver
 }
 
-func Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
+type EndpointMaker struct {
+	mid *middle.Provider
+}
+
+func (em EndpointMaker) Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
 	overs := combineOverrides(overrides)
 
 	return func(w http.ResponseWriter, req *http.Request) {
@@ -169,7 +173,7 @@ func Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
 			// if it's one of these statuses, either the user is improperly
 			// logging in or tried to access a forbidden resource, both of which
 			// should force the wait time before responding.
-			auth := middle.SelectAuthenticator(overs.Authenticators)
+			auth := em.mid.SelectAuthenticator(overs.Authenticators)
 			time.Sleep(auth.UnauthDelay())
 		}
 

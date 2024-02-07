@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -27,15 +26,19 @@ type Environment struct {
 
 	confEnv config.Environment
 
-	connectors map[string]func(config.Database) (dao.Store, error)
+	middleProv middle.Provider
+
+	DBConnectors config.DBConnectorRegistry
 }
 
-var DefaultEnvironment = Environment{
-	componentProviders:      map[string]func() API{},
-	componentProvidersOrder: []string{},
-	confEnv:                 config.DefaultEnvironment,
-	connectors: 
-	},
+func DefaultEnvironment() Environment {
+	return Environment{
+		componentProviders:      map[string]func() API{},
+		componentProvidersOrder: []string{},
+		confEnv:                 config.DefaultEnvironment(),
+		middleProv:              middle.DefaultProvider(),
+		DBConnectors:            config.DefaultConnectorRegistry(),
+	}
 }
 
 // API holds parameters for endpoints needed to run and a service layer that
@@ -75,10 +78,16 @@ type API interface {
 	// path-terminal slashes are redirected in the base router the API
 	// router is mounted in.
 	//
+	// A middleware provider configured by the server's main config file is
+	// given for the creation of any needed middleware for the server to use.
+	// For convenience, an EndpointMaker is also provided which will wrap a
+	// jelly-framework style endpoint in an http.HandlerFunc that will apply
+	// standard actions such as logging, error, and panic catching.
+	//
 	// Init is guaranteed to have been called for all APIs in the server before
 	// Routes is called, and it is safe to refer to middleware services that
 	// rely on other APIs within.
-	Routes() (router chi.Router, subpaths bool)
+	Routes(middle.Provider, EndpointMaker) (router chi.Router, subpaths bool)
 
 	// Shutdown terminates any pending operations cleanly and releases any held
 	// resources. It will be called after the server listener socket is shut
@@ -131,6 +140,24 @@ func (env *Environment) UseComponent(c Component) {
 // initialization.
 func (env *Environment) RegisterConfigSection(name string, provider func() config.APIConfig) error {
 	return env.confEnv.Register(name, provider)
+}
+
+// SetMainAuthenticator sets what the main authenticator in the middleware
+// provider is. This provider will be used when obtaining middleware that uses
+// an authenticator but no specific authenticator is specified. The name given
+// must be the name of one previously registered with RegisterAuthenticator
+func (env *Environment) SetMainAuthenticator(name string) error {
+	return env.middleProv.RegisterMainAuthenticator(name)
+}
+
+// RegisterAuthenticator registers an authenticator for use with other
+// components in a jelly framework environment. This is generally not called
+// directly but can be. If attempting to register the authenticator of a
+// jelly.Component such as jelly/auth.Component, consider calling UseComponent
+// instead as that will automatically call RegisterAuthenticator for any
+// authenticators the component provides.
+func (env *Environment) RegisterAuthenticator(name string, authen middle.Authenticator) error {
+	return env.middleProv.RegisterAuthenticator(name, authen)
 }
 
 // LoadConfig loads a configuration from file. Ensure that UseComponent is first
@@ -228,7 +255,7 @@ func (env Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 	// okay, after the pre-rolls are initialized and authenticators added, it
 	// should be safe to set the main authenticator
 	if cfg.Globals.MainAuthProvider != "" {
-		middle.RegisterMainAuthenticator(cfg.Globals.MainAuthProvider)
+		env.SetMainAuthenticator(cfg.Globals.MainAuthProvider)
 	}
 
 	return rs, nil
@@ -296,9 +323,15 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		return rs.rtr
 	}
 
+	env := rs.env
+	if env == nil {
+		def := DefaultEnvironment()
+		env = &def
+	}
+
 	// Create root router
 	root := chi.NewRouter()
-	root.Use(middle.DontPanic())
+	root.Use(env.middleProv.DontPanic())
 
 	// make server base router
 	r := root
@@ -311,7 +344,7 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		apiConf := rs.getAPIConfigBundle(name)
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
-			apiRouter, subpaths := api.Routes()
+			apiRouter, subpaths := api.Routes(env.middleProv, EndpointMaker{mid: &env.middleProv})
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)
@@ -350,6 +383,12 @@ func (rs *RESTServer) Add(name string, api API) error {
 	// make shore to reset the router so we don't re-use it
 	rs.rtr = nil
 
+	env := rs.env
+	if env == nil {
+		def := DefaultEnvironment()
+		env = &def
+	}
+
 	rs.apis[name] = api
 	if apiConf.Enabled() {
 		base, err := rs.initAPI(name, api)
@@ -361,9 +400,7 @@ func (rs *RESTServer) Add(name string, api API) error {
 		auths := api.Authenticators()
 		for aName, a := range auths {
 			fullName := name + "." + aName
-
-			// TODO: probs shouldn't have a struct type call a global-affecting func.
-			middle.RegisterAuthenticator(fullName, a)
+			env.RegisterAuthenticator(fullName, a)
 		}
 	}
 

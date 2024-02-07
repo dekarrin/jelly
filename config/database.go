@@ -347,39 +347,41 @@ type DBConnectorRegistry struct {
 //
 // Generally, users should take this and create their own copy for modification
 // using Copy().
-var DefaultConnectorRegistry = DBConnectorRegistry{
-	c: map[string]func(Database) (dao.Store, error){
-		"inmem_authuser": func(d Database) (dao.Store, error) {
-			return inmem.NewAuthUserStore(), nil
+func DefaultConnectorRegistry() DBConnectorRegistry {
+	return DBConnectorRegistry{
+		c: map[string]func(Database) (dao.Store, error){
+			"inmem_authuser": func(d Database) (dao.Store, error) {
+				return inmem.NewAuthUserStore(), nil
+			},
+			"sqlite_authuser": func(db Database) (dao.Store, error) {
+				err := os.MkdirAll(db.DataDir, 0770)
+				if err != nil {
+					return nil, fmt.Errorf("create data dir: %w", err)
+				}
+
+				store, err := sqlite.NewAuthUserStore(db.DataDir)
+				if err != nil {
+					return nil, fmt.Errorf("initialize sqlite: %w", err)
+				}
+
+				return store, nil
+			},
+			"owdb": func(db Database) (dao.Store, error) {
+				err := os.MkdirAll(db.DataDir, 0770)
+				if err != nil {
+					return nil, fmt.Errorf("create data dir: %w", err)
+				}
+
+				fullPath := filepath.Join(db.DataDir, db.DataFile)
+				store, err := owdb.Open(fullPath)
+				if err != nil {
+					return nil, fmt.Errorf("initialize owdb: %w", err)
+				}
+
+				return store, nil
+			},
 		},
-		"sqlite_authuser": func(db Database) (dao.Store, error) {
-			err := os.MkdirAll(db.DataDir, 0770)
-			if err != nil {
-				return nil, fmt.Errorf("create data dir: %w", err)
-			}
-
-			store, err := sqlite.NewAuthUserStore(db.DataDir)
-			if err != nil {
-				return nil, fmt.Errorf("initialize sqlite: %w", err)
-			}
-
-			return store, nil
-		},
-		"owdb": func(db Database) (dao.Store, error) {
-			err := os.MkdirAll(db.DataDir, 0770)
-			if err != nil {
-				return nil, fmt.Errorf("create data dir: %w", err)
-			}
-
-			fullPath := filepath.Join(db.DataDir, db.DataFile)
-			store, err := owdb.Open(fullPath)
-			if err != nil {
-				return nil, fmt.Errorf("initialize owdb: %w", err)
-			}
-
-			return store, nil
-		},
-	},
+	}
 }
 
 // Copy returns a deep copy of the registry.
