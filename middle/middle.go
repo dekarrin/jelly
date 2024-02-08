@@ -37,12 +37,13 @@ const (
 type Provider struct {
 	authenticators    map[string]Authenticator
 	mainAuthenticator string
+	DisableDefaults   bool
 }
 
-func DefaultProvider() Provider {
-	return Provider{
-		authenticators:    map[string]Authenticator{},
-		mainAuthenticator: "",
+func (p *Provider) initDefaults() {
+	if p.authenticators == nil {
+		p.authenticators = map[string]Authenticator{}
+		p.mainAuthenticator = ""
 	}
 }
 
@@ -50,7 +51,9 @@ func DefaultProvider() Provider {
 // matches one of the names in from. If no names are provided in from, the main
 // auth for the project is returned. If from is not empty, at least one name
 // listed in it must exist, or this function will panic.
-func (p Provider) SelectAuthenticator(from []string) Authenticator {
+func (p *Provider) SelectAuthenticator(from []string) Authenticator {
+	p.initDefaults()
+
 	var authent Authenticator
 	if len(from) > 0 {
 		if len(p.authenticators) < 1 {
@@ -74,7 +77,9 @@ func (p Provider) SelectAuthenticator(from []string) Authenticator {
 	return authent
 }
 
-func (p Provider) getMainAuth() Authenticator {
+func (p *Provider) getMainAuth() Authenticator {
+	p.initDefaults()
+
 	if p.mainAuthenticator == "" {
 		return noopAuthenticator{}
 	}
@@ -82,6 +87,8 @@ func (p Provider) getMainAuth() Authenticator {
 }
 
 func (p *Provider) RegisterMainAuthenticator(name string) error {
+	p.initDefaults()
+
 	normName := strings.ToLower(name)
 
 	if len(p.authenticators) < 1 {
@@ -96,6 +103,8 @@ func (p *Provider) RegisterMainAuthenticator(name string) error {
 }
 
 func (p *Provider) RegisterAuthenticator(name string, authen Authenticator) error {
+	p.initDefaults()
+
 	normName := strings.ToLower(name)
 	if p.authenticators == nil {
 		p.authenticators = map[string]Authenticator{}

@@ -19,11 +19,13 @@ import (
 // certain key procedures and types prior to actual use.
 type Environment struct {
 	apiConfigProviders map[string]func() APIConfig
+
+	DisableDefaults bool
 }
 
-func DefaultEnvironment() Environment {
-	return Environment{
-		apiConfigProviders: map[string]func() APIConfig{},
+func (env *Environment) initDefaults() {
+	if env.apiConfigProviders == nil {
+		env.apiConfigProviders = map[string]func() APIConfig{}
 	}
 }
 
@@ -206,7 +208,9 @@ func (cfg Config) Dump() []byte {
 //
 // Ensure Register is called on the Environment (or an owning jelly.Environment)
 // with all config sections that will be present in the loaded file.
-func (env Environment) Load(file string) (Config, error) {
+func (env *Environment) Load(file string) (Config, error) {
+	env.initDefaults()
+
 	f := DetectFormat(file)
 	if f == NoFormat {
 		var msg strings.Builder
@@ -239,13 +243,11 @@ func (env Environment) Load(file string) (Config, error) {
 		return Config{}, fmt.Errorf("%s: %w", file, err)
 	}
 
-	return f.Decode(&env, data)
+	return f.Decode(env, data)
 }
 
 func (env *Environment) Register(name string, provider func() APIConfig) error {
-	if env.apiConfigProviders == nil {
-		env.apiConfigProviders = map[string]func() APIConfig{}
-	}
+	env.initDefaults()
 
 	normName := strings.ToLower(name)
 	if _, ok := env.apiConfigProviders[normName]; ok {
@@ -289,9 +291,7 @@ func marshalAPI(api APIConfig) marshaledAPI {
 }
 
 func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (APIConfig, error) {
-	if env.apiConfigProviders == nil {
-		env.apiConfigProviders = map[string]func() APIConfig{}
-	}
+	env.initDefaults()
 
 	nameNorm := strings.ToLower(name)
 
@@ -392,8 +392,7 @@ func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
 // does no validation except that which is required for parsing.
 func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 	if env == nil {
-		def := DefaultEnvironment()
-		env = &def
+		env = &Environment{}
 	}
 
 	if err := cfg.Globals.unmarshal(m); err != nil {

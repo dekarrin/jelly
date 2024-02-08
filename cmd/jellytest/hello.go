@@ -203,7 +203,7 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *HelloAPI) Routes(mid middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
+func (api *HelloAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
 	optAuth := mid.OptionalAuth()
 	reqAuth := mid.RequireAuth()
 
