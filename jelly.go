@@ -24,11 +24,11 @@ type Environment struct {
 	componentProviders      map[string]func() API
 	componentProvidersOrder []string
 
-	confEnv config.Environment
+	confEnv *config.Environment
 
-	middleProv middle.Provider
+	middleProv *middle.Provider
 
-	Connectors *config.ConnectorRegistry
+	connectors *config.ConnectorRegistry
 
 	DisableDefaults bool
 }
@@ -37,16 +37,9 @@ func (env *Environment) initDefaults() {
 	if env.componentProviders == nil {
 		env.componentProviders = map[string]func() API{}
 		env.componentProvidersOrder = []string{}
-		env.confEnv = config.Environment{}
-		env.middleProv = middle.Provider{}
-		if env.Connectors == nil {
-			env.Connectors = &config.ConnectorRegistry{DisableDefaults: env.DisableDefaults}
-		}
-
-		if !env.DisableDefaults {
-			env.confEnv = config.DefaultEnvironment()
-			env.middleProv = middle.DefaultProvider()
-		}
+		env.confEnv = &config.Environment{DisableDefaults: env.DisableDefaults}
+		env.middleProv = &middle.Provider{DisableDefaults: env.DisableDefaults}
+		env.connectors = &config.ConnectorRegistry{DisableDefaults: env.DisableDefaults}
 	}
 }
 
@@ -96,7 +89,7 @@ type API interface {
 	// Init is guaranteed to have been called for all APIs in the server before
 	// Routes is called, and it is safe to refer to middleware services that
 	// rely on other APIs within.
-	Routes(middle.Provider, EndpointMaker) (router chi.Router, subpaths bool)
+	Routes(*middle.Provider, EndpointMaker) (router chi.Router, subpaths bool)
 
 	// Shutdown terminates any pending operations cleanly and releases any held
 	// resources. It will be called after the server listener socket is shut
@@ -234,7 +227,7 @@ func (env *Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 	// connect DBs
 	dbs := map[string]dao.Store{}
 	for name, db := range cfg.DBs {
-		db, err := env.Connectors.Connect(db)
+		db, err := env.connectors.Connect(db)
 		if err != nil {
 			return RESTServer{}, fmt.Errorf("connect DB %q: %w", name, err)
 		}
@@ -339,6 +332,7 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 	env := rs.env
 	if env == nil {
 		env = &Environment{}
+		env.initDefaults()
 	}
 
 	// Create root router
@@ -356,7 +350,7 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		apiConf := rs.getAPIConfigBundle(name)
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
-			apiRouter, subpaths := api.Routes(env.middleProv, EndpointMaker{mid: &env.middleProv})
+			apiRouter, subpaths := api.Routes(env.middleProv, EndpointMaker{mid: env.middleProv})
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)

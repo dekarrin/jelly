@@ -128,7 +128,7 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *EchoAPI) Routes(mid middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
+func (api *EchoAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
 	optAuth := mid.OptionalAuth()
 
 	r := chi.NewRouter()
