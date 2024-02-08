@@ -19,6 +19,8 @@ import (
 // Converter holds functions to convert a value to and from its database
 // representation. The type param N is the native type and DB is the type in the
 // database.
+//
+// TODO: sql.Value interface should eliminate this I believe. -deka
 type Converter[N any, DB any] struct {
 	ToDB   func(N) DB
 	FromDB func(DB, *N) error // TODO: update this to just be func(DB) (N, error).
