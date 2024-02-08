@@ -28,7 +28,7 @@ type Environment struct {
 
 	middleProv middle.Provider
 
-	Connectors *config.DBConnectorRegistry
+	Connectors *config.ConnectorRegistry
 
 	DisableDefaults bool
 }
@@ -40,7 +40,7 @@ func (env *Environment) initDefaults() {
 		env.confEnv = config.Environment{}
 		env.middleProv = middle.Provider{}
 		if env.Connectors == nil {
-			env.Connectors = &config.DBConnectorRegistry{DisableDefaults: env.DisableDefaults}
+			env.Connectors = &config.ConnectorRegistry{DisableDefaults: env.DisableDefaults}
 		}
 
 		if !env.DisableDefaults {
