@@ -152,6 +152,14 @@ func (env *Environment) SetMainAuthenticator(name string) error {
 	return env.middleProv.RegisterMainAuthenticator(name)
 }
 
+// RegisterConnector allows the specification of database connection methods.
+// The registered name can then be specified as the connector field of any DB
+// in config whose type is the given engine.
+func (env *Environment) RegisterConnector(engine config.DBType, name string, connector func(config.Database) (dao.Store, error)) error {
+	env.initDefaults()
+	return env.connectors.Register(engine, name, connector)
+}
+
 // RegisterAuthenticator registers an authenticator for use with other
 // components in a jelly framework environment. This is generally not called
 // directly but can be. If attempting to register the authenticator of a
