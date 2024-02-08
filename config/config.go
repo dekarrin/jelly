@@ -190,14 +190,6 @@ type Config struct {
 	// blank to disable logging entirely.
 	Log Log
 
-	// DBConnector is a custom DB connector for overriding the defaults, which
-	// only provide jeldao.Store instances that are associated with the built-in
-	// authentication and login functionality.
-	//
-	// Any fields in the Connector that are set to nil will use the default
-	// connection method for that DB type.
-	DBConnector Connector
-
 	// origFormat is the format of config, used in Dump.
 	origFormat Format
 }
@@ -230,7 +222,7 @@ func (cfg Config) FillDefaults() Config {
 			if len(dbs) > 0 {
 				// make shore this DB exists
 				if _, ok := newCFG.DBs[dbs[0]]; !ok {
-					newCFG.DBs[dbs[0]] = Database{Type: DatabaseInMemory}.FillDefaults()
+					newCFG.DBs[dbs[0]] = Database{Type: DatabaseInMemory, Connector: "authuser"}.FillDefaults()
 				}
 			}
 			if newCFG.Globals.MainAuthProvider == "" {

@@ -31,22 +31,36 @@ const (
 	AuthUser
 )
 
-var (
-	authProviders    = map[string]Authenticator{}
-	mainAuthProvider = ""
-)
+// Provider is used to create middleware in a jelly framework project.
+// Generally for callers, it will be accessed via delegated methods on an
+// instance of [jelly.Environment].
+type Provider struct {
+	authenticators    map[string]Authenticator
+	mainAuthenticator string
+}
+
+func DefaultProvider() Provider {
+	return Provider{
+		authenticators:    map[string]Authenticator{},
+		mainAuthenticator: "",
+	}
+}
 
 // SelectAuthenticator retrieves and selects the first authenticator that
 // matches one of the names in from. If no names are provided in from, the main
 // auth for the project is returned. If from is not empty, at least one name
 // listed in it must exist, or this function will panic.
-func SelectAuthenticator(from []string) Authenticator {
-	var prov Authenticator
+func (p Provider) SelectAuthenticator(from []string) Authenticator {
+	var authent Authenticator
 	if len(from) > 0 {
+		if len(p.authenticators) < 1 {
+			panic(fmt.Sprintf("no valid auth provider given in list: %q", from))
+		}
+
 		var ok bool
 		for _, authName := range from {
 			normName := strings.ToLower(authName)
-			prov, ok = authProviders[normName]
+			authent, ok = p.authenticators[normName]
 			if ok {
 				break
 			}
@@ -55,39 +69,47 @@ func SelectAuthenticator(from []string) Authenticator {
 			panic(fmt.Sprintf("no valid auth provider given in list: %q", from))
 		}
 	} else {
-		prov = getMainAuth()
+		authent = p.getMainAuth()
 	}
-	return prov
+	return authent
 }
 
-func getMainAuth() Authenticator {
-	if mainAuthProvider == "" {
+func (p Provider) getMainAuth() Authenticator {
+	if p.mainAuthenticator == "" {
 		return noopAuthenticator{}
 	}
-	return authProviders[mainAuthProvider]
+	return p.authenticators[p.mainAuthenticator]
 }
 
-func RegisterMainAuthenticator(name string) error {
+func (p *Provider) RegisterMainAuthenticator(name string) error {
 	normName := strings.ToLower(name)
-	if _, ok := authProviders[name]; !ok {
+
+	if len(p.authenticators) < 1 {
+		return fmt.Errorf("no authenticator called %q has been registered; register one before trying to set it as main", normName)
+	}
+	if _, ok := p.authenticators[name]; !ok {
 		return fmt.Errorf("no authenticator called %q has been registered; register one before trying to set it as main", normName)
 	}
 
-	mainAuthProvider = normName
+	p.mainAuthenticator = normName
 	return nil
 }
 
-func RegisterAuthenticator(name string, prov Authenticator) error {
+func (p *Provider) RegisterAuthenticator(name string, authen Authenticator) error {
 	normName := strings.ToLower(name)
-	if _, ok := authProviders[normName]; ok {
+	if p.authenticators == nil {
+		p.authenticators = map[string]Authenticator{}
+	}
+
+	if _, ok := p.authenticators[normName]; ok {
 		return fmt.Errorf("authenticator called %q already exists", normName)
 	}
 
-	if prov == nil {
+	if authen == nil {
 		return fmt.Errorf("authenticator cannot be nil")
 	}
 
-	authProviders[normName] = prov
+	p.authenticators[normName] = authen
 	return nil
 }
 
@@ -180,8 +202,8 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // were registered as an Authenticator with this package, in priority order. If
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
-func RequireAuth(authenticators ...string) Middleware {
-	prov := SelectAuthenticator(authenticators)
+func (p Provider) RequireAuth(authenticators ...string) Middleware {
+	prov := p.SelectAuthenticator(authenticators)
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
@@ -198,8 +220,8 @@ func RequireAuth(authenticators ...string) Middleware {
 // package, in priority order. If none of the given authenticators exist, this
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.
-func OptionalAuth(authenticators ...string) Middleware {
-	prov := SelectAuthenticator(authenticators)
+func (p Provider) OptionalAuth(authenticators ...string) Middleware {
+	prov := p.SelectAuthenticator(authenticators)
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
@@ -213,7 +235,7 @@ func OptionalAuth(authenticators ...string) Middleware {
 // DontPanic returns a Middleware that performs a panic check as it exits. If
 // the function is panicking, it will write out an HTTP response with a generic
 // message to the client and add it to the log.
-func DontPanic() Middleware {
+func (p Provider) DontPanic() Middleware {
 	return func(next http.Handler) http.Handler {
 		return mwFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer panicTo500(w, r)

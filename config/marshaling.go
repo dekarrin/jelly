@@ -21,14 +21,17 @@ type Environment struct {
 	apiConfigProviders map[string]func() APIConfig
 }
 
-var DefaultEnvironment = Environment{
-	apiConfigProviders: map[string]func() APIConfig{},
+func DefaultEnvironment() Environment {
+	return Environment{
+		apiConfigProviders: map[string]func() APIConfig{},
+	}
 }
 
 type marshaledDatabase struct {
-	Type string `yaml:"type" json:"type"`
-	Dir  string `yaml:"dir,omitempty" json:"dir,omitempty"`
-	File string `yaml:"file,omitempty" json:"file,omitempty"`
+	Type      string `yaml:"type" json:"type"`
+	Connector string `yaml:"connector" json:"connector"`
+	Dir       string `yaml:"dir,omitempty" json:"dir,omitempty"`
+	File      string `yaml:"file,omitempty" json:"file,omitempty"`
 }
 
 type marshaledAPI struct {
@@ -389,7 +392,8 @@ func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
 // does no validation except that which is required for parsing.
 func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 	if env == nil {
-		env = &DefaultEnvironment
+		def := DefaultEnvironment()
+		env = &def
 	}
 
 	if err := cfg.Globals.unmarshal(m); err != nil {
@@ -455,6 +459,7 @@ func (db *Database) unmarshal(m marshaledDatabase) error {
 
 	db.DataDir = m.Dir
 	db.DataFile = m.File
+	db.Connector = m.Connector
 
 	return nil
 }
@@ -463,9 +468,10 @@ func (db *Database) unmarshal(m marshaledDatabase) error {
 // passed to unmarshal.
 func (db Database) marshal() marshaledDatabase {
 	return marshaledDatabase{
-		Type: db.Type.String(),
-		Dir:  db.DataDir,
-		File: db.DataFile,
+		Type:      db.Type.String(),
+		Dir:       db.DataDir,
+		File:      db.DataFile,
+		Connector: db.Connector,
 	}
 }
 

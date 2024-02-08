@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/dekarrin/jelly/dao"
@@ -45,9 +46,14 @@ func ParseDBType(s string) (DBType, error) {
 // Database contains configuration settings for connecting to a persistence
 // layer.
 type Database struct {
-	// Type is the type of database the config refers to. It also determines
-	// which of its other fields are valid.
+	// Type is the type of database the config refers to, primarily for data
+	// validation purposes. It also determines which of its other fields are
+	// valid.
 	Type DBType
+
+	// Connector is the name of the registered connector function that should be
+	// used. The function name must be registered for DBs of the given type.
+	Connector string
 
 	// DataDir is the path on disk to a directory to use to store data in. This
 	// is only applicable for certain DB types: SQLite, OWDB.
@@ -70,6 +76,9 @@ func (db Database) FillDefaults() Database {
 	}
 	if newDB.Type == DatabaseOWDB && newDB.DataFile == "" {
 		newDB.DataFile = "db.owv"
+	}
+	if newDB.Connector == "" {
+		newDB.Connector = "*"
 	}
 
 	return newDB
@@ -245,93 +254,122 @@ func splitWithEscaped(s, sep string) []string {
 	return split
 }
 
-// Connector holds functions for establishing a connection and opening a store
-// that implements jeldao.Store. It's included in Config objects so the default
-// connector functions can be overriden. The default connectors only support
-// opening a Store that provides access to entities assocaited with the built-in
-// authentication and login management of the jelly framework.
+// ConnectorRegistry holds registered connecter functions for opening store
+// structs on database connections.
 //
-// Custom Connectors do not need to provide a value for all of the DB connection
-// functions; any that are left as nil will default to the built-in
-// implementations.
-type Connector struct {
-	InMem  func() (dao.Store, error)
-	SQLite func(dir string) (dao.Store, error)
-	OWDB   func(dir string, file string) (dao.Store, error)
+// The zero value can be immediately used and will have the built-in default and
+// pre-rolled connectors available. This can be disabled by setting
+// DisableDefaults to true before attempting to use it.
+type ConnectorRegistry struct {
+	DisableDefaults bool
+	reg             map[DBType]map[string]func(Database) (dao.Store, error)
 }
 
-// Connect performs all logic needed to connect to the configured DB and
-// initialize the store for use.
-func (conr Connector) Connect(db Database) (dao.Store, error) {
-	conr = conr.FillDefaults()
-	switch db.Type {
-	case DatabaseInMemory:
-		return conr.InMem()
-	case DatabaseOWDB:
-		err := os.MkdirAll(db.DataDir, 0770)
-		if err != nil {
-			return nil, fmt.Errorf("create data dir: %w", err)
+func (cr *ConnectorRegistry) initDefaults() {
+	// TODO: follow initDefaults pattern on all env-y structs
+
+	if cr.reg == nil {
+		cr.reg = map[DBType]map[string]func(Database) (dao.Store, error){
+			DatabaseInMemory: {},
+			DatabaseSQLite:   {},
+			DatabaseOWDB:     {},
 		}
 
-		store, err := conr.OWDB(db.DataDir, db.DataFile)
-		if err != nil {
-			return nil, fmt.Errorf("initialize owdb: %w", err)
-		}
+		if !cr.DisableDefaults {
+			cr.reg[DatabaseInMemory]["authuser"] = func(d Database) (dao.Store, error) {
+				return inmem.NewAuthUserStore(), nil
+			}
+			cr.reg[DatabaseSQLite]["authuser"] = func(db Database) (dao.Store, error) {
+				err := os.MkdirAll(db.DataDir, 0770)
+				if err != nil {
+					return nil, fmt.Errorf("create data dir: %w", err)
+				}
 
-		return store, nil
-	case DatabaseSQLite:
-		err := os.MkdirAll(db.DataDir, 0770)
-		if err != nil {
-			return nil, fmt.Errorf("create data dir: %w", err)
-		}
+				store, err := sqlite.NewAuthUserStore(db.DataDir)
+				if err != nil {
+					return nil, fmt.Errorf("initialize sqlite: %w", err)
+				}
 
-		store, err := conr.SQLite(db.DataDir)
-		if err != nil {
-			return nil, fmt.Errorf("initialize sqlite: %w", err)
-		}
+				return store, nil
+			}
+			cr.reg[DatabaseOWDB]["*"] = func(db Database) (dao.Store, error) {
+				err := os.MkdirAll(db.DataDir, 0770)
+				if err != nil {
+					return nil, fmt.Errorf("create data dir: %w", err)
+				}
 
-		return store, nil
-	case DatabaseNone:
-		return nil, fmt.Errorf("cannot connect to 'none' DB")
-	default:
-		return nil, fmt.Errorf("unknown database type: %q", db.Type.String())
+				fullPath := filepath.Join(db.DataDir, db.DataFile)
+				store, err := owdb.Open(fullPath)
+				if err != nil {
+					return nil, fmt.Errorf("initialize owdb: %w", err)
+				}
+
+				return store, nil
+			}
+		}
 	}
 }
 
-// FillDefaults returns a new Config identitical to cfg but with unset values
-// set to their defaults.
-func (conr Connector) FillDefaults() Connector {
-	def := DefaultDBConnector()
-	newConr := conr
-
-	if newConr.InMem == nil {
-		newConr.InMem = def.InMem
-	}
-	if newConr.SQLite == nil {
-		newConr.SQLite = def.SQLite
-	}
-	if newConr.OWDB == nil {
-		newConr.OWDB = def.OWDB
+func (cr *ConnectorRegistry) Register(engine DBType, name string, connector func(Database) (dao.Store, error)) error {
+	if connector == nil {
+		return fmt.Errorf("connector function cannot be nil")
 	}
 
-	return newConr
+	cr.initDefaults()
+
+	engConns, ok := cr.reg[engine]
+	if !ok {
+		return fmt.Errorf("%q is not a supported DB type", engine)
+	}
+
+	normName := strings.ToLower(name)
+	if _, ok := engConns[normName]; ok && normName != "*" {
+		return fmt.Errorf("duplicate connector registration; %q/%q already has a registered connector", engine, normName)
+	}
+
+	engConns[normName] = connector
+	cr.reg[engine] = engConns
+	return nil
 }
 
-func DefaultDBConnector() Connector {
-	return Connector{
-		InMem: func() (dao.Store, error) {
-			return inmem.NewAuthUserStore(), nil
-		},
-		SQLite: func(dir string) (dao.Store, error) {
-			return sqlite.NewAuthUserStore(dir)
-		},
-		// TODO: actually have Connector accept unique configs for each, as
-		// this will build over time. also, owdb has its own in-mem mode it can
-		// independently use as specified by config; this should be allowed if
-		// discouraged.
-		OWDB: func(dir, file string) (dao.Store, error) {
-			fullPath := filepath.Join(dir, file)
-			return owdb.Open(fullPath)
-		},
+// List returns an alphabetized list of all currently registered connector
+// names for an engine.
+func (cr *ConnectorRegistry) List(engine DBType) []string {
+	cr.initDefaults()
+
+	engConns := cr.reg[engine]
+
+	names := make([]string, len(engConns))
+
+	var cur int
+	for k := range engConns {
+		names[cur] = k
 	}
+
+	sort.Strings(names)
+	return names
+}
+
+// Connect opens a connection to the configured database, returning a generic
+// dao.Store. The Store can then be cast to the appropriate type by APIs in
+// their init method.
+func (cr *ConnectorRegistry) Connect(db Database) (dao.Store, error) {
+	cr.initDefaults()
+
+	engConns := cr.reg[db.Type]
+
+	normName := strings.ToLower(db.Connector)
+	connector, ok := engConns[normName]
+	if !ok {
+		connector, ok = engConns["*"]
+		if !ok {
+			var additionalInfo = "DB does not specify connector"
+			if normName != "" && normName != "*" {
+				additionalInfo = fmt.Sprintf("%q/%q is not a registered connector", db.Type, normName)
+			}
+			return nil, fmt.Errorf("%s and %q has no default \"*\" connector registered", additionalInfo, db.Type)
+		}
+	}
+
+	return connector(db)
 }

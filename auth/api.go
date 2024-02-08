@@ -130,8 +130,8 @@ func (api *LoginAPI) Shutdown(ctx context.Context) error {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // a value denoting whether the client making the request is logged-in.
-func (api LoginAPI) HTTPGetInfo() http.HandlerFunc {
-	return jelly.Endpoint(api.epGetInfo, useJellyauthJWT)
+func (api LoginAPI) HTTPGetInfo(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epGetInfo, useJellyauthJWT)
 }
 
 func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
@@ -150,8 +150,8 @@ func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
 
 // HTTPCreateLogin returns a HandlerFunc that uses the API to log in a user with
 // a username and password and return the auth token for that user.
-func (api LoginAPI) HTTPCreateLogin() http.HandlerFunc {
-	return jelly.Endpoint(api.epCreateLogin, useJellyauthJWT)
+func (api LoginAPI) HTTPCreateLogin(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epCreateLogin, useJellyauthJWT)
 }
 
 func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
@@ -198,8 +198,8 @@ func (api LoginAPI) epCreateLogin(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user to log out and the logged-in user of the client making the
 // request.
-func (api LoginAPI) HTTPDeleteLogin() http.HandlerFunc {
-	return jelly.Endpoint(api.epDeleteLogin, useJellyauthJWT)
+func (api LoginAPI) HTTPDeleteLogin(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epDeleteLogin, useJellyauthJWT)
 }
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
@@ -248,8 +248,8 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
-func (api LoginAPI) HTTPCreateToken() http.HandlerFunc {
-	return jelly.Endpoint(api.epCreateToken, useJellyauthJWT)
+func (api LoginAPI) HTTPCreateToken(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epCreateToken, useJellyauthJWT)
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
@@ -273,8 +273,8 @@ func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
-func (api LoginAPI) HTTPGetAllUsers() http.HandlerFunc {
-	return jelly.Endpoint(api.epGetAllUsers, useJellyauthJWT)
+func (api LoginAPI) HTTPGetAllUsers(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epGetAllUsers, useJellyauthJWT)
 }
 
 // GET /users: get all users (admin auth required).
@@ -317,8 +317,8 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
-func (api LoginAPI) HTTPCreateUser() http.HandlerFunc {
-	return jelly.Endpoint(api.epCreateUser, useJellyauthJWT)
+func (api LoginAPI) HTTPCreateUser(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epCreateUser, useJellyauthJWT)
 }
 
 func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
@@ -385,8 +385,8 @@ func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
-func (api LoginAPI) HTTPGetUser() http.HandlerFunc {
-	return jelly.Endpoint(api.epGetUser, useJellyauthJWT)
+func (api LoginAPI) HTTPGetUser(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epGetUser, useJellyauthJWT)
 }
 
 func (api LoginAPI) epGetUser(req *http.Request) response.Result {
@@ -456,8 +456,8 @@ func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
-func (api LoginAPI) HTTPUpdateUser() http.HandlerFunc {
-	return jelly.Endpoint(api.epUpdateUser, useJellyauthJWT)
+func (api LoginAPI) HTTPUpdateUser(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epUpdateUser, useJellyauthJWT)
 }
 
 func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
@@ -575,8 +575,8 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being replaced and the logged-in user of the client making
 // the request.
-func (api LoginAPI) HTTPReplaceUser() http.HandlerFunc {
-	return jelly.Endpoint(api.epReplaceUser, useJellyauthJWT)
+func (api LoginAPI) HTTPReplaceUser(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epReplaceUser, useJellyauthJWT)
 }
 
 func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
@@ -659,8 +659,8 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being deleted and the logged-in user of the client making
 // the request.
-func (api LoginAPI) HTTPDeleteUser() http.HandlerFunc {
-	return jelly.Endpoint(api.epDeleteUser, useJellyauthJWT)
+func (api LoginAPI) HTTPDeleteUser(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(api.epDeleteUser, useJellyauthJWT)
 }
 
 func (api LoginAPI) epDeleteUser(req *http.Request) response.Result {
