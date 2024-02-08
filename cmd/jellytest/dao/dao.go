@@ -5,23 +5,29 @@ package dao
 import "database/sql"
 
 type Datastore struct {
-	conn *sql.DB
+	DB *sql.DB
 
-	Messages Messages
+	NiceMessages   Messages
+	RudeMessages   Messages
+	SecretMessages Messages
+	EchoMessages   Messages
 }
 
 func (ds Datastore) Close() error {
 	var closeErr error
 
-	if ds.conn != nil {
-		closeErr = ds.conn.Close()
+	if ds.DB != nil {
+		closeErr = ds.DB.Close()
 	}
 
 	if closeErr != nil {
 		return closeErr
 	}
 
-	ds.Messages.Close()
+	ds.NiceMessages.Close()
+	ds.RudeMessages.Close()
+	ds.SecretMessages.Close()
+	ds.EchoMessages.Close()
 
 	return nil
 }
