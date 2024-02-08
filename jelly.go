@@ -29,15 +29,24 @@ type Environment struct {
 	middleProv middle.Provider
 
 	Connectors *config.DBConnectorRegistry
+
+	DisableDefaults bool
 }
 
-func DefaultEnvironment() Environment {
-	return Environment{
-		componentProviders:      map[string]func() API{},
-		componentProvidersOrder: []string{},
-		confEnv:                 config.DefaultEnvironment(),
-		middleProv:              middle.DefaultProvider(),
-		Connectors:              &config.DBConnectorRegistry{},
+func (env *Environment) initDefaults() {
+	if env.componentProviders == nil {
+		env.componentProviders = map[string]func() API{}
+		env.componentProvidersOrder = []string{}
+		env.confEnv = config.Environment{}
+		env.middleProv = middle.Provider{}
+		if env.Connectors == nil {
+			env.Connectors = &config.DBConnectorRegistry{DisableDefaults: env.DisableDefaults}
+		}
+
+		if !env.DisableDefaults {
+			env.confEnv = config.DefaultEnvironment()
+			env.middleProv = middle.DefaultProvider()
+		}
 	}
 }
 
@@ -116,9 +125,7 @@ type Component interface {
 // jelly/auth) prior to loading config that contains its section. Calling
 // UseComponent twice with a component with the same name will cause a panic.
 func (env *Environment) UseComponent(c Component) {
-	if env.componentProviders == nil {
-		env.componentProviders = map[string]func() API{}
-	}
+	env.initDefaults()
 
 	normName := strings.ToLower(c.Name())
 	if _, ok := env.componentProviders[normName]; ok {
@@ -139,6 +146,7 @@ func (env *Environment) UseComponent(c Component) {
 // sections, or they will be given the default common config only at
 // initialization.
 func (env *Environment) RegisterConfigSection(name string, provider func() config.APIConfig) error {
+	env.initDefaults()
 	return env.confEnv.Register(name, provider)
 }
 
@@ -147,6 +155,7 @@ func (env *Environment) RegisterConfigSection(name string, provider func() confi
 // an authenticator but no specific authenticator is specified. The name given
 // must be the name of one previously registered with RegisterAuthenticator
 func (env *Environment) SetMainAuthenticator(name string) error {
+	env.initDefaults()
 	return env.middleProv.RegisterMainAuthenticator(name)
 }
 
@@ -157,6 +166,7 @@ func (env *Environment) SetMainAuthenticator(name string) error {
 // instead as that will automatically call RegisterAuthenticator for any
 // authenticators the component provides.
 func (env *Environment) RegisterAuthenticator(name string, authen middle.Authenticator) error {
+	env.initDefaults()
 	return env.middleProv.RegisterAuthenticator(name, authen)
 }
 
@@ -165,6 +175,7 @@ func (env *Environment) RegisterAuthenticator(name string, authen middle.Authent
 // ensure RegisterConfigSection is called for each custom config section not
 // associated with a component.
 func (env *Environment) LoadConfig(file string) (config.Config, error) {
+	env.initDefaults()
 	return env.confEnv.Load(file)
 }
 
@@ -193,7 +204,9 @@ type RESTServer struct {
 // is retained for future operations. Any registered auto-APIs are automatically
 // added via Add as per the configuration; this includes both built-in and
 // user-supplied APIs.
-func (env Environment) NewServer(cfg *config.Config) (RESTServer, error) {
+func (env *Environment) NewServer(cfg *config.Config) (RESTServer, error) {
+	env.initDefaults()
+
 	// check config
 	if cfg == nil {
 		cfg = &config.Config{}
@@ -237,7 +250,7 @@ func (env Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 		cfg:         *cfg,
 		log:         logger,
 
-		env: &env,
+		env: env,
 	}
 
 	// check on pre-rolled components, they need to be inited first.
@@ -325,8 +338,7 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 
 	env := rs.env
 	if env == nil {
-		def := DefaultEnvironment()
-		env = &def
+		env = &Environment{}
 	}
 
 	// Create root router
@@ -385,8 +397,7 @@ func (rs *RESTServer) Add(name string, api API) error {
 
 	env := rs.env
 	if env == nil {
-		def := DefaultEnvironment()
-		env = &def
+		env = &Environment{}
 	}
 
 	rs.apis[name] = api
