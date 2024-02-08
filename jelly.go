@@ -28,7 +28,7 @@ type Environment struct {
 
 	middleProv middle.Provider
 
-	DBConnectors config.DBConnectorRegistry
+	Connectors *config.DBConnectorRegistry
 }
 
 func DefaultEnvironment() Environment {
@@ -37,7 +37,7 @@ func DefaultEnvironment() Environment {
 		componentProvidersOrder: []string{},
 		confEnv:                 config.DefaultEnvironment(),
 		middleProv:              middle.DefaultProvider(),
-		DBConnectors:            config.DefaultConnectorRegistry(),
+		Connectors:              &config.DBConnectorRegistry{},
 	}
 }
 
@@ -221,7 +221,7 @@ func (env Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 	// connect DBs
 	dbs := map[string]dao.Store{}
 	for name, db := range cfg.DBs {
-		db, err := cfg.DBConnector.Connect(db)
+		db, err := env.Connectors.Connect(db)
 		if err != nil {
 			return RESTServer{}, fmt.Errorf("connect DB %q: %w", name, err)
 		}

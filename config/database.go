@@ -20,6 +20,10 @@ func (dbt DBType) String() string {
 	return string(dbt)
 }
 
+var dbTypeOrdering = []DBType{
+	DatabaseNone, DatabaseSQLite, DatabaseOWDB, DatabaseInMemory,
+}
+
 const (
 	DatabaseNone     DBType = "none"
 	DatabaseSQLite   DBType = "sqlite"
@@ -46,9 +50,14 @@ func ParseDBType(s string) (DBType, error) {
 // Database contains configuration settings for connecting to a persistence
 // layer.
 type Database struct {
-	// Type is the type of database the config refers to. It also determines
-	// which of its other fields are valid.
+	// Type is the type of database the config refers to, primarily for data
+	// validation purposes. It also determines which of its other fields are
+	// valid.
 	Type DBType
+
+	// Connector is the name of the registered connector function that should be
+	// used. The function name must be registered for DBs of the given type.
+	Connector string
 
 	// DataDir is the path on disk to a directory to use to store data in. This
 	// is only applicable for certain DB types: SQLite, OWDB.
@@ -71,6 +80,9 @@ func (db Database) FillDefaults() Database {
 	}
 	if newDB.Type == DatabaseOWDB && newDB.DataFile == "" {
 		newDB.DataFile = "db.owv"
+	}
+	if newDB.Connector == "" {
+		newDB.Connector = "*"
 	}
 
 	return newDB
@@ -255,6 +267,8 @@ func splitWithEscaped(s, sep string) []string {
 // Custom Connectors do not need to provide a value for all of the DB connection
 // functions; any that are left as nil will default to the built-in
 // implementations.
+//
+// TODO: remove this once DBConnectorRegistry is complete.
 type Connector struct {
 	InMem  func() (dao.Store, error)
 	SQLite func(dir string) (dao.Store, error)
@@ -337,23 +351,32 @@ func DefaultDBConnector() Connector {
 	}
 }
 
+// DBConnectorRegistry holds registered connecter functions for opening store
+// structs on database connections.
+//
+// The zero value can be immediately used and will have the built-in default and
+// pre-rolled connectors available. This can be disabled by setting
+// DisableDefaults to true before attempting to use it.
 type DBConnectorRegistry struct {
-	c map[string]func(Database) (dao.Store, error)
+	DisableDefaults bool
+	reg             map[DBType]map[string]func(Database) (dao.Store, error)
 }
 
-// DefaultConnectorRegistry holds pre-rolled DB connectors (such as authuser
-// variety used by built in auth). It should generally be used in preference to
-// a new, empty registry unless the defaults need to be modified.
-//
-// Generally, users should take this and create their own copy for modification
-// using Copy().
-func DefaultConnectorRegistry() DBConnectorRegistry {
-	return DBConnectorRegistry{
-		c: map[string]func(Database) (dao.Store, error){
-			"inmem_authuser": func(d Database) (dao.Store, error) {
+func (cr *DBConnectorRegistry) initDefaults() {
+	// TODO: follow initDefaults pattern on all env-y structs
+
+	if cr.reg == nil {
+		cr.reg = map[DBType]map[string]func(Database) (dao.Store, error){
+			DatabaseInMemory: {},
+			DatabaseSQLite:   {},
+			DatabaseOWDB:     {},
+		}
+
+		if !cr.DisableDefaults {
+			cr.reg[DatabaseInMemory]["authuser"] = func(d Database) (dao.Store, error) {
 				return inmem.NewAuthUserStore(), nil
-			},
-			"sqlite_authuser": func(db Database) (dao.Store, error) {
+			}
+			cr.reg[DatabaseSQLite]["authuser"] = func(db Database) (dao.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -365,8 +388,8 @@ func DefaultConnectorRegistry() DBConnectorRegistry {
 				}
 
 				return store, nil
-			},
-			"owdb": func(db Database) (dao.Store, error) {
+			}
+			cr.reg[DatabaseOWDB]["*"] = func(db Database) (dao.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -379,51 +402,44 @@ func DefaultConnectorRegistry() DBConnectorRegistry {
 				}
 
 				return store, nil
-			},
-		},
+			}
+		}
 	}
 }
 
-// Copy returns a deep copy of the registry.
-func (reg DBConnectorRegistry) Copy() DBConnectorRegistry {
-	newReg := DBConnectorRegistry{
-		c: make(map[string]func(Database) (dao.Store, error), len(reg.c)),
-	}
-
-	for k := range reg.c {
-		newReg.c[k] = reg.c[k]
-	}
-
-	return newReg
-}
-
-func (reg *DBConnectorRegistry) Register(name string, connector func(Database) (dao.Store, error)) error {
+func (cr *DBConnectorRegistry) Register(engine DBType, name string, connector func(Database) (dao.Store, error)) error {
 	if connector == nil {
 		return fmt.Errorf("connector function cannot be nil")
 	}
-	if reg.c == nil {
-		reg.c = map[string]func(Database) (dao.Store, error){}
+
+	cr.initDefaults()
+
+	engConns, ok := cr.reg[engine]
+	if !ok {
+		return fmt.Errorf("%q is not a supported DB type", engine)
 	}
 
 	normName := strings.ToLower(name)
-	if _, ok := reg.c[normName]; ok {
-		return fmt.Errorf("duplicate connector registration; %q already has a registered connector", normName)
+	if _, ok := engConns[normName]; ok && normName != "*" {
+		return fmt.Errorf("duplicate connector registration; %q/%q already has a registered connector", engine, normName)
 	}
 
-	reg.c[normName] = connector
+	engConns[normName] = connector
+	cr.reg[engine] = engConns
 	return nil
 }
 
 // List returns an alphabetized list of all currently registered connector
-// names.
-func (reg DBConnectorRegistry) List() []string {
-	names := make([]string, len(reg.c))
-	if reg.c == nil {
-		return names
-	}
+// names for an engine.
+func (cr *DBConnectorRegistry) List(engine DBType) []string {
+	cr.initDefaults()
+
+	engConns := cr.reg[engine]
+
+	names := make([]string, len(engConns))
 
 	var cur int
-	for k := range reg.c {
+	for k := range engConns {
 		names[cur] = k
 	}
 
@@ -431,19 +447,25 @@ func (reg DBConnectorRegistry) List() []string {
 	return names
 }
 
-// Connect uses the given name to connect a database, returning a generic
+// Connect opens a connection to the configured database, returning a generic
 // dao.Store. The Store can then be cast to the appropriate type by APIs in
 // their init method.
-func (reg DBConnectorRegistry) Connect(name string, db Database) (dao.Store, error) {
-	normName := strings.ToLower(name)
+func (cr *DBConnectorRegistry) Connect(db Database) (dao.Store, error) {
+	cr.initDefaults()
 
-	if reg.c == nil {
-		return nil, fmt.Errorf("%q is not a registered connector", normName)
-	}
+	engConns := cr.reg[db.Type]
 
-	connector, ok := reg.c[normName]
+	normName := strings.ToLower(db.Connector)
+	connector, ok := engConns[normName]
 	if !ok {
-		return nil, fmt.Errorf("%q is not a registered connector", normName)
+		connector, ok = engConns["*"]
+		if !ok {
+			var additionalInfo = "DB does not specify connector"
+			if normName != "" && normName != "*" {
+				additionalInfo = fmt.Sprintf("%q/%q is not a registered connector", db.Type, normName)
+			}
+			return nil, fmt.Errorf("%s and %q has no default \"*\" connector registered", additionalInfo, db.Type)
+		}
 	}
 
 	return connector(db)

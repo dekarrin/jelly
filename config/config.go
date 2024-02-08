@@ -230,7 +230,7 @@ func (cfg Config) FillDefaults() Config {
 			if len(dbs) > 0 {
 				// make shore this DB exists
 				if _, ok := newCFG.DBs[dbs[0]]; !ok {
-					newCFG.DBs[dbs[0]] = Database{Type: DatabaseInMemory}.FillDefaults()
+					newCFG.DBs[dbs[0]] = Database{Type: DatabaseInMemory, Connector: "authuser"}.FillDefaults()
 				}
 			}
 			if newCFG.Globals.MainAuthProvider == "" {
