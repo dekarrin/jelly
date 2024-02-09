@@ -27,7 +27,7 @@ func NewMessageStore(db *sql.DB, table string) (dao.Messages, error) {
 		CREATE TABLE IF NOT EXISTS ` + table + ` (
 			id TEXT NOT NULL PRIMARY KEY,
 			content TEXT NOT NULL UNIQUE,
-			creator TEXT NOT NULL,
+			creator TEXT NOT NULL
 		);`)
 	if err != nil {
 		return nil, jelly.WrapSqliteError(err)

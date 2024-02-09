@@ -71,6 +71,11 @@ func WrapDBError(err error) error {
 		if sqliteErr.Code() == 19 {
 			return dao.ErrConstraintViolation
 		}
+		if sqliteErr.Code() == 1 {
+			// this is a generic error and thus the string is not descriptive,
+			// so preserve the original error instead
+			return err
+		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
 		return dao.ErrNotFound

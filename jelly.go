@@ -465,6 +465,7 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 	if err := api.Init(apiConf, usedDBs, rs.log); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
+	rs.log.Debugf("Successfully initialized API %q", name)
 
 	return base, nil
 }
