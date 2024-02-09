@@ -17,7 +17,7 @@ type messageStore struct {
 	table string
 }
 
-func NewMessageStore(table string, db *sql.DB) (dao.Messages, error) {
+func NewMessageStore(db *sql.DB, table string) (dao.Messages, error) {
 	ms := &messageStore{
 		db:    db,
 		table: table,
@@ -26,7 +26,7 @@ func NewMessageStore(table string, db *sql.DB) (dao.Messages, error) {
 	_, err := ms.db.Exec(`
 		CREATE TABLE IF NOT EXISTS ` + table + ` (
 			id TEXT NOT NULL PRIMARY KEY,
-			content TEXT NOT NULL,
+			content TEXT NOT NULL UNIQUE,
 			creator TEXT NOT NULL,
 		);`)
 	if err != nil {

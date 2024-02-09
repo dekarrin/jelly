@@ -18,7 +18,12 @@ func New(cfg config.Database) (jellydao.Store, error) {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
-	dbPath := filepath.Join(cfg.DataDir, "messages.db")
+	filename := "messages.db"
+	if cfg.DataFile != "" {
+		filename = cfg.DataFile
+	}
+
+	dbPath := filepath.Join(cfg.DataDir, filename)
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -29,19 +34,19 @@ func New(cfg config.Database) (jellydao.Store, error) {
 		DB: db,
 	}
 
-	ds.EchoMessages, err = NewMessageStore("echo_messages", ds.DB)
+	ds.EchoMessages, err = NewMessageStore(ds.DB, "echo_messages")
 	if err != nil {
 		return nil, fmt.Errorf("open echo_messages table: %w", err)
 	}
-	ds.NiceMessages, err = NewMessageStore("hello_nice_messages", ds.DB)
+	ds.NiceMessages, err = NewMessageStore(ds.DB, "hello_nice_messages")
 	if err != nil {
 		return nil, fmt.Errorf("open hello_nice_messages table: %w", err)
 	}
-	ds.RudeMessages, err = NewMessageStore("hello_rude_messages", ds.DB)
+	ds.RudeMessages, err = NewMessageStore(ds.DB, "hello_rude_messages")
 	if err != nil {
 		return nil, fmt.Errorf("open hello_rude_messages table: %w", err)
 	}
-	ds.SecretMessages, err = NewMessageStore("hello_secret_messages", ds.DB)
+	ds.SecretMessages, err = NewMessageStore(ds.DB, "hello_secret_messages")
 	if err != nil {
 		return nil, fmt.Errorf("open hello_secret_messages table: %w", err)
 	}

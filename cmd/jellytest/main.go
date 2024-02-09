@@ -44,6 +44,7 @@ import (
 	"github.com/dekarrin/jellog"
 	"github.com/dekarrin/jelly"
 	jellyauth "github.com/dekarrin/jelly/auth"
+	"github.com/dekarrin/jelly/cmd/jellytest/dao/sqlite"
 	"github.com/dekarrin/jelly/config"
 	"github.com/spf13/pflag"
 )
@@ -159,6 +160,9 @@ func main() {
 	loggerSetup = true
 
 	env := jelly.Environment{}
+
+	// register our db connector
+	env.RegisterConnector(config.DatabaseSQLite, "messages", sqlite.New)
 
 	// mark jellyauth as in-use before loading config
 	env.UseComponent(jellyauth.Component)

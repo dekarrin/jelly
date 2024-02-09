@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 
 	"github.com/dekarrin/jelly"
+	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/dao"
+	jellydao "github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -51,6 +52,10 @@ func (cfg *EchoConfig) Validate() error {
 
 	if len(cfg.Messages) < 1 {
 		return fmt.Errorf("messages: must exist and have at least one entry")
+	}
+
+	if len(cfg.CommonConf.UsesDBs) < 1 {
+		return fmt.Errorf("uses: must exist and have at least one entry")
 	}
 
 	return nil
@@ -102,16 +107,39 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 }
 
 type EchoAPI struct {
-	// Messages is a list of messages that an echo can reply with. Each should
-	// be a format string that expects to receive the message sent by the user
-	// as its first argument.
-	Messages []string
+	store dao.Datastore
+	log   logging.Logger
 }
 
-func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
+func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log logging.Logger) error {
+	dbName := cb.UsesDBs()[0] // will exist, enforced by config.Validate
+	jellyStore := dbs[dbName]
+	store, ok := jellyStore.(dao.Datastore)
+	if !ok {
+		return fmt.Errorf("received unexpected store type %T", jellyStore)
+	}
+
+	echo.store = store
+	echo.log = log
+	ctx := context.Background()
+
 	msgs := cb.GetSlice(ConfigKeyMessages)
-	echo.Messages = make([]string, len(msgs))
-	copy(echo.Messages, msgs)
+	for _, m := range msgs {
+		dbMsg := dao.Message{
+			Content: m,
+			Creator: "(config)",
+		}
+		created, err := echo.store.EchoMessages.Create(ctx, dbMsg)
+		if err != nil {
+			if !errors.Is(err, jelly.DBErrConstraintViolation) {
+				return fmt.Errorf("create initial messages: %w", err)
+			} else {
+				echo.log.Tracef("Skipping adding message to DB via config; already exists: %q", m)
+			}
+		} else {
+			echo.log.Debugf("Added new message to DB via config: %s - %q", created.ID, created.Content)
+		}
+	}
 
 	log.Debug("Echo API initialized")
 
@@ -155,15 +183,19 @@ func (api EchoAPI) epEcho(req *http.Request) response.Result {
 		return response.BadRequest(err.Error(), err.Error())
 	}
 
-	msgNum := rand.Intn(len(api.Messages))
+	msg, err := api.store.EchoMessages.GetRandom(req.Context())
+	if err != nil {
+		return response.InternalServerError("could not get echo template: %v", err)
+	}
+
 	resp := MessageResponseBody{
-		Message: fmt.Sprintf(api.Messages[msgNum], echoData.Message),
+		Message: fmt.Sprintf(msg.Content, echoData.Message),
 	}
 
 	userStr := "unauthed client"
 	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
+		user := req.Context().Value(middle.AuthUser).(jellydao.User)
 		resp.Recipient = user.Username
 		userStr = "user '" + user.Username + "'"
 	}
