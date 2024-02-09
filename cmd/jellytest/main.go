@@ -195,8 +195,16 @@ func main() {
 	}
 
 	// add the APIs
-	server.Add("echo", &EchoAPI{})
-	server.Add("hello", &HelloAPI{})
+	if err := server.Add("echo", &EchoAPI{}); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: add echo API: %s\n", err.Error())
+		exitCode = exitError
+		return
+	}
+	if err := server.Add("hello", &HelloAPI{}); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: add hello API: %s\n", err.Error())
+		exitCode = exitError
+		return
+	}
 
 	logger.Info("Starting server...")
 

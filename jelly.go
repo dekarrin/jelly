@@ -404,6 +404,7 @@ func (rs *RESTServer) Add(name string, api API) error {
 
 	rs.apis[name] = api
 	if apiConf.Enabled() {
+		rs.log.Debugf("Added API %q; initializing...", name)
 		base, err := rs.initAPI(name, api)
 		if err != nil {
 			return err
@@ -415,6 +416,8 @@ func (rs *RESTServer) Add(name string, api API) error {
 			fullName := name + "." + aName
 			env.RegisterAuthenticator(fullName, a)
 		}
+	} else {
+		rs.log.Debugf("Added API %q; skipping initialization due to enabled=false", name)
 	}
 
 	return nil

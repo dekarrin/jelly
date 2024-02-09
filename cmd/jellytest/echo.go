@@ -141,8 +141,6 @@ func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log l
 		}
 	}
 
-	log.Debug("Echo API initialized")
-
 	return nil
 }
 

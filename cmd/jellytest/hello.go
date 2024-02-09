@@ -188,8 +188,6 @@ func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log loggin
 	api.NiceMessages = cb.GetSlice(ConfigKeyPolites)
 	api.RudeMessages = cb.GetSlice(ConfigKeyRudes)
 
-	api.log.Debug("Hello API initialized")
-
 	return nil
 }
 
