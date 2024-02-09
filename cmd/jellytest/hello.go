@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly"
+	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/dao"
+	jellydao "github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -163,15 +164,15 @@ func (cfg *HelloConfig) SetFromString(key string, value string) error {
 type HelloAPI struct {
 	// SecretMessages is the list of secret messages returned only to
 	// authenticated users.
-	SecretMessages []string
+	SecretMessages dao.Messages
 
 	// NiceMessages is a list of polite messages. This is randomly selected from
 	// when a nice greeting is requested.
-	NiceMessages []string
+	NiceMessages dao.Messages
 
 	// RudeMessages is a list of not-nice messages. This is randomly selected
 	// from when a rude greeting is requested.
-	RudeMessages []string
+	RudeMessages dao.Messages
 
 	// RudeChance is the liklihood of getting a Rude reply when asking for a
 	// random greeting. Float between 0 and 1 for percentage.
@@ -180,13 +181,37 @@ type HelloAPI struct {
 	log logging.Logger
 }
 
-func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
+func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log logging.Logger) error {
 	api.log = log
 
+	dbName := cb.UsesDBs()[0] // will exist, enforced by config.Validate
+	jellyStore := dbs[dbName]
+	store, ok := jellyStore.(dao.Datastore)
+	if !ok {
+		return fmt.Errorf("received unexpected store type %T", jellyStore)
+	}
+
 	api.RudeChance = cb.GetFloat(ConfigKeyRudeness)
-	api.SecretMessages = cb.GetSlice(ConfigKeySecrets)
-	api.NiceMessages = cb.GetSlice(ConfigKeyPolites)
-	api.RudeMessages = cb.GetSlice(ConfigKeyRudes)
+	api.NiceMessages = store.NiceMessages
+	api.RudeMessages = store.RudeMessages
+	api.SecretMessages = store.SecretMessages
+
+	ctx := context.Background()
+
+	secretMsgs := cb.GetSlice(ConfigKeySecrets)
+	if err := initDBWithMessages(ctx, log, api.SecretMessages, "(config)", secretMsgs); err != nil {
+		return err
+	}
+
+	niceMsgs := cb.GetSlice(ConfigKeyPolites)
+	if err := initDBWithMessages(ctx, log, api.NiceMessages, "(config)", niceMsgs); err != nil {
+		return err
+	}
+
+	rudeMsgs := cb.GetSlice(ConfigKeyRudes)
+	if err := initDBWithMessages(ctx, log, api.RudeMessages, "(config)", rudeMsgs); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -229,7 +254,7 @@ func (api HelloAPI) epNice(req *http.Request) response.Result {
 	userStr := "unauthed client"
 	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
+		user := req.Context().Value(middle.AuthUser).(jellydao.User)
 		resp.Recipient = user.Username
 		userStr = "user '" + user.Username + "'"
 	}
@@ -251,7 +276,7 @@ func (api HelloAPI) epRude(req *http.Request) response.Result {
 	userStr := "unauthed client"
 	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
+		user := req.Context().Value(middle.AuthUser).(jellydao.User)
 		resp.Recipient = user.Username
 		userStr = "user '" + user.Username + "'"
 	}
@@ -287,7 +312,7 @@ func (api HelloAPI) epRandom(req *http.Request) response.Result {
 	userStr := "unauthed client"
 	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
+		user := req.Context().Value(middle.AuthUser).(jellydao.User)
 		resp.Recipient = user.Username
 		userStr = "user '" + user.Username + "'"
 	}
@@ -302,7 +327,7 @@ func (api HelloAPI) HTTPGetSecret(em jelly.EndpointMaker) http.HandlerFunc {
 }
 
 func (api HelloAPI) epSecret(req *http.Request) response.Result {
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(jellydao.User)
 	userStr := "user '" + user.Username + "'"
 
 	msgNum := rand.Intn(len(api.SecretMessages))

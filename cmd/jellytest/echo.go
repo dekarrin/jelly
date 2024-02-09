@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -124,21 +123,8 @@ func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log l
 	ctx := context.Background()
 
 	msgs := cb.GetSlice(ConfigKeyMessages)
-	for _, m := range msgs {
-		dbMsg := dao.Message{
-			Content: m,
-			Creator: "(config)",
-		}
-		created, err := echo.store.EchoMessages.Create(ctx, dbMsg)
-		if err != nil {
-			if !errors.Is(err, jelly.DBErrConstraintViolation) {
-				return fmt.Errorf("create initial messages: %w", err)
-			} else {
-				echo.log.Tracef("Skipping adding message to DB via config; already exists: %q", m)
-			}
-		} else {
-			echo.log.Debugf("Added new message to DB via config: %s - %q", created.ID, created.Content)
-		}
+	if err := initDBWithMessages(ctx, log, echo.store.EchoMessages, "(config)", msgs); err != nil {
+		return err
 	}
 
 	return nil
