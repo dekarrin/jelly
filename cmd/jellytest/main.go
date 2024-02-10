@@ -63,7 +63,7 @@ var (
 	flagEffectiveConf = pflag.BoolP("effective-conf", "E", false, "Show loaded configuration")
 )
 
-// MessageResponseBody is the body returned by the message-oriented endpoints.
+// MessageResponseBody is the body returned by the message-request endpoints.
 type MessageResponseBody struct {
 	Recipient string `json:"recipient,omitempty"`
 	Message   string `json:"message"`

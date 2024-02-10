@@ -18,7 +18,7 @@ func New(cfg config.Database) (jellydao.Store, error) {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
 
-	filename := "messages.db"
+	filename := "templates.db"
 	if cfg.DataFile != "" {
 		filename = cfg.DataFile
 	}
@@ -34,21 +34,21 @@ func New(cfg config.Database) (jellydao.Store, error) {
 		DB: db,
 	}
 
-	ds.EchoMessages, err = NewMessageStore(ds.DB, "echo_messages")
+	ds.EchoTemplates, err = NewTemplates(ds.DB, "echo_templates")
 	if err != nil {
-		return nil, fmt.Errorf("open echo_messages table: %w", err)
+		return nil, fmt.Errorf("open echo_templates table: %w", err)
 	}
-	ds.NiceMessages, err = NewMessageStore(ds.DB, "hello_nice_messages")
+	ds.NiceTemplates, err = NewTemplates(ds.DB, "hello_nice_templates")
 	if err != nil {
-		return nil, fmt.Errorf("open hello_nice_messages table: %w", err)
+		return nil, fmt.Errorf("open hello_nice_templates table: %w", err)
 	}
-	ds.RudeMessages, err = NewMessageStore(ds.DB, "hello_rude_messages")
+	ds.RudeTemplates, err = NewTemplates(ds.DB, "hello_rude_templates")
 	if err != nil {
-		return nil, fmt.Errorf("open hello_rude_messages table: %w", err)
+		return nil, fmt.Errorf("open hello_rude_templates table: %w", err)
 	}
-	ds.SecretMessages, err = NewMessageStore(ds.DB, "hello_secret_messages")
+	ds.SecretTemplates, err = NewTemplates(ds.DB, "hello_secret_templates")
 	if err != nil {
-		return nil, fmt.Errorf("open hello_secret_messages table: %w", err)
+		return nil, fmt.Errorf("open hello_secret_templates table: %w", err)
 	}
 
 	return ds, nil

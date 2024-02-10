@@ -114,6 +114,7 @@ func (api *LoginAPI) Authenticators() map[string]middle.Authenticator {
 			secret:      api.Secret,
 			db:          api.Service.Provider.AuthUsers(),
 			unauthDelay: api.UnauthDelay,
+			srv:         api.Service,
 		},
 	}
 }

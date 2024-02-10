@@ -167,15 +167,15 @@ func (cfg *HelloConfig) SetFromString(key string, value string) error {
 type HelloAPI struct {
 	// SecretMessages is the list of secret messages returned only to
 	// authenticated users.
-	SecretMessages dao.Messages
+	SecretMessages dao.Templates
 
 	// NiceMessages is a list of polite messages. This is randomly selected from
 	// when a nice greeting is requested.
-	NiceMessages dao.Messages
+	NiceMessages dao.Templates
 
 	// RudeMessages is a list of not-nice messages. This is randomly selected
 	// from when a rude greeting is requested.
-	RudeMessages dao.Messages
+	RudeMessages dao.Templates
 
 	// RudeChance is the liklihood of getting a Rude reply when asking for a
 	// random greeting. Float between 0 and 1 for percentage.
@@ -195,9 +195,9 @@ func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log l
 	}
 
 	api.RudeChance = cb.GetFloat(ConfigKeyRudeness)
-	api.NiceMessages = store.NiceMessages
-	api.RudeMessages = store.RudeMessages
-	api.SecretMessages = store.SecretMessages
+	api.NiceMessages = store.NiceTemplates
+	api.RudeMessages = store.RudeTemplates
+	api.SecretMessages = store.SecretTemplates
 
 	ctx := context.Background()
 
@@ -302,7 +302,7 @@ func (api HelloAPI) HTTPGetRandom(em jelly.EndpointMaker) http.HandlerFunc {
 
 func (api HelloAPI) epRandom(req *http.Request) response.Result {
 	var resp MessageResponseBody
-	var msg dao.Message
+	var msg dao.Template
 	var selected string
 	var err error
 

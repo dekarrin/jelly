@@ -7,10 +7,10 @@ import "database/sql"
 type Datastore struct {
 	DB *sql.DB
 
-	NiceMessages   Messages
-	RudeMessages   Messages
-	SecretMessages Messages
-	EchoMessages   Messages
+	NiceTemplates   Templates
+	RudeTemplates   Templates
+	SecretTemplates Templates
+	EchoTemplates   Templates
 }
 
 func (ds Datastore) Close() error {
@@ -24,10 +24,10 @@ func (ds Datastore) Close() error {
 		return closeErr
 	}
 
-	ds.NiceMessages.Close()
-	ds.RudeMessages.Close()
-	ds.SecretMessages.Close()
-	ds.EchoMessages.Close()
+	ds.NiceTemplates.Close()
+	ds.RudeTemplates.Close()
+	ds.SecretTemplates.Close()
+	ds.EchoTemplates.Close()
 
 	return nil
 }

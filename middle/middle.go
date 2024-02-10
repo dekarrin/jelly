@@ -11,6 +11,7 @@ import (
 
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/response"
+	"github.com/google/uuid"
 )
 
 type mwFunc http.HandlerFunc
@@ -51,7 +52,7 @@ func (p *Provider) initDefaults() {
 // matches one of the names in from. If no names are provided in from, the main
 // auth for the project is returned. If from is not empty, at least one name
 // listed in it must exist, or this function will panic.
-func (p *Provider) SelectAuthenticator(from []string) Authenticator {
+func (p *Provider) SelectAuthenticator(from ...string) Authenticator {
 	p.initDefaults()
 
 	var authent Authenticator
@@ -145,9 +146,105 @@ type Authenticator interface {
 	// error.
 	Authenticate(req *http.Request) (dao.User, bool, error)
 
+	// Service returns the UserLoginService that can be used to control active
+	// logins and the list of users.
+	Service() UserLoginService
+
 	// UnauthDelay is the amount of time that the system should delay responding
 	// to unauthenticated requests to endpoints that require auth.
 	UnauthDelay() time.Duration
+}
+
+// UserLoginService provides a way to control the state of login of users and
+// retrieve users from the backend store.
+type UserLoginService interface {
+	// Login verifies the provided username and password against the existing user
+	// in persistence and returns that user if they match. Returns the user entity
+	// from the persistence layer that the username and password are valid for.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If the credentials do not match
+	// a user or if the password is incorrect, it will match ErrBadCredentials. If
+	// the error occured due to an unexpected problem with the DB, it will match
+	// serr.ErrDB.
+	Login(ctx context.Context, username string, password string) (dao.User, error)
+
+	// Logout marks the user with the given ID as having logged out, invalidating
+	// any login that may be active. Returns the user entity that was logged out.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If the user doesn't exist, it
+	// will match serr.ErrNotFound. If the error occured due to an unexpected
+	// problem with the DB, it will match serr.ErrDB.
+	Logout(ctx context.Context, who uuid.UUID) (dao.User, error)
+
+	// GetAllUsers returns all auth users currently in persistence.
+	GetAllUsers(ctx context.Context) ([]dao.User, error)
+
+	// GetUser returns the user with the given ID.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If no user with that ID exists,
+	// it will match serr.ErrNotFound. If the error occured due to an unexpected
+	// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
+	// with one of the arguments, it will match serr.ErrBadArgument.
+	GetUser(ctx context.Context, id string) (dao.User, error)
+
+	// GetUserByUsername returns the user with the given username.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If no user with that ID exists,
+	// it will match serr.ErrNotFound. If the error occured due to an unexpected
+	// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
+	// with one of the arguments, it will match serr.ErrBadArgument.
+	GetUserByUsername(ctx context.Context, username string) (dao.User, error)
+
+	// CreateUser creates a new user with the given username, password, and email
+	// combo. Returns the newly-created user as it exists after creation.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If a user with that username is
+	// already present, it will match serr.ErrAlreadyExists. If the error occured
+	// due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
+	// if one of the arguments is invalid, it will match serr.ErrBadArgument.
+	CreateUser(ctx context.Context, username, password, email string, role dao.Role) (dao.User, error)
+
+	// UpdateUser sets all properties except the password of the user with the
+	// given ID to the properties in the provider user. All the given properties
+	// of the user (except password) will overwrite the existing ones. Returns
+	// the updated user.
+	//
+	// This function cannot be used to update the password. Use UpdatePassword for
+	// that.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If a user with that username or
+	// ID (if they are changing) is already present, it will match
+	// serr.ErrAlreadyExists. If no user with the given ID exists, it will match
+	// serr.ErrNotFound. If the error occured due to an unexpected problem with the
+	// DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
+	// will match serr.ErrBadArgument.
+	UpdateUser(ctx context.Context, curID, newID, username, email string, role dao.Role) (dao.User, error)
+
+	// UpdatePassword sets the password of the user with the given ID to the new
+	// password. The new password cannot be empty. Returns the updated user.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If no user with the given ID
+	// exists, it will match serr.ErrNotFound. If the error occured due to an
+	// unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
+	// the arguments is invalid, it will match serr.ErrBadArgument.
+	UpdatePassword(ctx context.Context, id, password string) (dao.User, error)
+
+	// DeleteUser deletes the user with the given ID. It returns the deleted user
+	// just after they were deleted.
+	//
+	// The returned error, if non-nil, will return true for various calls to
+	// errors.Is depending on what caused the error. If no user with that username
+	// exists, it will match serr.ErrNotFound. If the error occured due to an
+	// unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
+	// is an issue with one of the arguments, it will match serr.ErrBadArgument.
+	DeleteUser(ctx context.Context, id string) (dao.User, error)
 }
 
 // noopAuthenticator is used as the active one when no others are specified.
@@ -160,6 +257,40 @@ func (na noopAuthenticator) Authenticate(req *http.Request) (dao.User, bool, err
 func (na noopAuthenticator) UnauthDelay() time.Duration {
 	var d time.Duration
 	return d
+}
+
+func (na noopAuthenticator) Service() UserLoginService {
+	return noopLoginService{}
+}
+
+type noopLoginService struct{}
+
+func (noop noopLoginService) Login(ctx context.Context, username string, password string) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("Login called on noop")
+}
+func (noop noopLoginService) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("Logout called on noop")
+}
+func (noop noopLoginService) GetAllUsers(ctx context.Context) ([]dao.User, error) {
+	return nil, fmt.Errorf("GetAllUsers called on noop")
+}
+func (noop noopLoginService) GetUser(ctx context.Context, id string) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("GetUser called on noop")
+}
+func (noop noopLoginService) GetUserByUsername(ctx context.Context, username string) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("GetUserByUsername called on noop")
+}
+func (noop noopLoginService) CreateUser(ctx context.Context, username, password, email string, role dao.Role) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("CreateUser called on noop")
+}
+func (noop noopLoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role dao.Role) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("UpdateUser called on noop")
+}
+func (noop noopLoginService) UpdatePassword(ctx context.Context, id, password string) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("UpdatePassword called on noop")
+}
+func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (dao.User, error) {
+	return dao.User{}, fmt.Errorf("DeleteUser called on noop")
 }
 
 // AuthHandler is middleware that will accept a request, extract the token used
@@ -212,7 +343,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
 func (p Provider) RequireAuth(authenticators ...string) Middleware {
-	prov := p.SelectAuthenticator(authenticators)
+	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
@@ -230,7 +361,7 @@ func (p Provider) RequireAuth(authenticators ...string) Middleware {
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.
 func (p Provider) OptionalAuth(authenticators ...string) Middleware {
-	prov := p.SelectAuthenticator(authenticators)
+	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
