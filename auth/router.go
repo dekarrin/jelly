@@ -26,8 +26,11 @@ func (api *LoginAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (route
 	r.Mount("/tokens", tokens)
 	r.Mount("/users", users)
 	r.Mount("/info", info)
-	r.HandleFunc("/info/", jelly.RedirectNoTrailingSlash)
+	r.HandleFunc("/info/", jelly.RedirectNoTrailingSlash) // TODO: this doesn't appear to do anyfin
 
+	// TODO: make this library properly use jelly.RedirectNoTrailingSlash
+
+	// TODO: should these be at top level and controlled by jelly?
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
 		res := response.NotFound()
 		res.WriteResponse(w)

@@ -152,8 +152,25 @@ func (api *EchoAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router
 	r := chi.NewRouter()
 
 	r.With(optAuth).Get("/", api.HTTPGetEcho(em))
+	r.Mount("/templates", api.routesForTemplates(mid, em))
 
-	return r, false
+	return r, true
+}
+
+func (api *EchoAPI) routesForTemplates(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router) {
+	r := chi.NewRouter()
+
+	r.Use(mid.RequireAuth())
+
+	r.Get("/", api.HTTPGetAllTemplates(em))
+	r.Post("/", api.HTTPPostTemplate(em))
+
+	r.Get("/"+jelly.PathParam("id:uuid"), api.HTTPGetTemplate(em))
+	r.Put("/"+jelly.PathParam("id:uuid"), api.HTTPUpdateTemplate(mid, em))
+	r.Delete("/"+jelly.PathParam("id:uuid"), api.HTTPDeleteTemplate(mid, em))
+	r.HandleFunc("/"+jelly.PathParam("id:uuid")+"/", jelly.RedirectNoTrailingSlash)
+
+	return r
 }
 
 type EchoRequestBody struct {

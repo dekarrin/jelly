@@ -358,12 +358,27 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		apiConf := rs.getAPIConfigBundle(name)
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
-			apiRouter, subpaths := api.Routes(env.middleProv, EndpointMaker{mid: env.middleProv})
+			// TODO: remove subpaths once we realize inferred works
+			apiRouter, _ := api.Routes(env.middleProv, EndpointMaker{mid: env.middleProv})
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)
-				if !subpaths && base != "/" {
-					r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+				if base != "/" {
+
+					// check if there are subpaths
+					hasSubpaths := false
+
+					chi.Walk(apiRouter, func(_, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+						trimmedRoute := strings.TrimLeft(route, "/")
+						if trimmedRoute != "" {
+							hasSubpaths = true
+						}
+						return nil
+					})
+
+					if !hasSubpaths {
+						r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+					}
 				}
 			}
 		}
