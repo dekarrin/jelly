@@ -173,7 +173,7 @@ func (em EndpointMaker) Endpoint(ep EndpointFunc, overrides ...Override) http.Ha
 			// if it's one of these statuses, either the user is improperly
 			// logging in or tried to access a forbidden resource, both of which
 			// should force the wait time before responding.
-			auth := em.mid.SelectAuthenticator(overs.Authenticators)
+			auth := em.mid.SelectAuthenticator(overs.Authenticators...)
 			time.Sleep(auth.UnauthDelay())
 		}
 

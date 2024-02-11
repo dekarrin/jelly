@@ -1,5 +1,7 @@
-// Package jelly is a simple and quick framework dekarrin/jello uses for
+// Package jelly is a simple and quick framework dekarrin 'jello' uses for
 // learning Go servers.
+//
+// "Gelatin-based web servers".
 package jelly
 
 import (
@@ -150,6 +152,14 @@ func (env *Environment) RegisterConfigSection(name string, provider func() confi
 func (env *Environment) SetMainAuthenticator(name string) error {
 	env.initDefaults()
 	return env.middleProv.RegisterMainAuthenticator(name)
+}
+
+// RegisterConnector allows the specification of database connection methods.
+// The registered name can then be specified as the connector field of any DB
+// in config whose type is the given engine.
+func (env *Environment) RegisterConnector(engine config.DBType, name string, connector func(config.Database) (dao.Store, error)) error {
+	env.initDefaults()
+	return env.connectors.Register(engine, name, connector)
 }
 
 // RegisterAuthenticator registers an authenticator for use with other
@@ -350,12 +360,27 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		apiConf := rs.getAPIConfigBundle(name)
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
-			apiRouter, subpaths := api.Routes(env.middleProv, EndpointMaker{mid: env.middleProv})
+			// TODO: remove subpaths once we realize inferred works
+			apiRouter, _ := api.Routes(env.middleProv, EndpointMaker{mid: env.middleProv})
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)
-				if !subpaths && base != "/" {
-					r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+				if base != "/" {
+
+					// check if there are subpaths
+					hasSubpaths := false
+
+					chi.Walk(apiRouter, func(_, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+						trimmedRoute := strings.TrimLeft(route, "/")
+						if trimmedRoute != "" {
+							hasSubpaths = true
+						}
+						return nil
+					})
+
+					if !hasSubpaths {
+						r.HandleFunc(base+"/", RedirectNoTrailingSlash)
+					}
 				}
 			}
 		}
@@ -396,6 +421,7 @@ func (rs *RESTServer) Add(name string, api API) error {
 
 	rs.apis[name] = api
 	if apiConf.Enabled() {
+		rs.log.Debugf("Added API %q; initializing...", name)
 		base, err := rs.initAPI(name, api)
 		if err != nil {
 			return err
@@ -407,6 +433,8 @@ func (rs *RESTServer) Add(name string, api API) error {
 			fullName := name + "." + aName
 			env.RegisterAuthenticator(fullName, a)
 		}
+	} else {
+		rs.log.Debugf("Added API %q; skipping initialization due to enabled=false", name)
 	}
 
 	return nil
@@ -457,6 +485,7 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 	if err := api.Init(apiConf, usedDBs, rs.log); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
+	rs.log.Debugf("Successfully initialized API %q", name)
 
 	return base, nil
 }

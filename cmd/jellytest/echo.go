@@ -3,17 +3,18 @@ package main
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 
 	"github.com/dekarrin/jelly"
+	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/dao"
+	jellydao "github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 const (
@@ -51,6 +52,10 @@ func (cfg *EchoConfig) Validate() error {
 
 	if len(cfg.Messages) < 1 {
 		return fmt.Errorf("messages: must exist and have at least one entry")
+	}
+
+	if len(cfg.CommonConf.UsesDBs) < 1 {
+		return fmt.Errorf("uses: must exist and have at least one entry")
 	}
 
 	return nil
@@ -102,18 +107,29 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 }
 
 type EchoAPI struct {
-	// Messages is a list of messages that an echo can reply with. Each should
-	// be a format string that expects to receive the message sent by the user
-	// as its first argument.
-	Messages []string
+	store   dao.Datastore
+	log     logging.Logger
+	uriBase string
 }
 
-func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
-	msgs := cb.GetSlice(ConfigKeyMessages)
-	echo.Messages = make([]string, len(msgs))
-	copy(echo.Messages, msgs)
+func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log logging.Logger) error {
+	dbName := cb.UsesDBs()[0] // will exist, enforced by config.Validate
+	jellyStore := dbs[dbName]
+	store, ok := jellyStore.(dao.Datastore)
+	if !ok {
+		return fmt.Errorf("received unexpected store type %T", jellyStore)
+	}
 
-	log.Debug("Echo API initialized")
+	echo.store = store
+	echo.log = log
+	echo.uriBase = cb.Base()
+	ctx := context.Background()
+
+	msgs := cb.GetSlice(ConfigKeyMessages)
+	var zeroUUID uuid.UUID
+	if err := initDBWithTemplates(ctx, log, echo.store.EchoTemplates, zeroUUID, msgs); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -129,44 +145,73 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 }
 
 func (api *EchoAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
+	templateEndpoints := templateEndpoints{
+		mid:               mid,
+		em:                em,
+		templates:         api.store.EchoTemplates,
+		uriBase:           api.uriBase,
+		name:              "echo",
+		requireFormatVerb: true,
+	}
+
 	optAuth := mid.OptionalAuth()
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/", api.HTTPGetEcho(em))
+	r.With(optAuth).Get("/", api.httpGetEcho(em))
+	r.Mount("/templates", templateEndpoints.routes())
 
-	return r, false
+	return r, true
 }
 
-type EchoRequestBody struct {
+func (ep templateEndpoints) routes() (router chi.Router) {
+	r := chi.NewRouter()
+
+	r.Use(ep.mid.RequireAuth())
+
+	r.Get("/", ep.httpGetAllTemplates())
+	r.Post("/", ep.httpCreateTemplate())
+
+	r.Route("/"+jelly.PathParam("id:uuid"), func(r chi.Router) {
+		r.Get("/", ep.httpGetTemplate())
+		r.Put("/", ep.httpUpdateTemplate())
+		r.Delete("/", ep.httpDeleteTemplate())
+	})
+
+	return r
+}
+
+type echoRequestBody struct {
 	Message string `json:"message"`
 }
 
-// HTTPGetEcho returns a HandlerFunc that echoes the user message.
-func (api EchoAPI) HTTPGetEcho(em jelly.EndpointMaker) http.HandlerFunc {
-	return em.Endpoint(api.epEcho)
-}
+// httpGetEcho returns a HandlerFunc that echoes the user message.
+func (api EchoAPI) httpGetEcho(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(func(req *http.Request) response.Result {
+		var echoData echoRequestBody
 
-func (api EchoAPI) epEcho(req *http.Request) response.Result {
-	var echoData EchoRequestBody
+		err := jelly.ParseJSONRequest(req, &echoData)
+		if err != nil {
+			return response.BadRequest(err.Error(), err.Error())
+		}
 
-	err := jelly.ParseJSONRequest(req, &echoData)
-	if err != nil {
-		return response.BadRequest(err.Error(), err.Error())
-	}
+		t, err := api.store.EchoTemplates.GetRandom(req.Context())
+		if err != nil {
+			return response.InternalServerError("could not get echo template: %v", err)
+		}
 
-	msgNum := rand.Intn(len(api.Messages))
-	resp := MessageResponseBody{
-		Message: fmt.Sprintf(api.Messages[msgNum], echoData.Message),
-	}
+		resp := messageResponseBody{
+			Message: fmt.Sprintf(t.Content, echoData.Message),
+		}
 
-	userStr := "unauthed client"
-	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
-	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
-		resp.Recipient = user.Username
-		userStr = "user '" + user.Username + "'"
-	}
+		userStr := "unauthed client"
+		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		if loggedIn {
+			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			resp.Recipient = user.Username
+			userStr = "user '" + user.Username + "'"
+		}
 
-	return response.OK(resp, "%s requested echo (msg len=%d)", userStr, len(echoData.Message))
+		return response.OK(resp, "%s requested echo (msg len=%d), got template %s", userStr, len(echoData.Message), t.ID)
+	})
 }

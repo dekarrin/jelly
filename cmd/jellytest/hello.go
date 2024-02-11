@@ -9,12 +9,14 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly"
+	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/dao"
+	jellydao "github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 const (
@@ -79,6 +81,9 @@ func (cfg *HelloConfig) Validate() error {
 	}
 	if len(cfg.SecretMessages) < 1 {
 		return fmt.Errorf(ConfigKeySecrets + ": must exist and have at least one item")
+	}
+	if len(cfg.CommonConf.UsesDBs) < 1 {
+		return fmt.Errorf(config.KeyAPIUsesDBs + ": must exist and have at least one item")
 	}
 
 	return nil
@@ -161,34 +166,60 @@ func (cfg *HelloConfig) SetFromString(key string, value string) error {
 }
 
 type HelloAPI struct {
-	// SecretMessages is the list of secret messages returned only to
+	// secrets is the list of secret messages returned only to
 	// authenticated users.
-	SecretMessages []string
+	secrets dao.Templates
 
-	// NiceMessages is a list of polite messages. This is randomly selected from
+	// nices is a list of polite messages. This is randomly selected from
 	// when a nice greeting is requested.
-	NiceMessages []string
+	nices dao.Templates
 
-	// RudeMessages is a list of not-nice messages. This is randomly selected
+	// rudes is a list of not-nice messages. This is randomly selected
 	// from when a rude greeting is requested.
-	RudeMessages []string
+	rudes dao.Templates
 
-	// RudeChance is the liklihood of getting a Rude reply when asking for a
+	// rudeChance is the liklihood of getting a Rude reply when asking for a
 	// random greeting. Float between 0 and 1 for percentage.
-	RudeChance float64
+	rudeChance float64
 
 	log logging.Logger
+
+	uriBase string
 }
 
-func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error {
+func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log logging.Logger) error {
 	api.log = log
 
-	api.RudeChance = cb.GetFloat(ConfigKeyRudeness)
-	api.SecretMessages = cb.GetSlice(ConfigKeySecrets)
-	api.NiceMessages = cb.GetSlice(ConfigKeyPolites)
-	api.RudeMessages = cb.GetSlice(ConfigKeyRudes)
+	dbName := cb.UsesDBs()[0] // will exist, enforced by config.Validate
+	jellyStore := dbs[dbName]
+	store, ok := jellyStore.(dao.Datastore)
+	if !ok {
+		return fmt.Errorf("received unexpected store type %T", jellyStore)
+	}
 
-	api.log.Debug("Hello API initialized")
+	api.rudeChance = cb.GetFloat(ConfigKeyRudeness)
+	api.nices = store.NiceTemplates
+	api.rudes = store.RudeTemplates
+	api.secrets = store.SecretTemplates
+	api.uriBase = cb.Base()
+
+	ctx := context.Background()
+	var zeroUUID uuid.UUID
+
+	secretMsgs := cb.GetSlice(ConfigKeySecrets)
+	if err := initDBWithTemplates(ctx, log, api.secrets, zeroUUID, secretMsgs); err != nil {
+		return err
+	}
+
+	niceMsgs := cb.GetSlice(ConfigKeyPolites)
+	if err := initDBWithTemplates(ctx, log, api.nices, zeroUUID, niceMsgs); err != nil {
+		return err
+	}
+
+	rudeMsgs := cb.GetSlice(ConfigKeyRudes)
+	if err := initDBWithTemplates(ctx, log, api.rudes, zeroUUID, rudeMsgs); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -204,114 +235,143 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 }
 
 func (api *HelloAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
+	niceTemplates := templateEndpoints{mid: mid, em: em, uriBase: api.uriBase, requireFormatVerb: false}
+	niceTemplates.templates = api.nices
+	niceTemplates.name = "nice"
+
+	rudeTemplates := niceTemplates
+	rudeTemplates.templates = api.rudes
+	rudeTemplates.name = "rude"
+
+	secretTemplates := niceTemplates
+	secretTemplates.templates = api.secrets
+	secretTemplates.name = "secret"
+
 	optAuth := mid.OptionalAuth()
 	reqAuth := mid.RequireAuth()
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/nice", api.HTTPGetNice(em))
-	r.With(optAuth).Get("/rude", api.HTTPGetRude(em))
-	r.With(optAuth).Get("/random", api.HTTPGetRandom(em))
-	r.With(reqAuth).Get("/secret", api.HTTPGetSecret(em))
+	r.With(optAuth).Get("/nice", api.httpGetNice(em))
+	r.Mount("/nice/templates", niceTemplates.routes())
+	r.With(optAuth).Get("/rude", api.httpGetRude(em))
+	r.Mount("/rude/templates", rudeTemplates.routes())
+	r.With(optAuth).Get("/random", api.httpGetRandom(em))
+	r.With(reqAuth).Get("/secret", api.httpGetSecret(em))
+	r.Mount("/secret/templates", secretTemplates.routes())
 
 	return r, false
 }
 
-// HTTPGetNice returns a HandlerFunc that returns a polite greeting message.
-func (api HelloAPI) HTTPGetNice(em jelly.EndpointMaker) http.HandlerFunc {
-	return em.Endpoint(api.epNice)
-}
-
-func (api HelloAPI) epNice(req *http.Request) response.Result {
-	msgNum := rand.Intn(len(api.NiceMessages))
-	resp := MessageResponseBody{
-		Message: api.NiceMessages[msgNum],
-	}
-
-	userStr := "unauthed client"
-	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
-	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
-		resp.Recipient = user.Username
-		userStr = "user '" + user.Username + "'"
-	}
-
-	return response.OK(resp, "%s requested a nice hello and got nice[%d]", userStr, msgNum)
-}
-
-// HTTPGetRude returns a HandlerFunc that returns a rude greeting message.
-func (api HelloAPI) HTTPGetRude(em jelly.EndpointMaker) http.HandlerFunc {
-	return em.Endpoint(api.epRude)
-}
-
-func (api HelloAPI) epRude(req *http.Request) response.Result {
-	msgNum := rand.Intn(len(api.RudeMessages))
-	resp := MessageResponseBody{
-		Message: api.RudeMessages[msgNum],
-	}
-
-	userStr := "unauthed client"
-	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
-	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
-		resp.Recipient = user.Username
-		userStr = "user '" + user.Username + "'"
-	}
-
-	return response.OK(resp, "%s requested a rude hello and got rude[%d]", userStr, msgNum)
-}
-
-// HTTPGetRandom returns a HandlerFunc that returns a random greeting message.
-func (api HelloAPI) HTTPGetRandom(em jelly.EndpointMaker) http.HandlerFunc {
-	return em.Endpoint(api.epRandom)
-}
-
-func (api HelloAPI) epRandom(req *http.Request) response.Result {
-	var resp MessageResponseBody
-	var msgNum int
-	var selected string
-	if rand.Float64() < api.RudeChance {
-		selected = "rude"
-
-		msgNum = rand.Intn(len(api.RudeMessages))
-		resp = MessageResponseBody{
-			Message: api.RudeMessages[msgNum],
+// httpGetNice returns a HandlerFunc that returns a polite greeting message.
+func (api HelloAPI) httpGetNice(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(func(req *http.Request) response.Result {
+		msg, err := api.nices.GetRandom(req.Context())
+		if err != nil {
+			return response.InternalServerError("could not get random nice message: %v", err)
 		}
-	} else {
-		selected = "nice"
 
-		msgNum = rand.Intn(len(api.NiceMessages))
-		resp = MessageResponseBody{
-			Message: api.NiceMessages[msgNum],
+		resp := messageResponseBody{
+			Message: msg.Content,
 		}
-	}
 
-	userStr := "unauthed client"
-	loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
-	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
-		resp.Recipient = user.Username
-		userStr = "user '" + user.Username + "'"
-	}
+		userStr := "unauthed client"
+		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		if loggedIn {
+			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			resp.Recipient = user.Username
+			userStr = "user '" + user.Username + "'"
+		}
 
-	return response.OK(resp, "%s requested a random hello and got %s[%d]", userStr, selected, msgNum)
+		return response.OK(resp, "%s requested a nice hello and got %s", userStr, msg.ID)
+	})
 }
 
-// HTTPGetSecret returns a HandlerFunc that returns a secret greeting message
+// httpGetRude returns a HandlerFunc that returns a rude greeting message.
+func (api HelloAPI) httpGetRude(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(func(req *http.Request) response.Result {
+		msg, err := api.rudes.GetRandom(req.Context())
+		if err != nil {
+			return response.InternalServerError("could not get random rude message: %v", err)
+		}
+
+		resp := messageResponseBody{
+			Message: msg.Content,
+		}
+
+		userStr := "unauthed client"
+		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		if loggedIn {
+			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			resp.Recipient = user.Username
+			userStr = "user '" + user.Username + "'"
+		}
+
+		return response.OK(resp, "%s requested a rude hello and got %s", userStr, msg.ID)
+	})
+}
+
+// httpGetRandom returns a HandlerFunc that returns a random greeting message.
+func (api HelloAPI) httpGetRandom(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(func(req *http.Request) response.Result {
+		var resp messageResponseBody
+		var msg dao.Template
+		var selected string
+		var err error
+
+		if rand.Float64() < api.rudeChance {
+			selected = "rude"
+
+			msg, err = api.rudes.GetRandom(req.Context())
+			if err != nil {
+				return response.InternalServerError("could not get random rude message: %v", err)
+			}
+
+			resp = messageResponseBody{
+				Message: msg.Content,
+			}
+		} else {
+			selected = "nice"
+
+			msg, err = api.nices.GetRandom(req.Context())
+			if err != nil {
+				return response.InternalServerError("could not get random nice message: %v", err)
+			}
+
+			resp = messageResponseBody{
+				Message: msg.Content,
+			}
+		}
+
+		userStr := "unauthed client"
+		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		if loggedIn {
+			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			resp.Recipient = user.Username
+			userStr = "user '" + user.Username + "'"
+		}
+
+		return response.OK(resp, "%s requested a random hello and got (%s) %s", userStr, selected, msg.ID)
+	})
+}
+
+// httpGetSecret returns a HandlerFunc that returns a secret greeting message
 // available only for logged-in users.
-func (api HelloAPI) HTTPGetSecret(em jelly.EndpointMaker) http.HandlerFunc {
-	return em.Endpoint(api.epSecret)
-}
+func (api HelloAPI) httpGetSecret(em jelly.EndpointMaker) http.HandlerFunc {
+	return em.Endpoint(func(req *http.Request) response.Result {
+		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		userStr := "user '" + user.Username + "'"
 
-func (api HelloAPI) epSecret(req *http.Request) response.Result {
-	user := req.Context().Value(middle.AuthUser).(dao.User)
-	userStr := "user '" + user.Username + "'"
+		msg, err := api.secrets.GetRandom(req.Context())
+		if err != nil {
+			return response.InternalServerError("could not get random secret message: %v", err)
+		}
 
-	msgNum := rand.Intn(len(api.SecretMessages))
-	resp := MessageResponseBody{
-		Message:   fmt.Sprintf(api.SecretMessages[msgNum], user.Username),
-		Recipient: user.Username,
-	}
+		resp := messageResponseBody{
+			Message:   fmt.Sprintf(msg.Content, user.Username),
+			Recipient: user.Username,
+		}
 
-	return response.OK(resp, "%s requested a secret hello and got secret[%d]", userStr, msgNum)
+		return response.OK(resp, "%s requested a secret hello and got %s", userStr, msg.ID)
+	})
 }

@@ -44,6 +44,7 @@ import (
 	"github.com/dekarrin/jellog"
 	"github.com/dekarrin/jelly"
 	jellyauth "github.com/dekarrin/jelly/auth"
+	"github.com/dekarrin/jelly/cmd/jellytest/dao/sqlite"
 	"github.com/dekarrin/jelly/config"
 	"github.com/spf13/pflag"
 )
@@ -62,8 +63,8 @@ var (
 	flagEffectiveConf = pflag.BoolP("effective-conf", "E", false, "Show loaded configuration")
 )
 
-// MessageResponseBody is the body returned by the message-oriented endpoints.
-type MessageResponseBody struct {
+// messageResponseBody is the body returned by the message-request endpoints.
+type messageResponseBody struct {
 	Recipient string `json:"recipient,omitempty"`
 	Message   string `json:"message"`
 }
@@ -160,6 +161,9 @@ func main() {
 
 	env := jelly.Environment{}
 
+	// register our db connector
+	env.RegisterConnector(config.DatabaseSQLite, "messages", sqlite.New)
+
 	// mark jellyauth as in-use before loading config
 	env.UseComponent(jellyauth.Component)
 
@@ -191,8 +195,16 @@ func main() {
 	}
 
 	// add the APIs
-	server.Add("echo", &EchoAPI{})
-	server.Add("hello", &HelloAPI{})
+	if err := server.Add("echo", &EchoAPI{}); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: add echo API: %s\n", err.Error())
+		exitCode = exitError
+		return
+	}
+	if err := server.Add("hello", &HelloAPI{}); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: add hello API: %s\n", err.Error())
+		exitCode = exitError
+		return
+	}
 
 	logger.Info("Starting server...")
 

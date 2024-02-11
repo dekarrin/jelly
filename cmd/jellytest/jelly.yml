@@ -2,8 +2,12 @@ listen: localhost:8080
 dbs:
   auth:
     type: sqlite
+    dir: ./db
     connector: authuser
-    dir: ./authdb
+  data:
+    type: sqlite
+    dir: ./db
+    connector: messages
   
 jellyauth:
   enabled: true
@@ -16,10 +20,14 @@ echo:
     - You said '%s'
     - "MESSAGE RECEIVED. ECHO RESPONSE: %s"
     - Server received %s
+  uses:
+    - data
 
 hello:
   enabled: true
   base: /hello
+  uses:
+    - data
 
 logging:
   enabled: true

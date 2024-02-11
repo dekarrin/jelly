@@ -68,8 +68,14 @@ func (aus *AuthUserStore) Close() error {
 func WrapDBError(err error) error {
 	sqliteErr := &sqlite.Error{}
 	if errors.As(err, &sqliteErr) {
-		if sqliteErr.Code() == 19 {
-			return dao.ErrConstraintViolation
+		primaryCode := sqliteErr.Code() & 0xff
+		if primaryCode == 19 {
+			return fmt.Errorf("%w: %s", dao.ErrConstraintViolation, err.Error())
+		}
+		if primaryCode == 1 {
+			// this is a generic error and thus the string is not descriptive,
+			// so preserve the original error instead
+			return err
 		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/token"
 )
 
@@ -12,6 +13,7 @@ type JWTAuthProvider struct {
 	db          dao.AuthUserRepo
 	secret      []byte
 	unauthDelay time.Duration
+	srv         LoginService
 }
 
 func (ap JWTAuthProvider) Authenticate(req *http.Request) (dao.User, bool, error) {
@@ -36,4 +38,8 @@ func (ap JWTAuthProvider) Authenticate(req *http.Request) (dao.User, bool, error
 
 func (ap JWTAuthProvider) UnauthDelay() time.Duration {
 	return ap.unauthDelay
+}
+
+func (ap JWTAuthProvider) Service() middle.UserLoginService {
+	return ap.srv
 }
