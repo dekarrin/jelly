@@ -90,9 +90,13 @@ func daoToTemplates(ts []dao.Template, uriBase string) []Template {
 }
 
 func daoToTemplate(t dao.Template, uriBase string) Template {
+	if !strings.HasSuffix("/", uriBase) {
+		uriBase += "/"
+	}
+
 	m := Template{
 		Content: t.Content,
-		Path:    fmt.Sprintf("%s/templates/%s", uriBase, t.ID),
+		Path:    fmt.Sprintf("%stemplates/%s", uriBase, t.ID),
 	}
 
 	var zeroUUID uuid.UUID

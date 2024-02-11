@@ -165,10 +165,11 @@ func (api *EchoAPI) routesForTemplates(mid *middle.Provider, em jelly.EndpointMa
 	r.Get("/", api.HTTPGetAllTemplates(em))
 	r.Post("/", api.HTTPPostTemplate(em))
 
-	r.Get("/"+jelly.PathParam("id:uuid"), api.HTTPGetTemplate(em))
-	r.Put("/"+jelly.PathParam("id:uuid"), api.HTTPUpdateTemplate(mid, em))
-	r.Delete("/"+jelly.PathParam("id:uuid"), api.HTTPDeleteTemplate(mid, em))
-	r.HandleFunc("/"+jelly.PathParam("id:uuid")+"/", jelly.RedirectNoTrailingSlash)
+	r.Route("/"+jelly.PathParam("id:uuid"), func(r chi.Router) {
+		r.Get("/", api.HTTPGetTemplate(em))
+		r.Put("/", api.HTTPUpdateTemplate(mid, em))
+		r.Delete("/", api.HTTPDeleteTemplate(mid, em))
+	})
 
 	return r
 }
