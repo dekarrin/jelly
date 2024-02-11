@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func initDBWithMessages(ctx context.Context, log logging.Logger, repo dao.Templates, creator string, msgs []string) error {
+func initDBWithMessages(ctx context.Context, log logging.Logger, repo dao.Templates, creator uuid.UUID, msgs []string) error {
 	for _, m := range msgs {
 		dbMsg := dao.Template{
 			Content: m,
@@ -41,19 +41,24 @@ type Template struct {
 }
 
 // DAO creates a data abstraction object that represents this model. Conversion
-// of values is performed; while empty values are allowed for ID (and will
-// simply result in a nil ID in the returned object), non-empty invalid values
-// will cause an error.
+// of values is performed; while empty values are allowed for ID and Creator
+// (and will simply result in a zero-value ID in the returned object), non-empty
+// invalid values will cause an error.
 func (m Template) DAO() (dao.Template, error) {
 	var err error
 
 	t := dao.Template{
 		Content: m.Content,
-		Creator: m.Creator,
 	}
 
 	if m.ID != "" {
 		t.ID, err = uuid.Parse(m.ID)
+		if err != nil {
+			return t, err
+		}
+	}
+	if m.Creator != "" {
+		t.Creator, err = uuid.Parse(m.Creator)
 		if err != nil {
 			return t, err
 		}
@@ -76,15 +81,27 @@ func (t Template) Validate(requireFormatVerb bool) error {
 	return nil
 }
 
-func daoToTemplate(t dao.Template) Template {
+func daoToTemplates(ts []dao.Template, uriBase string) []Template {
+	output := make([]Template, len(ts))
+	for i := range ts {
+		output[i] = daoToTemplate(ts[i], uriBase)
+	}
+	return output
+}
+
+func daoToTemplate(t dao.Template, uriBase string) Template {
 	m := Template{
 		Content: t.Content,
-		Creator: t.Creator,
+		Path:    fmt.Sprintf("%s/templates/%s", uriBase, t.ID),
 	}
 
 	var zeroUUID uuid.UUID
+
 	if t.ID != zeroUUID {
 		m.ID = t.ID.String()
+	}
+	if t.Creator != zeroUUID {
+		m.Creator = t.Creator.String()
 	}
 
 	return m

@@ -16,6 +16,7 @@ import (
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 const (
@@ -200,19 +201,20 @@ func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log l
 	api.SecretMessages = store.SecretTemplates
 
 	ctx := context.Background()
+	var zeroUUID uuid.UUID
 
 	secretMsgs := cb.GetSlice(ConfigKeySecrets)
-	if err := initDBWithMessages(ctx, log, api.SecretMessages, "(config)", secretMsgs); err != nil {
+	if err := initDBWithMessages(ctx, log, api.SecretMessages, zeroUUID, secretMsgs); err != nil {
 		return err
 	}
 
 	niceMsgs := cb.GetSlice(ConfigKeyPolites)
-	if err := initDBWithMessages(ctx, log, api.NiceMessages, "(config)", niceMsgs); err != nil {
+	if err := initDBWithMessages(ctx, log, api.NiceMessages, zeroUUID, niceMsgs); err != nil {
 		return err
 	}
 
 	rudeMsgs := cb.GetSlice(ConfigKeyRudes)
-	if err := initDBWithMessages(ctx, log, api.RudeMessages, "(config)", rudeMsgs); err != nil {
+	if err := initDBWithMessages(ctx, log, api.RudeMessages, zeroUUID, rudeMsgs); err != nil {
 		return err
 	}
 

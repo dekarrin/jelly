@@ -9,7 +9,7 @@ import (
 type Template struct {
 	ID      uuid.UUID
 	Content string
-	Creator string
+	Creator uuid.UUID
 }
 
 func (m Template) ModelID() uuid.UUID {
