@@ -236,16 +236,21 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 
 func (api *HelloAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
 	niceTemplates := templateEndpoints{mid: mid, em: em, uriBase: api.uriBase, requireFormatVerb: false}
+	rudeTemplates := niceTemplates
+	secretTemplates := niceTemplates
+
 	niceTemplates.templates = api.nices
+	niceTemplates.uriBase += "/nice"
 	niceTemplates.name = "nice"
 
-	rudeTemplates := niceTemplates
 	rudeTemplates.templates = api.rudes
+	rudeTemplates.uriBase += "/rude"
 	rudeTemplates.name = "rude"
 
-	secretTemplates := niceTemplates
 	secretTemplates.templates = api.secrets
+	secretTemplates.uriBase += "/secret"
 	secretTemplates.name = "secret"
+	secretTemplates.requireFormatVerb = true
 
 	optAuth := mid.OptionalAuth()
 	reqAuth := mid.RequireAuth()
