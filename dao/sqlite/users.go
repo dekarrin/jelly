@@ -48,7 +48,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user dao.User) (dao.User, e
 	now := time.Now()
 	_, err = stmt.ExecContext(
 		ctx,
-		dbconv.UUID.ToDB(newUUID),
+		newUUID,
 		user.Username,
 		user.Password,
 		user.Role,
@@ -81,9 +81,8 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		var loginTime int64
 		var created int64
 		var modified int64
-		var id string
 		err = rows.Scan(
-			&id,
+			&user.ID,
 			&user.Username,
 			&user.Password,
 			&user.Role,
@@ -98,10 +97,6 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 			return nil, WrapDBError(err)
 		}
 
-		err = dbconv.UUID.FromDB(id, &user.ID)
-		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
-		}
 		err = dbconv.Email.FromDB(email, &user.Email)
 		if err != nil {
 			return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
@@ -136,7 +131,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
-		dbconv.UUID.ToDB(user.ID),
+		user.ID,
 		user.Username,
 		user.Password,
 		user.Role,
@@ -144,7 +139,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User
 		dbconv.Timestamp.ToDB(user.LastLogoutTime),
 		dbconv.Timestamp.ToDB(user.LastLoginTime),
 		dbconv.Timestamp.ToDB(time.Now()),
-		dbconv.UUID.ToDB(id),
+		id,
 	)
 	if err != nil {
 		return dao.User{}, WrapDBError(err)
@@ -164,7 +159,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 	user := dao.User{
 		Username: username,
 	}
-	var id string
 	var email string
 	var logout int64
 	var login int64
@@ -175,7 +169,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 		username,
 	)
 	err := row.Scan(
-		&id,
+		&user.ID,
 		&user.Password,
 		&user.Role,
 		&email,
@@ -189,10 +183,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 		return user, WrapDBError(err)
 	}
 
-	err = dbconv.UUID.FromDB(id, &user.ID)
-	if err != nil {
-		return user, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
-	}
 	err = dbconv.Email.FromDB(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
@@ -228,7 +218,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error
 	var modified int64
 
 	row := repo.DB.QueryRowContext(ctx, `SELECT username, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE id = ?;`,
-		dbconv.UUID.ToDB(id),
+		id,
 	)
 	err := row.Scan(
 		&user.Username,
@@ -275,7 +265,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, er
 		return curVal, err
 	}
 
-	res, err := repo.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, dbconv.UUID.ToDB(id))
+	res, err := repo.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
 		return curVal, WrapDBError(err)
 	}

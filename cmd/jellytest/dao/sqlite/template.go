@@ -8,7 +8,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/dao/sqlite/dbconv"
 	"github.com/google/uuid"
 )
 
@@ -54,7 +53,7 @@ func (store *templateStore) Create(ctx context.Context, t dao.Template) (dao.Tem
 
 	_, err = stmt.ExecContext(
 		ctx,
-		dbconv.UUID.ToDB(newUUID),
+		newUUID,
 		t.Content,
 		t.Creator,
 	)
@@ -73,7 +72,7 @@ func (store *templateStore) Get(ctx context.Context, id uuid.UUID) (dao.Template
 	row := store.db.QueryRowContext(ctx, `
 		SELECT content, creator FROM `+store.table+` 
 		WHERE id = ?;
-	`, dbconv.UUID.ToDB(id))
+	`, id)
 	err := row.Scan(
 		&t.Content,
 		&t.Creator,
@@ -100,20 +99,14 @@ func (store *templateStore) GetAll(ctx context.Context) ([]dao.Template, error) 
 
 	for rows.Next() {
 		var t dao.Template
-		var id string
 		err = rows.Scan(
-			&id,
+			&t.ID,
 			&t.Content,
 			&t.Creator,
 		)
 
 		if err != nil {
 			return nil, jelly.WrapSqliteError(err)
-		}
-
-		err = dbconv.UUID.FromDB(id, &t.ID)
-		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
 
 		all = append(all, t)
@@ -131,10 +124,10 @@ func (store *templateStore) Update(ctx context.Context, id uuid.UUID, t dao.Temp
 		UPDATE `+store.table+`
 		SET id=?, content=?, creator=?
 		WHERE id=?;`,
-		dbconv.UUID.ToDB(t.ID),
+		t.ID,
 		t.Content,
 		t.Creator,
-		dbconv.UUID.ToDB(id),
+		id,
 	)
 	if err != nil {
 		return dao.Template{}, jelly.WrapSqliteError(err)
@@ -159,7 +152,7 @@ func (store *templateStore) Delete(ctx context.Context, id uuid.UUID) (dao.Templ
 	res, err := store.db.ExecContext(ctx, `
 		DELETE FROM `+store.table+`
 		WHERE id = ?
-	`, dbconv.UUID.ToDB(id))
+	`, id)
 	if err != nil {
 		return curVal, jelly.WrapSqliteError(err)
 	}
@@ -205,18 +198,13 @@ func (store *templateStore) GetRandom(ctx context.Context) (dao.Template, error)
 		return dao.Template{}, jelly.WrapSqliteError(err)
 	}
 	row = stmt.QueryRowContext(ctx, selected)
-	var id string
 	err = row.Scan(
-		&id,
+		&t.ID,
 		&t.Content,
 		&t.Creator,
 	)
 	if err != nil {
 		return dao.Template{}, jelly.WrapSqliteError(err)
-	}
-	err = dbconv.UUID.FromDB(id, &t.ID)
-	if err != nil {
-		return t, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 	}
 
 	return t, nil

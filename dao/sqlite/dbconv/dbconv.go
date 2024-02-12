@@ -13,7 +13,6 @@ import (
 
 	"github.com/dekarrin/jelly/dao"
 	"github.com/dekarrin/jelly/serr"
-	"github.com/google/uuid"
 )
 
 // Converter holds functions to convert a value to and from its database
@@ -47,19 +46,6 @@ var Email = Converter[*mail.Address, string]{
 		}
 
 		*target = email
-		return nil
-	},
-}
-
-// UUID converts UUIDs to strings.
-var UUID = Converter[uuid.UUID, string]{
-	ToDB: uuid.UUID.String,
-	FromDB: func(s string, target *uuid.UUID) error {
-		u, err := uuid.Parse(s)
-		if err != nil {
-			return serr.New("", err, dao.ErrDecodingFailure)
-		}
-		*target = u
 		return nil
 	},
 }

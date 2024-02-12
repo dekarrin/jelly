@@ -105,7 +105,7 @@ type Repo[ID any, M Model[ID]] interface {
 	// GetOneBy(Filter).
 }
 
-type Role int
+type Role int64
 
 const (
 	Guest Role = iota
@@ -131,26 +131,17 @@ func (r Role) String() string {
 }
 
 func (r Role) Value() (driver.Value, error) {
-	return r.String(), nil
+	return int(r), nil
 }
 
 func (r *Role) Scan(value interface{}) error {
-	driverVal, err := driver.String.ConvertValue(value)
-	if err != nil {
-		return err
-	}
-
-	strVal, ok := driverVal.(string)
+	iVal, ok := value.(int64)
 	if !ok {
-		return fmt.Errorf("not a string value: %v", driverVal)
+		return fmt.Errorf("not an integer value: %v", value)
 	}
 
-	rVal, err := ParseRole(strVal)
-	if err != nil {
-		return err
-	}
+	*r = Role(iVal)
 
-	*r = rVal
 	return nil
 }
 
