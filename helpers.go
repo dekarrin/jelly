@@ -159,11 +159,30 @@ func combineOverrides(overs []Override) Override {
 	return newOver
 }
 
-type EndpointMaker struct {
+// EndpointCreator is passed to an API's Routes method and is used to access
+// jelly middleware and standardized endpoint function wrapping to produce an
+// http.HandlerFunc from an EndpointFunc.
+type EndpointCreator struct {
 	mid *middle.Provider
 }
 
-func (em EndpointMaker) Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
+func (em EndpointCreator) DontPanic() middle.Middleware {
+	return em.mid.DontPanic()
+}
+
+func (em EndpointCreator) OptionalAuth(authenticators ...string) middle.Middleware {
+	return em.mid.OptionalAuth(authenticators...)
+}
+
+func (em EndpointCreator) RequiredAuth(authenticators ...string) middle.Middleware {
+	return em.mid.RequiredAuth(authenticators...)
+}
+
+func (em EndpointCreator) SelectAuthenticator(authenticators ...string) middle.Authenticator {
+	return em.mid.SelectAuthenticator(authenticators...)
+}
+
+func (em EndpointCreator) Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
 	overs := combineOverrides(overrides)
 
 	return func(w http.ResponseWriter, req *http.Request) {

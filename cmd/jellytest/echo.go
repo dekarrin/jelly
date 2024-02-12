@@ -112,22 +112,21 @@ type EchoAPI struct {
 	uriBase string
 }
 
-func (echo *EchoAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log logging.Logger) error {
-	dbName := cb.UsesDBs()[0] // will exist, enforced by config.Validate
-	jellyStore := dbs[dbName]
+func (echo *EchoAPI) Init(cb jelly.Bundle) error {
+	jellyStore := cb.DB(0) // will exist, enforced by config.Validate
 	store, ok := jellyStore.(dao.Datastore)
 	if !ok {
 		return fmt.Errorf("received unexpected store type %T", jellyStore)
 	}
 
 	echo.store = store
-	echo.log = log
+	echo.log = cb.Logger()
 	echo.uriBase = cb.Base()
 	ctx := context.Background()
 
 	msgs := cb.GetSlice(ConfigKeyMessages)
 	var zeroUUID uuid.UUID
-	if err := initDBWithTemplates(ctx, log, echo.store.EchoTemplates, zeroUUID, msgs); err != nil {
+	if err := initDBWithTemplates(ctx, echo.log, echo.store.EchoTemplates, zeroUUID, msgs); err != nil {
 		return err
 	}
 
@@ -144,9 +143,8 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *EchoAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
+func (api *EchoAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpaths bool) {
 	templateEndpoints := templateEndpoints{
-		mid:               mid,
 		em:                em,
 		templates:         api.store.EchoTemplates,
 		uriBase:           api.uriBase,
@@ -154,7 +152,7 @@ func (api *EchoAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router
 		requireFormatVerb: true,
 	}
 
-	optAuth := mid.OptionalAuth()
+	optAuth := em.OptionalAuth()
 
 	r := chi.NewRouter()
 
@@ -167,7 +165,7 @@ func (api *EchoAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router
 func (ep templateEndpoints) routes() (router chi.Router) {
 	r := chi.NewRouter()
 
-	r.Use(ep.mid.RequireAuth())
+	r.Use(ep.em.RequiredAuth())
 
 	r.Get("/", ep.httpGetAllTemplates())
 	r.Post("/", ep.httpCreateTemplate())
@@ -186,7 +184,7 @@ type echoRequestBody struct {
 }
 
 // httpGetEcho returns a HandlerFunc that echoes the user message.
-func (api EchoAPI) httpGetEcho(em jelly.EndpointMaker) http.HandlerFunc {
+func (api EchoAPI) httpGetEcho(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		var echoData echoRequestBody
 

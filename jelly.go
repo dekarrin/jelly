@@ -52,16 +52,16 @@ func (env *Environment) initDefaults() {
 type API interface {
 
 	// Init creates the API initially and does any setup other than routing its
-	// endpoints. It takes in a complete config object, a map of dbs to
-	// connected stores, and a logger to use, which will never be nil. Only
-	// those stores requested in the API's config in the 'uses' key will be
-	// included here.
+	// endpoints. It takes in a bundle that allows access to API config object,
+	// connected DBs that the API is configured to use, a logger, and any other
+	// resources available to the initializing API. Only those stores requested
+	// in the API's config in the 'uses' key will be included in the bundle.
 	//
 	// The API should not expect that any other API has yet been initialized,
 	// during a call to Init, and should not attempt to use auth middleware that
 	// relies on other APIs (such as jellyauth's jwt provider). Defer actual
 	// usage to another function, such as Routes.
-	Init(cb config.Bundle, dbs map[string]dao.Store, log logging.Logger) error
+	Init(bndl Bundle) error
 
 	// Authenticators returns any configured authenticators that this API
 	// provides. Other APIs will be able to refer to these authenticators by
@@ -82,16 +82,16 @@ type API interface {
 	// path-terminal slashes are redirected in the base router the API
 	// router is mounted in.
 	//
-	// A middleware provider configured by the server's main config file is
-	// given for the creation of any needed middleware for the server to use.
-	// For convenience, an EndpointMaker is also provided which will wrap a
+	// An endpoint creator passed in provides access to creation of middleware
+	// configured by the server's main config file for the server to use.
+	// Additionally, it also provides an Endpoint method which will wrap a
 	// jelly-framework style endpoint in an http.HandlerFunc that will apply
 	// standard actions such as logging, error, and panic catching.
 	//
 	// Init is guaranteed to have been called for all APIs in the server before
 	// Routes is called, and it is safe to refer to middleware services that
 	// rely on other APIs within.
-	Routes(*middle.Provider, EndpointMaker) (router chi.Router, subpaths bool)
+	Routes(EndpointCreator) (router chi.Router, subpaths bool)
 
 	// Shutdown terminates any pending operations cleanly and releases any held
 	// resources. It will be called after the server listener socket is shut
@@ -361,7 +361,7 @@ func (rs *RESTServer) routeAllAPIs() chi.Router {
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
 			// TODO: remove subpaths once we realize inferred works
-			apiRouter, _ := api.Routes(env.middleProv, EndpointMaker{mid: env.middleProv})
+			apiRouter, _ := api.Routes(EndpointCreator{mid: env.middleProv})
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)
@@ -480,9 +480,15 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 		rs.basesToAPIs[base] = name
 	}
 
-	// make a sublogger
-	// TODO: after jellog is patched, add in use of api's name
-	if err := api.Init(apiConf, usedDBs, rs.log); err != nil {
+	// TODO: after jellog is patched, add in use of api's name to logger via use of sublogger
+
+	initBundle := Bundle{
+		Bundle: apiConf,
+		logger: rs.log,
+		dbs:    usedDBs,
+	}
+
+	if err := api.Init(initBundle); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
 	rs.log.Debugf("Successfully initialized API %q", name)
@@ -596,4 +602,27 @@ func (rs *RESTServer) Shutdown(ctx context.Context) error {
 	}
 
 	return fullError
+}
+
+type Bundle struct {
+	config.Bundle
+	logger logging.Logger
+	dbs    map[string]dao.Store
+}
+
+func (bndl Bundle) Logger() logging.Logger {
+	return bndl.logger
+}
+
+// DB gets the connection to the Nth DB listed in the API's uses. Panics if the API
+// config does not have at least n+1 entries.
+func (bndl Bundle) DB(n int) dao.Store {
+	dbName := bndl.UsesDBs()[n]
+	return bndl.DBNamed(dbName)
+}
+
+// NamedDB gets the exact DB with the given name. This will only return the DB if it
+// was configured as one of the used DBs for the API.
+func (bndl Bundle) DBNamed(name string) dao.Store {
+	return bndl.dbs[strings.ToLower(name)]
 }
