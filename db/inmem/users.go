@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	dao "github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/internal/jelsort"
 	"github.com/google/uuid"
 )
 
 func NewAuthUserRepository() *AuthUserRepo {
 	return &AuthUserRepo{
-		users:           make(map[uuid.UUID]dao.User),
+		users:           make(map[uuid.UUID]db.User),
 		byUsernameIndex: make(map[string]uuid.UUID),
 	}
 }
 
 type AuthUserRepo struct {
-	users           map[uuid.UUID]dao.User
+	users           map[uuid.UUID]db.User
 	byUsernameIndex map[string]uuid.UUID
 }
 
@@ -26,17 +26,17 @@ func (aur *AuthUserRepo) Close() error {
 	return nil
 }
 
-func (aur *AuthUserRepo) Create(ctx context.Context, user dao.User) (dao.User, error) {
+func (aur *AuthUserRepo) Create(ctx context.Context, user db.User) (db.User, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return db.User{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	user.ID = newUUID
 
 	// make sure it's not already in the DB
 	if _, ok := aur.byUsernameIndex[user.Username]; ok {
-		return dao.User{}, dao.ErrConstraintViolation
+		return db.User{}, db.ErrConstraintViolation
 	}
 
 	now := time.Now()
@@ -50,8 +50,8 @@ func (aur *AuthUserRepo) Create(ctx context.Context, user dao.User) (dao.User, e
 	return user, nil
 }
 
-func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]dao.User, error) {
-	all := make([]dao.User, len(aur.users))
+func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]db.User, error) {
+	all := make([]db.User, len(aur.users))
 
 	i := 0
 	for k := range aur.users {
@@ -59,17 +59,17 @@ func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]dao.User, error) {
 		i++
 	}
 
-	all = jelsort.By(all, func(l, r dao.User) bool {
+	all = jelsort.By(all, func(l, r db.User) bool {
 		return l.ID.String() < r.ID.String()
 	})
 
 	return all, nil
 }
 
-func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
+func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User) (db.User, error) {
 	existing, ok := aur.users[id]
 	if !ok {
-		return dao.User{}, dao.ErrNotFound
+		return db.User{}, db.ErrNotFound
 	}
 
 	// check for conflicts on this table only
@@ -77,12 +77,12 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user dao.User
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := aur.byUsernameIndex[user.Username]; ok {
-			return dao.User{}, dao.ErrConstraintViolation
+			return db.User{}, db.ErrConstraintViolation
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
 		if _, ok := aur.users[user.ID]; ok {
-			return dao.User{}, dao.ErrConstraintViolation
+			return db.User{}, db.ErrConstraintViolation
 		}
 	}
 
@@ -96,28 +96,28 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user dao.User
 	return user, nil
 }
 
-func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (dao.User, error) {
+func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (db.User, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return dao.User{}, dao.ErrNotFound
+		return db.User{}, db.ErrNotFound
 	}
 
 	return user, nil
 }
 
-func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (dao.User, error) {
+func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (db.User, error) {
 	userID, ok := aur.byUsernameIndex[username]
 	if !ok {
-		return dao.User{}, dao.ErrNotFound
+		return db.User{}, db.ErrNotFound
 	}
 
 	return aur.users[userID], nil
 }
 
-func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
+func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (db.User, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return dao.User{}, dao.ErrNotFound
+		return db.User{}, db.ErrNotFound
 	}
 
 	delete(aur.byUsernameIndex, user.Username)

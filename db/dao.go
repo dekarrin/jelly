@@ -1,4 +1,4 @@
-// Package dao provides data access objects compatible with the rest of the
+// Package db provides data access objects compatible with the rest of the
 // jelly framework packages.
 //
 // It includes basics as well as a sample implementation of Store that is
@@ -6,7 +6,7 @@
 //
 // TODO: call this package db or somefin and move auth-specific to middleware.
 // For sure by GHI-016 if not before.
-package dao
+package db
 
 import (
 	"context"

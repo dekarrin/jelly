@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/go-chi/chi/v5"
@@ -157,7 +157,7 @@ func (env *Environment) SetMainAuthenticator(name string) error {
 // RegisterConnector allows the specification of database connection methods.
 // The registered name can then be specified as the connector field of any DB
 // in config whose type is the given engine.
-func (env *Environment) RegisterConnector(engine config.DBType, name string, connector func(config.Database) (dao.Store, error)) error {
+func (env *Environment) RegisterConnector(engine config.DBType, name string, connector func(config.Database) (db.Store, error)) error {
 	env.initDefaults()
 	return env.connectors.Register(engine, name, connector)
 }
@@ -194,7 +194,7 @@ type RESTServer struct {
 	apis        map[string]API
 	apiBases    map[string]string
 	basesToAPIs map[string]string // used for tracking that APIs do not eat each other
-	dbs         map[string]dao.Store
+	dbs         map[string]db.Store
 	cfg         config.Config // config that it was started with.
 
 	log logging.Logger // used for logging. if logging disabled, this will be set to a no-op logger
@@ -235,7 +235,7 @@ func (env *Environment) NewServer(cfg *config.Config) (RESTServer, error) {
 	}
 
 	// connect DBs
-	dbs := map[string]dao.Store{}
+	dbs := map[string]db.Store{}
 	for name, db := range cfg.DBs {
 		db, err := env.connectors.Connect(db)
 		if err != nil {
@@ -459,7 +459,7 @@ func (rs *RESTServer) initAPI(name string, api API) (string, error) {
 	apiConf := rs.getAPIConfigBundle(name)
 
 	// find the actual dbs it uses
-	usedDBs := map[string]dao.Store{}
+	usedDBs := map[string]db.Store{}
 	usedDBNames := apiConf.UsesDBs()
 
 	for _, dbName := range usedDBNames {
@@ -607,7 +607,7 @@ func (rs *RESTServer) Shutdown(ctx context.Context) error {
 type Bundle struct {
 	config.Bundle
 	logger logging.Logger
-	dbs    map[string]dao.Store
+	dbs    map[string]db.Store
 }
 
 func (bndl Bundle) Logger() logging.Logger {
@@ -616,13 +616,13 @@ func (bndl Bundle) Logger() logging.Logger {
 
 // DB gets the connection to the Nth DB listed in the API's uses. Panics if the API
 // config does not have at least n+1 entries.
-func (bndl Bundle) DB(n int) dao.Store {
+func (bndl Bundle) DB(n int) db.Store {
 	dbName := bndl.UsesDBs()[n]
 	return bndl.DBNamed(dbName)
 }
 
 // NamedDB gets the exact DB with the given name. This will only return the DB if it
 // was configured as one of the used DBs for the API.
-func (bndl Bundle) DBNamed(name string) dao.Store {
+func (bndl Bundle) DBNamed(name string) db.Store {
 	return bndl.dbs[strings.ToLower(name)]
 }

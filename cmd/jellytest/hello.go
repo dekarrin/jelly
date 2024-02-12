@@ -11,7 +11,7 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/config"
-	jellydao "github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -282,7 +282,7 @@ func (api HelloAPI) httpGetNice(em jelly.EndpointCreator) http.HandlerFunc {
 		userStr := "unauthed client"
 		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
@@ -306,7 +306,7 @@ func (api HelloAPI) httpGetRude(em jelly.EndpointCreator) http.HandlerFunc {
 		userStr := "unauthed client"
 		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
@@ -350,7 +350,7 @@ func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
 		userStr := "unauthed client"
 		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
@@ -363,7 +363,7 @@ func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
 // available only for logged-in users.
 func (api HelloAPI) httpGetSecret(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
-		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 		userStr := "user '" + user.Username + "'"
 
 		msg, err := api.secrets.GetRandom(req.Context())

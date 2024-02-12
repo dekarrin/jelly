@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"modernc.org/sqlite"
 )
 
 // AuthUserStore is a SQLite database that is compatible with built-in jelly
-// user authentication mechanisms. It implements jeldao.AuthUserStore and it can
+// user authentication mechanisms. It implements jeldb.AuthUserStore and it can
 // be easily integrated into custom structs by embedding it.
 //
 // Its zero-value should not be used; call NewAuthUserStore to get an
@@ -44,7 +44,7 @@ func NewAuthUserStore(storageDir string) (*AuthUserStore, error) {
 	return st, nil
 }
 
-func (aus *AuthUserStore) AuthUsers() dao.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() db.AuthUserRepo {
 	return aus.users
 }
 
@@ -70,7 +70,7 @@ func WrapDBError(err error) error {
 	if errors.As(err, &sqliteErr) {
 		primaryCode := sqliteErr.Code() & 0xff
 		if primaryCode == 19 {
-			return fmt.Errorf("%w: %s", dao.ErrConstraintViolation, err.Error())
+			return fmt.Errorf("%w: %s", db.ErrConstraintViolation, err.Error())
 		}
 		if primaryCode == 1 {
 			// this is a generic error and thus the string is not descriptive,
@@ -79,7 +79,7 @@ func WrapDBError(err error) error {
 		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
-		return dao.ErrNotFound
+		return db.ErrNotFound
 	}
 	return err
 }

@@ -10,7 +10,7 @@ import (
 	"net/mail"
 	"time"
 
-	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
 )
 
@@ -41,7 +41,7 @@ var Email = Converter[*mail.Address, string]{
 
 		email, err := mail.ParseAddress(s)
 		if err != nil {
-			return serr.New("", err, dao.ErrDecodingFailure)
+			return serr.New("", err, db.ErrDecodingFailure)
 		}
 
 		*target = email

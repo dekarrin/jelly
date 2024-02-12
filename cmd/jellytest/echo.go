@@ -9,7 +9,7 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/config"
-	jellydao "github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -205,7 +205,7 @@ func (api EchoAPI) httpGetEcho(em jelly.EndpointCreator) http.HandlerFunc {
 		userStr := "unauthed client"
 		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(jellydao.User)
+			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}

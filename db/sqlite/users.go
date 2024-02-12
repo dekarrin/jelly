@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/dao/sqlite/dbconv"
+	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly/db/sqlite/dbconv"
 	"github.com/google/uuid"
 )
 
@@ -34,15 +34,15 @@ func (repo *AuthUsersDB) init() error {
 	return nil
 }
 
-func (repo *AuthUsersDB) Create(ctx context.Context, user dao.User) (dao.User, error) {
+func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return db.User{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return dao.User{}, WrapDBError(err)
+		return db.User{}, WrapDBError(err)
 	}
 
 	now := time.Now()
@@ -59,23 +59,23 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user dao.User) (dao.User, e
 		dbconv.Timestamp.ToDB(time.Time{}),
 	)
 	if err != nil {
-		return dao.User{}, WrapDBError(err)
+		return db.User{}, WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
 }
 
-func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
+func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
 		return nil, WrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []dao.User
+	var all []db.User
 
 	for rows.Next() {
-		var user dao.User
+		var user db.User
 		var email string
 		var logoutTime int64
 		var loginTime int64
@@ -128,7 +128,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 	return all, nil
 }
 
-func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User) (db.User, error) {
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		user.ID,
@@ -142,21 +142,21 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User
 		id,
 	)
 	if err != nil {
-		return dao.User{}, WrapDBError(err)
+		return db.User{}, WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return dao.User{}, WrapDBError(err)
+		return db.User{}, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return dao.User{}, dao.ErrNotFound
+		return db.User{}, db.ErrNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
 }
 
-func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (dao.User, error) {
-	user := dao.User{
+func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db.User, error) {
+	user := db.User{
 		Username: username,
 	}
 	var email string
@@ -207,8 +207,8 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 	return user, nil
 }
 
-func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error) {
-	user := dao.User{
+func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error) {
+	user := db.User{
 		ID: id,
 	}
 	var email string
@@ -259,7 +259,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error
 	return user, nil
 }
 
-func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
+func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (db.User, error) {
 	curVal, err := repo.Get(ctx, id)
 	if err != nil {
 		return curVal, err
@@ -274,7 +274,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, er
 		return curVal, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, dao.ErrNotFound
+		return curVal, db.ErrNotFound
 	}
 
 	return curVal, nil
