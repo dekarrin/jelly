@@ -187,11 +187,10 @@ type HelloAPI struct {
 	uriBase string
 }
 
-func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log logging.Logger) error {
-	api.log = log
+func (api *HelloAPI) Init(cb jelly.Bundle) error {
+	api.log = cb.Logger()
 
-	dbName := cb.UsesDBs()[0] // will exist, enforced by config.Validate
-	jellyStore := dbs[dbName]
+	jellyStore := cb.DB(0) // will exist, enforced by config.Validate
 	store, ok := jellyStore.(dao.Datastore)
 	if !ok {
 		return fmt.Errorf("received unexpected store type %T", jellyStore)
@@ -207,17 +206,17 @@ func (api *HelloAPI) Init(cb config.Bundle, dbs map[string]jellydao.Store, log l
 	var zeroUUID uuid.UUID
 
 	secretMsgs := cb.GetSlice(ConfigKeySecrets)
-	if err := initDBWithTemplates(ctx, log, api.secrets, zeroUUID, secretMsgs); err != nil {
+	if err := initDBWithTemplates(ctx, api.log, api.secrets, zeroUUID, secretMsgs); err != nil {
 		return err
 	}
 
 	niceMsgs := cb.GetSlice(ConfigKeyPolites)
-	if err := initDBWithTemplates(ctx, log, api.nices, zeroUUID, niceMsgs); err != nil {
+	if err := initDBWithTemplates(ctx, api.log, api.nices, zeroUUID, niceMsgs); err != nil {
 		return err
 	}
 
 	rudeMsgs := cb.GetSlice(ConfigKeyRudes)
-	if err := initDBWithTemplates(ctx, log, api.rudes, zeroUUID, rudeMsgs); err != nil {
+	if err := initDBWithTemplates(ctx, api.log, api.rudes, zeroUUID, rudeMsgs); err != nil {
 		return err
 	}
 
@@ -234,8 +233,8 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *HelloAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (router chi.Router, subpaths bool) {
-	niceTemplates := templateEndpoints{mid: mid, em: em, uriBase: api.uriBase, requireFormatVerb: false}
+func (api *HelloAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpaths bool) {
+	niceTemplates := templateEndpoints{em: em, uriBase: api.uriBase, requireFormatVerb: false}
 	rudeTemplates := niceTemplates
 	secretTemplates := niceTemplates
 
@@ -252,8 +251,8 @@ func (api *HelloAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (route
 	secretTemplates.name = "secret"
 	secretTemplates.requireFormatVerb = true
 
-	optAuth := mid.OptionalAuth()
-	reqAuth := mid.RequireAuth()
+	optAuth := em.OptionalAuth()
+	reqAuth := em.RequiredAuth()
 
 	r := chi.NewRouter()
 
@@ -269,7 +268,7 @@ func (api *HelloAPI) Routes(mid *middle.Provider, em jelly.EndpointMaker) (route
 }
 
 // httpGetNice returns a HandlerFunc that returns a polite greeting message.
-func (api HelloAPI) httpGetNice(em jelly.EndpointMaker) http.HandlerFunc {
+func (api HelloAPI) httpGetNice(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		msg, err := api.nices.GetRandom(req.Context())
 		if err != nil {
@@ -293,7 +292,7 @@ func (api HelloAPI) httpGetNice(em jelly.EndpointMaker) http.HandlerFunc {
 }
 
 // httpGetRude returns a HandlerFunc that returns a rude greeting message.
-func (api HelloAPI) httpGetRude(em jelly.EndpointMaker) http.HandlerFunc {
+func (api HelloAPI) httpGetRude(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		msg, err := api.rudes.GetRandom(req.Context())
 		if err != nil {
@@ -317,7 +316,7 @@ func (api HelloAPI) httpGetRude(em jelly.EndpointMaker) http.HandlerFunc {
 }
 
 // httpGetRandom returns a HandlerFunc that returns a random greeting message.
-func (api HelloAPI) httpGetRandom(em jelly.EndpointMaker) http.HandlerFunc {
+func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		var resp messageResponseBody
 		var msg dao.Template
@@ -362,7 +361,7 @@ func (api HelloAPI) httpGetRandom(em jelly.EndpointMaker) http.HandlerFunc {
 
 // httpGetSecret returns a HandlerFunc that returns a secret greeting message
 // available only for logged-in users.
-func (api HelloAPI) httpGetSecret(em jelly.EndpointMaker) http.HandlerFunc {
+func (api HelloAPI) httpGetSecret(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		user := req.Context().Value(middle.AuthUser).(jellydao.User)
 		userStr := "user '" + user.Username + "'"

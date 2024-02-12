@@ -111,8 +111,7 @@ func daoToTemplate(t dao.Template, uriBase string) Template {
 
 type templateEndpoints struct {
 	templates         dao.Templates
-	em                jelly.EndpointMaker
-	mid               *middle.Provider
+	em                jelly.EndpointCreator
 	uriBase           string
 	name              string
 	requireFormatVerb bool
@@ -197,7 +196,7 @@ func (ep templateEndpoints) httpCreateTemplate() http.HandlerFunc {
 }
 
 func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
-	authService := ep.mid.SelectAuthenticator().Service()
+	authService := ep.em.SelectAuthenticator().Service()
 
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
 		id := jelly.RequireIDParam(req)
@@ -253,7 +252,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 }
 
 func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
-	authService := ep.mid.SelectAuthenticator().Service()
+	authService := ep.em.SelectAuthenticator().Service()
 
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
 		id := jelly.RequireIDParam(req)

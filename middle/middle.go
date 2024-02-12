@@ -337,12 +337,12 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ah.next.ServeHTTP(w, req)
 }
 
-// RequireAuth returns middleware that requires that auth be used. The
+// RequiredAuth returns middleware that requires that auth be used. The
 // authenticators, if provided, must give the names of preferred providers that
 // were registered as an Authenticator with this package, in priority order. If
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
-func (p Provider) RequireAuth(authenticators ...string) Middleware {
+func (p Provider) RequiredAuth(authenticators ...string) Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
