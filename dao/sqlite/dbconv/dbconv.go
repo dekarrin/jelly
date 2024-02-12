@@ -7,7 +7,6 @@
 package dbconv
 
 import (
-	"encoding/base64"
 	"net/mail"
 	"time"
 
@@ -56,24 +55,6 @@ var Timestamp = Converter[time.Time, int64]{
 	FromDB: func(i int64, target *time.Time) error {
 		t := time.Unix(i, 0)
 		*target = t
-		return nil
-	},
-}
-
-// Base64EncodedBytes converts a slice of bytes to a base-64 encoded string.
-var Base64EncodedBytes = Converter[[]byte, string]{
-	ToDB: func(b []byte) string {
-		if len(b) < 1 {
-			return ""
-		}
-		return base64.StdEncoding.EncodeToString(b)
-	},
-	FromDB: func(s string, target *[]byte) error {
-		decoded, err := base64.StdEncoding.DecodeString(s)
-		if err != nil {
-			return serr.New("", err, dao.ErrDecodingFailure)
-		}
-		*target = decoded
 		return nil
 	},
 }

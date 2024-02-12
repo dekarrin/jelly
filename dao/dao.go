@@ -131,7 +131,7 @@ func (r Role) String() string {
 }
 
 func (r Role) Value() (driver.Value, error) {
-	return int(r), nil
+	return int64(r), nil
 }
 
 func (r *Role) Scan(value interface{}) error {

@@ -3,7 +3,7 @@
 *.swp
 .DS_Store
 
-db/
+test-db/
 authdb/
 /jellytest
 *.exe
