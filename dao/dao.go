@@ -3,10 +3,14 @@
 //
 // It includes basics as well as a sample implementation of Store that is
 // compatible with jelly auth middleware.
+//
+// TODO: call this package db or somefin and move auth-specific to middleware.
+// For sure by GHI-016 if not before.
 package dao
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net/mail"
@@ -124,6 +128,30 @@ func (r Role) String() string {
 	default:
 		return fmt.Sprintf("Role(%d)", r)
 	}
+}
+
+func (r Role) Value() (driver.Value, error) {
+	return r.String(), nil
+}
+
+func (r *Role) Scan(value interface{}) error {
+	driverVal, err := driver.String.ConvertValue(value)
+	if err != nil {
+		return err
+	}
+
+	strVal, ok := driverVal.(string)
+	if !ok {
+		return fmt.Errorf("not a string value: %v", driverVal)
+	}
+
+	rVal, err := ParseRole(strVal)
+	if err != nil {
+		return err
+	}
+
+	*r = rVal
+	return nil
 }
 
 func ParseRole(s string) (Role, error) {

@@ -51,7 +51,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user dao.User) (dao.User, e
 		dbconv.UUID.ToDB(newUUID),
 		user.Username,
 		user.Password,
-		dbconv.AuthUserRole.ToDB(user.Role),
+		user.Role,
 		dbconv.Email.ToDB(user.Email),
 		dbconv.Timestamp.ToDB(now),
 		dbconv.Timestamp.ToDB(now),
@@ -81,13 +81,12 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		var loginTime int64
 		var created int64
 		var modified int64
-		var role string
 		var id string
 		err = rows.Scan(
 			&id,
 			&user.Username,
 			&user.Password,
-			&role,
+			&user.Role,
 			&email,
 			&created,
 			&modified,
@@ -123,10 +122,6 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		if err != nil {
 			return all, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 		}
-		err = dbconv.AuthUserRole.FromDB(role, &user.Role)
-		if err != nil {
-			return all, fmt.Errorf("stored role %q is invalid: %w", role, err)
-		}
 
 		all = append(all, user)
 	}
@@ -144,7 +139,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User
 		dbconv.UUID.ToDB(user.ID),
 		user.Username,
 		user.Password,
-		dbconv.AuthUserRole.ToDB(user.Role),
+		user.Role,
 		dbconv.Email.ToDB(user.Email),
 		dbconv.Timestamp.ToDB(user.LastLogoutTime),
 		dbconv.Timestamp.ToDB(user.LastLoginTime),
@@ -170,7 +165,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 		Username: username,
 	}
 	var id string
-	var role string
 	var email string
 	var logout int64
 	var login int64
@@ -183,7 +177,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 	err := row.Scan(
 		&id,
 		&user.Password,
-		&role,
+		&user.Role,
 		&email,
 		&created,
 		&modified,
@@ -219,10 +213,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (da
 	if err != nil {
 		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 	}
-	err = dbconv.AuthUserRole.FromDB(role, &user.Role)
-	if err != nil {
-		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
-	}
 
 	return user, nil
 }
@@ -231,7 +221,6 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error
 	user := dao.User{
 		ID: id,
 	}
-	var role string
 	var email string
 	var logout int64
 	var login int64
@@ -244,7 +233,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error
 	err := row.Scan(
 		&user.Username,
 		&user.Password,
-		&role,
+		&user.Role,
 		&email,
 		&created,
 		&modified,
@@ -275,10 +264,6 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (dao.User, error
 	err = dbconv.Timestamp.FromDB(modified, &user.Modified)
 	if err != nil {
 		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
-	}
-	err = dbconv.AuthUserRole.FromDB(role, &user.Role)
-	if err != nil {
-		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
 	}
 
 	return user, nil

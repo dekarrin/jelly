@@ -26,20 +26,6 @@ type Converter[N any, DB any] struct {
 	FromDB func(DB, *N) error // TODO: update this to just be func(DB) (N, error).
 }
 
-// AuthUserRole converts the role of the built-in jelly framework auth users to
-// a string value.
-var AuthUserRole = Converter[dao.Role, string]{
-	ToDB: dao.Role.String,
-	FromDB: func(s string, target *dao.Role) error {
-		r, err := dao.ParseRole(s)
-		if err != nil {
-			return serr.New("", err, dao.ErrDecodingFailure)
-		}
-		*target = r
-		return nil
-	},
-}
-
 // Email converts email addresses to strings. When reading a string from the DB,
 // an empty string will return a nil *mail.Address and a non-nil error.
 var Email = Converter[*mail.Address, string]{
