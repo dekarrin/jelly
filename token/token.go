@@ -45,7 +45,7 @@ func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUser
 		var signKey []byte
 		signKey = append(signKey, secret...)
 		signKey = append(signKey, []byte(user.Password)...)
-		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogoutTime.Unix()))...)
+		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogout.Time().Unix()))...)
 		return signKey, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
@@ -91,7 +91,7 @@ func Generate(secret []byte, u db.User) (string, error) {
 	var signKey []byte
 	signKey = append(signKey, secret...)
 	signKey = append(signKey, []byte(u.Password)...)
-	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogoutTime.Unix()))...)
+	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogout.Time().Unix()))...)
 
 	tokStr, err := tok.SignedString(signKey)
 	if err != nil {

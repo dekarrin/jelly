@@ -300,8 +300,8 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
 			Role:           users[i].Role.String(),
 			Created:        users[i].Created.Format(time.RFC3339),
 			Modified:       users[i].Modified.Format(time.RFC3339),
-			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
-			LastLoginTime:  users[i].LastLoginTime.Format(time.RFC3339),
+			LastLogoutTime: users[i].LastLogout.Format(time.RFC3339),
+			LastLoginTime:  users[i].LastLogin.Format(time.RFC3339),
 		}
 		if users[i].Email != nil {
 			resp[i].Email = users[i].Email.Address
@@ -366,8 +366,8 @@ func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 		Role:           newUser.Role.String(),
 		Created:        newUser.Created.Format(time.RFC3339),
 		Modified:       newUser.Modified.Format(time.RFC3339),
-		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
+		LastLogoutTime: newUser.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLogin.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {
@@ -426,8 +426,8 @@ func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 		Role:           userInfo.Role.String(),
 		Created:        userInfo.Created.Format(time.RFC3339),
 		Modified:       userInfo.Modified.Format(time.RFC3339),
-		LastLogoutTime: userInfo.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  userInfo.LastLoginTime.Format(time.RFC3339),
+		LastLogoutTime: userInfo.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  userInfo.LastLogin.Format(time.RFC3339),
 	}
 	if userInfo.Email != nil {
 		resp.Email = userInfo.Email.Address
@@ -556,8 +556,8 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 		Role:           updated.Role.String(),
 		Created:        updated.Created.Format(time.RFC3339),
 		Modified:       updated.Modified.Format(time.RFC3339),
-		LastLogoutTime: updated.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  updated.LastLoginTime.Format(time.RFC3339),
+		LastLogoutTime: updated.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  updated.LastLogin.Format(time.RFC3339),
 	}
 
 	if updated.Email != nil {
@@ -641,8 +641,8 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 		Role:           newUser.Role.String(),
 		Created:        newUser.Created.Format(time.RFC3339),
 		Modified:       newUser.Modified.Format(time.RFC3339),
-		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
+		LastLogoutTime: newUser.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLogin.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {

@@ -105,9 +105,17 @@ type Repo[ID any, M Model[ID]] interface {
 	// GetOneBy(Filter).
 }
 
+func NowTimestamp() Timestamp {
+	return Timestamp(time.Now())
+}
+
 // Timestamp is a time.Time variation that stores itself in the DB as the number
 // of seconds since the Unix epoch.
 type Timestamp time.Time
+
+func (ts Timestamp) Format(layout string) string {
+	return ts.Time().Format(layout)
+}
 
 func (ts Timestamp) Value() (driver.Value, error) {
 	return time.Time(ts).Unix, nil
@@ -187,15 +195,15 @@ func ParseRole(s string) (Role, error) {
 // User is an auth model for use in the pre-rolled auth mechanism of user-in-db
 // and login identified via JWT.
 type User struct {
-	ID             uuid.UUID     // PK, NOT NULL
-	Username       string        // UNIQUE, NOT NULL
-	Password       string        // NOT NULL
-	Email          *mail.Address // NOT NULL
-	Role           Role          // NOT NULL
-	Created        Timestamp     // NOT NULL
-	Modified       Timestamp     // NOT NULL
-	LastLogoutTime Timestamp     // NOT NULL DEFAULT NOW() TODO: just LastLogout
-	LastLoginTime  Timestamp     // NOT NULL
+	ID         uuid.UUID     // PK, NOT NULL
+	Username   string        // UNIQUE, NOT NULL
+	Password   string        // NOT NULL
+	Email      *mail.Address // NOT NULL
+	Role       Role          // NOT NULL
+	Created    Timestamp     // NOT NULL
+	Modified   Timestamp     // NOT NULL
+	LastLogout Timestamp     // NOT NULL DEFAULT NOW() TODO: just LastLogout
+	LastLogin  Timestamp     // NOT NULL
 }
 
 func (u User) ModelID() uuid.UUID {

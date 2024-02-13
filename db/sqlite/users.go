@@ -85,8 +85,8 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 			&email,
 			&user.Created,
 			&user.Modified,
-			&user.LastLogoutTime,
-			&user.LastLoginTime,
+			&user.LastLogout,
+			&user.LastLogin,
 		)
 
 		if err != nil {
@@ -116,8 +116,8 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User)
 		user.Password,
 		user.Role,
 		dbconv.Email.ToDB(user.Email),
-		user.LastLogoutTime,
-		user.LastLoginTime,
+		user.LastLogout,
+		user.LastLogin,
 		db.Timestamp(time.Now()),
 		id,
 	)
@@ -151,8 +151,8 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 		&email,
 		&user.Created,
 		&user.Modified,
-		&user.LastLogoutTime,
-		&user.LastLoginTime,
+		&user.LastLogout,
+		&user.LastLogin,
 	)
 
 	if err != nil {
@@ -183,8 +183,8 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 		&email,
 		&user.Created,
 		&user.Modified,
-		&user.LastLogoutTime,
-		&user.LastLoginTime,
+		&user.LastLogout,
+		&user.LastLogin,
 	)
 
 	if err != nil {

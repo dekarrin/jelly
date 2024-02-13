@@ -40,7 +40,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, user db.User) (db.User, err
 	}
 
 	now := db.Timestamp(time.Now())
-	user.LastLogoutTime = now
+	user.LastLogout = now
 	user.Created = now
 	user.Modified = now
 

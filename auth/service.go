@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/mail"
-	"time"
 
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
@@ -55,7 +54,7 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 	}
 
 	// successful login; update the DB
-	user.LastLoginTime = time.Now()
+	user.LastLogin = db.NowTimestamp()
 	user, err = svc.Provider.AuthUsers().Update(ctx, user.ID, user)
 	if err != nil {
 		return db.User{}, serr.WrapDB("cannot update user login time", err)
@@ -80,7 +79,7 @@ func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (db.User, err
 		return db.User{}, serr.WrapDB("could not retrieve user", err)
 	}
 
-	existing.LastLogoutTime = time.Now()
+	existing.LastLogout = db.NowTimestamp()
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, existing.ID, existing)
 	if err != nil {
