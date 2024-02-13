@@ -216,7 +216,7 @@ func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 			if !errors.Is(err, serr.ErrNotFound) {
 				return response.InternalServerError("retrieve user for perm checking: %s", err.Error())
 			}
-			otherUserStr = fmt.Sprintf("%d", id)
+			otherUserStr = id.String()
 		} else {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
@@ -395,7 +395,7 @@ func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
 		if err != nil {
-			otherUserStr = fmt.Sprintf("%d", id)
+			otherUserStr = id.String()
 		} else {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
@@ -462,7 +462,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
 		if err != nil {
-			otherUserStr = fmt.Sprintf("%d", id)
+			otherUserStr = id.String()
 		} else {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
@@ -660,7 +660,7 @@ func (api LoginAPI) epDeleteUser(req *http.Request) response.Result {
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
 		if err != nil {
-			otherUserStr = fmt.Sprintf("%d", id)
+			otherUserStr = id.String()
 		} else {
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
