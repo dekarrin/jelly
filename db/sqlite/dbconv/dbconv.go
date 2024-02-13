@@ -6,13 +6,6 @@
 // Converters defined here.
 package dbconv
 
-import (
-	"net/mail"
-
-	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/serr"
-)
-
 // Converter holds functions to convert a value to and from its database
 // representation. The type param N is the native type and DB is the type in the
 // database.
@@ -21,29 +14,4 @@ import (
 type Converter[N any, DB any] struct {
 	ToDB   func(N) DB
 	FromDB func(DB, *N) error // TODO: update this to just be func(DB) (N, error).
-}
-
-// Email converts email addresses to strings. When reading a string from the DB,
-// an empty string will return a nil *mail.Address and a non-nil error.
-var Email = Converter[*mail.Address, string]{
-	ToDB: func(email *mail.Address) string {
-		if email == nil {
-			return ""
-		}
-		return email.Address
-	},
-	FromDB: func(s string, target **mail.Address) error {
-		if s == "" {
-			*target = nil
-			return nil
-		}
-
-		email, err := mail.ParseAddress(s)
-		if err != nil {
-			return serr.New("", err, db.ErrDecodingFailure)
-		}
-
-		*target = email
-		return nil
-	},
 }

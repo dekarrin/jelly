@@ -302,9 +302,7 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
 			Modified:       users[i].Modified.Format(time.RFC3339),
 			LastLogoutTime: users[i].LastLogout.Format(time.RFC3339),
 			LastLoginTime:  users[i].LastLogin.Format(time.RFC3339),
-		}
-		if users[i].Email != nil {
-			resp[i].Email = users[i].Email.Address
+			Email:          users[i].Email.String(),
 		}
 	}
 
@@ -368,10 +366,7 @@ func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 		Modified:       newUser.Modified.Format(time.RFC3339),
 		LastLogoutTime: newUser.LastLogout.Format(time.RFC3339),
 		LastLoginTime:  newUser.LastLogin.Format(time.RFC3339),
-	}
-
-	if newUser.Email != nil {
-		resp.Email = newUser.Email.Address
+		Email:          newUser.Email.String(),
 	}
 
 	return response.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
@@ -428,9 +423,7 @@ func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 		Modified:       userInfo.Modified.Format(time.RFC3339),
 		LastLogoutTime: userInfo.LastLogout.Format(time.RFC3339),
 		LastLoginTime:  userInfo.LastLogin.Format(time.RFC3339),
-	}
-	if userInfo.Email != nil {
-		resp.Email = userInfo.Email.Address
+		Email:          userInfo.Email.String(),
 	}
 
 	var otherStr string
@@ -511,8 +504,8 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 	}
 
 	var newEmail string
-	if existing.Email != nil {
-		newEmail = existing.Email.Address
+	if existing.Email.V != nil {
+		newEmail = existing.Email.V.Address
 	}
 	if updateReq.Email.Update {
 		newEmail = updateReq.Email.Value
@@ -558,10 +551,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 		Modified:       updated.Modified.Format(time.RFC3339),
 		LastLogoutTime: updated.LastLogout.Format(time.RFC3339),
 		LastLoginTime:  updated.LastLogin.Format(time.RFC3339),
-	}
-
-	if updated.Email != nil {
-		resp.Email = updated.Email.Address
+		Email:          updated.Email.String(),
 	}
 
 	return response.Created(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
@@ -624,7 +614,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 	}
 
 	// but also update it immediately to set its user ID
-	newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
+	newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.String(), newUser.Role)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
 			return response.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
@@ -643,10 +633,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 		Modified:       newUser.Modified.Format(time.RFC3339),
 		LastLogoutTime: newUser.LastLogout.Format(time.RFC3339),
 		LastLoginTime:  newUser.LastLogin.Format(time.RFC3339),
-	}
-
-	if newUser.Email != nil {
-		resp.Email = newUser.Email.Address
+		Email:          newUser.Email.String(),
 	}
 
 	return response.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)

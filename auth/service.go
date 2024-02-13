@@ -195,7 +195,7 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 	newUser := db.User{
 		Username: username,
 		Password: storedPass,
-		Email:    storedEmail,
+		Email:    db.Email{V: storedEmail},
 		Role:     role,
 	}
 
@@ -272,7 +272,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 		}
 	}
 
-	daoUser.Email = storedEmail
+	daoUser.Email.V = storedEmail
 	daoUser.ID = uuidNewID
 	daoUser.Username = username
 	daoUser.Role = role

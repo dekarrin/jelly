@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dekarrin/jelly/serr"
 	"github.com/google/uuid"
 )
 
@@ -136,6 +137,41 @@ func (ts Timestamp) Time() time.Time {
 	return time.Time(ts)
 }
 
+// Email is a mail.Addresss that stores itself as a string.
+type Email struct {
+	V *mail.Address
+}
+
+func (em Email) String() string {
+	if em.V == nil {
+		return ""
+	}
+	return em.V.Address
+}
+
+func (em Email) Value() (driver.Value, error) {
+	return em.String(), nil
+}
+
+func (em *Email) Scan(value interface{}) error {
+	s, ok := value.(string)
+	if !ok {
+		return serr.New(fmt.Sprintf("not an integer value: %v", value), ErrDecodingFailure)
+	}
+	if s == "" {
+		em.V = nil
+		return nil
+	}
+
+	email, err := mail.ParseAddress(s)
+	if err != nil {
+		return serr.New("", err, ErrDecodingFailure)
+	}
+
+	em.V = email
+	return nil
+}
+
 type Role int64
 
 const (
@@ -195,15 +231,15 @@ func ParseRole(s string) (Role, error) {
 // User is an auth model for use in the pre-rolled auth mechanism of user-in-db
 // and login identified via JWT.
 type User struct {
-	ID         uuid.UUID     // PK, NOT NULL
-	Username   string        // UNIQUE, NOT NULL
-	Password   string        // NOT NULL
-	Email      *mail.Address // NOT NULL
-	Role       Role          // NOT NULL
-	Created    Timestamp     // NOT NULL
-	Modified   Timestamp     // NOT NULL
-	LastLogout Timestamp     // NOT NULL DEFAULT NOW() TODO: just LastLogout
-	LastLogin  Timestamp     // NOT NULL
+	ID         uuid.UUID // PK, NOT NULL
+	Username   string    // UNIQUE, NOT NULL
+	Password   string    // NOT NULL
+	Email      Email     // NOT NULL
+	Role       Role      // NOT NULL
+	Created    Timestamp // NOT NULL
+	Modified   Timestamp // NOT NULL
+	LastLogout Timestamp // NOT NULL DEFAULT NOW() TODO: just LastLogout
+	LastLogin  Timestamp // NOT NULL
 }
 
 func (u User) ModelID() uuid.UUID {

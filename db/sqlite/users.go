@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/db/sqlite/dbconv"
 	"github.com/google/uuid"
 )
 
@@ -52,7 +51,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, err
 		user.Username,
 		user.Password,
 		user.Role,
-		dbconv.Email.ToDB(user.Email),
+		user.Email,
 		now,
 		now,
 		now,
@@ -76,13 +75,12 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 
 	for rows.Next() {
 		var user db.User
-		var email string
 		err = rows.Scan(
 			&user.ID,
 			&user.Username,
 			&user.Password,
 			&user.Role,
-			&email,
+			&user.Email,
 			&user.Created,
 			&user.Modified,
 			&user.LastLogout,
@@ -91,11 +89,6 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 
 		if err != nil {
 			return nil, WrapDBError(err)
-		}
-
-		err = dbconv.Email.FromDB(email, &user.Email)
-		if err != nil {
-			return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
 		}
 
 		all = append(all, user)
@@ -115,7 +108,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User)
 		user.Username,
 		user.Password,
 		user.Role,
-		dbconv.Email.ToDB(user.Email),
+		user.Email,
 		user.LastLogout,
 		user.LastLogin,
 		db.Timestamp(time.Now()),
@@ -139,7 +132,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 	user := db.User{
 		Username: username,
 	}
-	var email string
 
 	row := repo.DB.QueryRowContext(ctx, `SELECT id, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE username = ?;`,
 		username,
@@ -148,7 +140,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 		&user.ID,
 		&user.Password,
 		&user.Role,
-		&email,
+		&user.Email,
 		&user.Created,
 		&user.Modified,
 		&user.LastLogout,
@@ -157,11 +149,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 
 	if err != nil {
 		return user, WrapDBError(err)
-	}
-
-	err = dbconv.Email.FromDB(email, &user.Email)
-	if err != nil {
-		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
 
 	return user, nil
@@ -171,7 +158,6 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 	user := db.User{
 		ID: id,
 	}
-	var email string
 
 	row := repo.DB.QueryRowContext(ctx, `SELECT username, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE id = ?;`,
 		id,
@@ -180,7 +166,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 		&user.Username,
 		&user.Password,
 		&user.Role,
-		&email,
+		&user.Email,
 		&user.Created,
 		&user.Modified,
 		&user.LastLogout,
@@ -189,11 +175,6 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 
 	if err != nil {
 		return user, WrapDBError(err)
-	}
-
-	err = dbconv.Email.FromDB(email, &user.Email)
-	if err != nil {
-		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
 
 	return user, nil
