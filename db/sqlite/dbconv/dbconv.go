@@ -8,7 +8,6 @@ package dbconv
 
 import (
 	"net/mail"
-	"time"
 
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
@@ -45,16 +44,6 @@ var Email = Converter[*mail.Address, string]{
 		}
 
 		*target = email
-		return nil
-	},
-}
-
-// Timestamp converts times into 64-bit unix timestamps.
-var Timestamp = Converter[time.Time, int64]{
-	ToDB: time.Time.Unix,
-	FromDB: func(i int64, target *time.Time) error {
-		t := time.Unix(i, 0)
-		*target = t
 		return nil
 	},
 }

@@ -105,6 +105,29 @@ type Repo[ID any, M Model[ID]] interface {
 	// GetOneBy(Filter).
 }
 
+// Timestamp is a time.Time variation that stores itself in the DB as the number
+// of seconds since the Unix epoch.
+type Timestamp time.Time
+
+func (ts Timestamp) Value() (driver.Value, error) {
+	return time.Time(ts).Unix, nil
+}
+
+func (ts *Timestamp) Scan(value interface{}) error {
+	iVal, ok := value.(int64)
+	if !ok {
+		return fmt.Errorf("not an integer value: %v", value)
+	}
+
+	tVal := time.Unix(iVal, 0)
+	*ts = Timestamp(tVal)
+	return nil
+}
+
+func (ts Timestamp) Time() time.Time {
+	return time.Time(ts)
+}
+
 type Role int64
 
 const (
@@ -169,10 +192,10 @@ type User struct {
 	Password       string        // NOT NULL
 	Email          *mail.Address // NOT NULL
 	Role           Role          // NOT NULL
-	Created        time.Time     // NOT NULL
-	Modified       time.Time
-	LastLogoutTime time.Time // NOT NULL DEFAULT NOW()
-	LastLoginTime  time.Time // NOT NULL
+	Created        Timestamp     // NOT NULL
+	Modified       Timestamp     // NOT NULL
+	LastLogoutTime Timestamp     // NOT NULL DEFAULT NOW() TODO: just LastLogout
+	LastLoginTime  Timestamp     // NOT NULL
 }
 
 func (u User) ModelID() uuid.UUID {

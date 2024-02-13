@@ -39,7 +39,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, user db.User) (db.User, err
 		return db.User{}, db.ErrConstraintViolation
 	}
 
-	now := time.Now()
+	now := db.Timestamp(time.Now())
 	user.LastLogoutTime = now
 	user.Created = now
 	user.Modified = now
@@ -86,7 +86,7 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User)
 		}
 	}
 
-	user.Modified = time.Now()
+	user.Modified = db.Timestamp(time.Now())
 	aur.users[user.ID] = user
 	aur.byUsernameIndex[user.Username] = user.ID
 	if user.ID != id {

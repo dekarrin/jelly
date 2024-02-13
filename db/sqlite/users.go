@@ -45,7 +45,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, err
 		return db.User{}, WrapDBError(err)
 	}
 
-	now := time.Now()
+	now := db.Timestamp(time.Now())
 	_, err = stmt.ExecContext(
 		ctx,
 		newUUID,
@@ -53,10 +53,10 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, err
 		user.Password,
 		user.Role,
 		dbconv.Email.ToDB(user.Email),
-		dbconv.Timestamp.ToDB(now),
-		dbconv.Timestamp.ToDB(now),
-		dbconv.Timestamp.ToDB(now),
-		dbconv.Timestamp.ToDB(time.Time{}),
+		now,
+		now,
+		now,
+		db.Timestamp{},
 	)
 	if err != nil {
 		return db.User{}, WrapDBError(err)
@@ -77,20 +77,16 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 	for rows.Next() {
 		var user db.User
 		var email string
-		var logoutTime int64
-		var loginTime int64
-		var created int64
-		var modified int64
 		err = rows.Scan(
 			&user.ID,
 			&user.Username,
 			&user.Password,
 			&user.Role,
 			&email,
-			&created,
-			&modified,
-			&logoutTime,
-			&loginTime,
+			&user.Created,
+			&user.Modified,
+			&user.LastLogoutTime,
+			&user.LastLoginTime,
 		)
 
 		if err != nil {
@@ -100,22 +96,6 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 		err = dbconv.Email.FromDB(email, &user.Email)
 		if err != nil {
 			return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
-		}
-		err = dbconv.Timestamp.FromDB(logoutTime, &user.LastLogoutTime)
-		if err != nil {
-			return all, fmt.Errorf("stored last_logout_time %d is invalid: %w", logoutTime, err)
-		}
-		err = dbconv.Timestamp.FromDB(loginTime, &user.LastLoginTime)
-		if err != nil {
-			return all, fmt.Errorf("stored last_login_time %d is invalid: %w", loginTime, err)
-		}
-		err = dbconv.Timestamp.FromDB(created, &user.Created)
-		if err != nil {
-			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
-		}
-		err = dbconv.Timestamp.FromDB(modified, &user.Modified)
-		if err != nil {
-			return all, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 		}
 
 		all = append(all, user)
@@ -136,9 +116,9 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User)
 		user.Password,
 		user.Role,
 		dbconv.Email.ToDB(user.Email),
-		dbconv.Timestamp.ToDB(user.LastLogoutTime),
-		dbconv.Timestamp.ToDB(user.LastLoginTime),
-		dbconv.Timestamp.ToDB(time.Now()),
+		user.LastLogoutTime,
+		user.LastLoginTime,
+		db.Timestamp(time.Now()),
 		id,
 	)
 	if err != nil {
@@ -160,10 +140,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 		Username: username,
 	}
 	var email string
-	var logout int64
-	var login int64
-	var created int64
-	var modified int64
 
 	row := repo.DB.QueryRowContext(ctx, `SELECT id, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE username = ?;`,
 		username,
@@ -173,10 +149,10 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 		&user.Password,
 		&user.Role,
 		&email,
-		&created,
-		&modified,
-		&logout,
-		&login,
+		&user.Created,
+		&user.Modified,
+		&user.LastLogoutTime,
+		&user.LastLoginTime,
 	)
 
 	if err != nil {
@@ -186,22 +162,6 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 	err = dbconv.Email.FromDB(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
-	}
-	err = dbconv.Timestamp.FromDB(logout, &user.LastLogoutTime)
-	if err != nil {
-		return user, fmt.Errorf("stored last_logout_time %d is invalid: %w", logout, err)
-	}
-	err = dbconv.Timestamp.FromDB(login, &user.LastLoginTime)
-	if err != nil {
-		return user, fmt.Errorf("stored last_login_time %d is invalid: %w", login, err)
-	}
-	err = dbconv.Timestamp.FromDB(created, &user.Created)
-	if err != nil {
-		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
-	}
-	err = dbconv.Timestamp.FromDB(modified, &user.Modified)
-	if err != nil {
-		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 	}
 
 	return user, nil
@@ -212,10 +172,6 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 		ID: id,
 	}
 	var email string
-	var logout int64
-	var login int64
-	var created int64
-	var modified int64
 
 	row := repo.DB.QueryRowContext(ctx, `SELECT username, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE id = ?;`,
 		id,
@@ -225,10 +181,10 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 		&user.Password,
 		&user.Role,
 		&email,
-		&created,
-		&modified,
-		&logout,
-		&login,
+		&user.Created,
+		&user.Modified,
+		&user.LastLogoutTime,
+		&user.LastLoginTime,
 	)
 
 	if err != nil {
@@ -238,22 +194,6 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 	err = dbconv.Email.FromDB(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
-	}
-	err = dbconv.Timestamp.FromDB(logout, &user.LastLogoutTime)
-	if err != nil {
-		return user, fmt.Errorf("stored last_logout_time %d is invalid: %w", logout, err)
-	}
-	err = dbconv.Timestamp.FromDB(login, &user.LastLoginTime)
-	if err != nil {
-		return user, fmt.Errorf("stored last_login_time %d is invalid: %w", login, err)
-	}
-	err = dbconv.Timestamp.FromDB(created, &user.Created)
-	if err != nil {
-		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
-	}
-	err = dbconv.Timestamp.FromDB(modified, &user.Modified)
-	if err != nil {
-		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 	}
 
 	return user, nil
