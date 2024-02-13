@@ -119,7 +119,7 @@ func (ts Timestamp) Format(layout string) string {
 }
 
 func (ts Timestamp) Value() (driver.Value, error) {
-	return time.Time(ts).Unix, nil
+	return time.Time(ts).Unix(), nil
 }
 
 func (ts *Timestamp) Scan(value interface{}) error {
@@ -238,7 +238,7 @@ type User struct {
 	Role       Role      // NOT NULL
 	Created    Timestamp // NOT NULL
 	Modified   Timestamp // NOT NULL
-	LastLogout Timestamp // NOT NULL DEFAULT NOW() TODO: just LastLogout
+	LastLogout Timestamp // NOT NULL DEFAULT NOW()
 	LastLogin  Timestamp // NOT NULL
 }
 
