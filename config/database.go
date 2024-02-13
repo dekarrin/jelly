@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dekarrin/jelly/dao"
-	"github.com/dekarrin/jelly/dao/inmem"
-	"github.com/dekarrin/jelly/dao/owdb"
-	"github.com/dekarrin/jelly/dao/sqlite"
+	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly/db/inmem"
+	"github.com/dekarrin/jelly/db/owdb"
+	"github.com/dekarrin/jelly/db/sqlite"
 )
 
 // DBType is the type of a Database connection.
@@ -262,24 +262,24 @@ func splitWithEscaped(s, sep string) []string {
 // DisableDefaults to true before attempting to use it.
 type ConnectorRegistry struct {
 	DisableDefaults bool
-	reg             map[DBType]map[string]func(Database) (dao.Store, error)
+	reg             map[DBType]map[string]func(Database) (db.Store, error)
 }
 
 func (cr *ConnectorRegistry) initDefaults() {
 	// TODO: follow initDefaults pattern on all env-y structs
 
 	if cr.reg == nil {
-		cr.reg = map[DBType]map[string]func(Database) (dao.Store, error){
+		cr.reg = map[DBType]map[string]func(Database) (db.Store, error){
 			DatabaseInMemory: {},
 			DatabaseSQLite:   {},
 			DatabaseOWDB:     {},
 		}
 
 		if !cr.DisableDefaults {
-			cr.reg[DatabaseInMemory]["authuser"] = func(d Database) (dao.Store, error) {
+			cr.reg[DatabaseInMemory]["authuser"] = func(d Database) (db.Store, error) {
 				return inmem.NewAuthUserStore(), nil
 			}
-			cr.reg[DatabaseSQLite]["authuser"] = func(db Database) (dao.Store, error) {
+			cr.reg[DatabaseSQLite]["authuser"] = func(db Database) (db.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -292,7 +292,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 
 				return store, nil
 			}
-			cr.reg[DatabaseOWDB]["*"] = func(db Database) (dao.Store, error) {
+			cr.reg[DatabaseOWDB]["*"] = func(db Database) (db.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -310,7 +310,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 	}
 }
 
-func (cr *ConnectorRegistry) Register(engine DBType, name string, connector func(Database) (dao.Store, error)) error {
+func (cr *ConnectorRegistry) Register(engine DBType, name string, connector func(Database) (db.Store, error)) error {
 	if connector == nil {
 		return fmt.Errorf("connector function cannot be nil")
 	}
@@ -351,9 +351,9 @@ func (cr *ConnectorRegistry) List(engine DBType) []string {
 }
 
 // Connect opens a connection to the configured database, returning a generic
-// dao.Store. The Store can then be cast to the appropriate type by APIs in
+// db.Store. The Store can then be cast to the appropriate type by APIs in
 // their init method.
-func (cr *ConnectorRegistry) Connect(db Database) (dao.Store, error) {
+func (cr *ConnectorRegistry) Connect(db Database) (db.Store, error) {
 	cr.initDefaults()
 
 	engConns := cr.reg[db.Type]

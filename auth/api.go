@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -54,9 +54,9 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 	api.UnauthDelay = d
 
 	authRaw := cb.DB(0)
-	authStore, ok := authRaw.(dao.AuthUserStore)
+	authStore, ok := authRaw.(db.AuthUserStore)
 	if !ok {
-		return fmt.Errorf("DB provided under 'auth' does not implement jeldao.AuthUserStore")
+		return fmt.Errorf("DB provided under 'auth' does not implement db.AuthUserStore")
 	}
 	api.Service = LoginService{
 		Provider: authStore,
@@ -80,8 +80,8 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 			}
 			api.log.Debugf("updated user %s's password due to set-admin config", username)
 			// make shore their role is set to admin as well
-			if user.Role != dao.Admin {
-				_, err = api.Service.UpdateUser(ctx, user.ID.String(), user.ID.String(), user.Username, user.Email.String(), dao.Admin)
+			if user.Role != db.Admin {
+				_, err = api.Service.UpdateUser(ctx, user.ID.String(), user.ID.String(), user.Username, user.Email.String(), db.Admin)
 				if err != nil {
 					return fmt.Errorf("update role to admin for user %q: %w", username, err)
 				}
@@ -92,7 +92,7 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 				return fmt.Errorf("retrieve user for admin promotion: %w", err)
 			}
 
-			_, err = api.Service.CreateUser(ctx, username, pass, "", dao.Admin)
+			_, err = api.Service.CreateUser(ctx, username, pass, "", db.Admin)
 			if err != nil {
 				return fmt.Errorf("creating admin user: %w", err)
 			}
@@ -142,7 +142,7 @@ func (api LoginAPI) epGetInfo(req *http.Request) response.Result {
 
 	userStr := "unauthed client"
 	if loggedIn {
-		user := req.Context().Value(middle.AuthUser).(dao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 		userStr = "user '" + user.Username + "'"
 	}
 	return response.OK(resp, "%s got API info", userStr)
@@ -204,11 +204,11 @@ func (api LoginAPI) HTTPDeleteLogin(em jelly.EndpointCreator) http.HandlerFunc {
 
 func (api LoginAPI) epDeleteLogin(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
 	// is the user trying to delete someone else's login? they'd betta be the
 	// admin if so!
-	if id != user.ID && user.Role != dao.Admin {
+	if id != user.ID && user.Role != db.Admin {
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
@@ -253,7 +253,7 @@ func (api LoginAPI) HTTPCreateToken(em jelly.EndpointCreator) http.HandlerFunc {
 }
 
 func (api LoginAPI) epCreateToken(req *http.Request) response.Result {
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
 	tok, err := token.Generate(api.Secret, user)
 	if err != nil {
@@ -279,9 +279,9 @@ func (api LoginAPI) HTTPGetAllUsers(em jelly.EndpointCreator) http.HandlerFunc {
 
 // GET /users: get all users (admin auth required).
 func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
-	if user.Role != dao.Admin {
+	if user.Role != db.Admin {
 		return response.Forbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
 	}
 
@@ -300,11 +300,9 @@ func (api LoginAPI) epGetAllUsers(req *http.Request) response.Result {
 			Role:           users[i].Role.String(),
 			Created:        users[i].Created.Format(time.RFC3339),
 			Modified:       users[i].Modified.Format(time.RFC3339),
-			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
-			LastLoginTime:  users[i].LastLoginTime.Format(time.RFC3339),
-		}
-		if users[i].Email != nil {
-			resp[i].Email = users[i].Email.Address
+			LastLogoutTime: users[i].LastLogout.Format(time.RFC3339),
+			LastLoginTime:  users[i].LastLogin.Format(time.RFC3339),
+			Email:          users[i].Email.String(),
 		}
 	}
 
@@ -322,9 +320,9 @@ func (api LoginAPI) HTTPCreateUser(em jelly.EndpointCreator) http.HandlerFunc {
 }
 
 func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
-	if user.Role != dao.Admin {
+	if user.Role != db.Admin {
 		return response.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
@@ -340,9 +338,9 @@ func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 		return response.BadRequest("password: property is empty or missing from request", "empty password")
 	}
 
-	role := dao.Unverified
+	role := db.Unverified
 	if createUser.Role != "" {
-		role, err = dao.ParseRole(createUser.Role)
+		role, err = db.ParseRole(createUser.Role)
 		if err != nil {
 			return response.BadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
@@ -366,12 +364,9 @@ func (api LoginAPI) epCreateUser(req *http.Request) response.Result {
 		Role:           newUser.Role.String(),
 		Created:        newUser.Created.Format(time.RFC3339),
 		Modified:       newUser.Modified.Format(time.RFC3339),
-		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
-	}
-
-	if newUser.Email != nil {
-		resp.Email = newUser.Email.Address
+		LastLogoutTime: newUser.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLogin.Format(time.RFC3339),
+		Email:          newUser.Email.String(),
 	}
 
 	return response.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
@@ -391,10 +386,10 @@ func (api LoginAPI) HTTPGetUser(em jelly.EndpointCreator) http.HandlerFunc {
 
 func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
-	if id != user.ID && user.Role != dao.Admin {
+	if id != user.ID && user.Role != db.Admin {
 
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
@@ -426,11 +421,9 @@ func (api LoginAPI) epGetUser(req *http.Request) response.Result {
 		Role:           userInfo.Role.String(),
 		Created:        userInfo.Created.Format(time.RFC3339),
 		Modified:       userInfo.Modified.Format(time.RFC3339),
-		LastLogoutTime: userInfo.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  userInfo.LastLoginTime.Format(time.RFC3339),
-	}
-	if userInfo.Email != nil {
-		resp.Email = userInfo.Email.Address
+		LastLogoutTime: userInfo.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  userInfo.LastLogin.Format(time.RFC3339),
+		Email:          userInfo.Email.String(),
 	}
 
 	var otherStr string
@@ -462,9 +455,9 @@ func (api LoginAPI) HTTPUpdateUser(em jelly.EndpointCreator) http.HandlerFunc {
 
 func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
-	if id != user.ID && user.Role != dao.Admin {
+	if id != user.ID && user.Role != db.Admin {
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now
@@ -494,9 +487,9 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 
 	// pre-parse updateRole if needed so we return bad request before hitting
 	// DB
-	var updateRole dao.Role
+	var updateRole db.Role
 	if updateReq.Role.Update {
-		updateRole, err = dao.ParseRole(updateReq.Role.Value)
+		updateRole, err = db.ParseRole(updateReq.Role.Value)
 		if err != nil {
 			return response.BadRequest(err.Error(), err.Error())
 		}
@@ -511,8 +504,8 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 	}
 
 	var newEmail string
-	if existing.Email != nil {
-		newEmail = existing.Email.Address
+	if existing.Email.V != nil {
+		newEmail = existing.Email.V.Address
 	}
 	if updateReq.Email.Update {
 		newEmail = updateReq.Email.Value
@@ -531,7 +524,7 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 	}
 
 	// TODO: this is sequential modification. we need to update this when we get
-	// transactions on jeldao.
+	// transactions on jeldb.
 	updated, err := api.Service.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
@@ -556,12 +549,9 @@ func (api LoginAPI) epUpdateUser(req *http.Request) response.Result {
 		Role:           updated.Role.String(),
 		Created:        updated.Created.Format(time.RFC3339),
 		Modified:       updated.Modified.Format(time.RFC3339),
-		LastLogoutTime: updated.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  updated.LastLoginTime.Format(time.RFC3339),
-	}
-
-	if updated.Email != nil {
-		resp.Email = updated.Email.Address
+		LastLogoutTime: updated.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  updated.LastLogin.Format(time.RFC3339),
+		Email:          updated.Email.String(),
 	}
 
 	return response.Created(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
@@ -581,9 +571,9 @@ func (api LoginAPI) HTTPReplaceUser(em jelly.EndpointCreator) http.HandlerFunc {
 
 func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
-	if user.Role != dao.Admin {
+	if user.Role != db.Admin {
 		return response.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
@@ -605,9 +595,9 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 		return response.BadRequest("id: must be same as ID in URI", "body ID different from URI ID")
 	}
 
-	role := dao.Unverified
+	role := db.Unverified
 	if createUser.Role != "" {
-		role, err = dao.ParseRole(createUser.Role)
+		role, err = db.ParseRole(createUser.Role)
 		if err != nil {
 			return response.BadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
@@ -624,7 +614,7 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 	}
 
 	// but also update it immediately to set its user ID
-	newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
+	newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.String(), newUser.Role)
 	if err != nil {
 		if errors.Is(err, serr.ErrAlreadyExists) {
 			return response.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
@@ -641,12 +631,9 @@ func (api LoginAPI) epReplaceUser(req *http.Request) response.Result {
 		Role:           newUser.Role.String(),
 		Created:        newUser.Created.Format(time.RFC3339),
 		Modified:       newUser.Modified.Format(time.RFC3339),
-		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
-		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
-	}
-
-	if newUser.Email != nil {
-		resp.Email = newUser.Email.Address
+		LastLogoutTime: newUser.LastLogout.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLogin.Format(time.RFC3339),
+		Email:          newUser.Email.String(),
 	}
 
 	return response.Created(resp, "user '%s' (%s) created", resp.Username, resp.ID)
@@ -665,10 +652,10 @@ func (api LoginAPI) HTTPDeleteUser(em jelly.EndpointCreator) http.HandlerFunc {
 
 func (api LoginAPI) epDeleteUser(req *http.Request) response.Result {
 	id := jelly.RequireIDParam(req)
-	user := req.Context().Value(middle.AuthUser).(dao.User)
+	user := req.Context().Value(middle.AuthUser).(db.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
-	if id != user.ID && user.Role != dao.Admin {
+	if id != user.ID && user.Role != db.Admin {
 		var otherUserStr string
 		otherUser, err := api.Service.GetUser(req.Context(), id.String())
 		// if there was another user, find out now

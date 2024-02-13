@@ -9,7 +9,7 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	jellydao "github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -119,7 +119,7 @@ type templateEndpoints struct {
 
 func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
-		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 
 		all, err := ep.templates.GetAll(req.Context())
 		if err != nil {
@@ -142,7 +142,7 @@ func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
 func (ep templateEndpoints) httpGetTemplate() http.HandlerFunc {
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
 		id := jelly.RequireIDParam(req)
-		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 
 		retrieved, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
@@ -161,7 +161,7 @@ func (ep templateEndpoints) httpGetTemplate() http.HandlerFunc {
 
 func (ep templateEndpoints) httpCreateTemplate() http.HandlerFunc {
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
-		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 		userStr := "user '" + user.Username + "'"
 
 		var data Template
@@ -200,7 +200,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
 		id := jelly.RequireIDParam(req)
-		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 
 		// first, find the template owner
 		t, err := ep.templates.Get(req.Context(), id)
@@ -213,7 +213,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 
 		// is the user trying to delete someone else's template (or one added
 		// via config)? they'd betta be the admin if so!
-		if t.Creator != user.ID && user.Role != jellydao.Admin {
+		if t.Creator != user.ID && user.Role != db.Admin {
 			var creatorStr string
 			var zeroUUID uuid.UUID
 			if t.Creator == zeroUUID {
@@ -256,7 +256,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 
 	return ep.em.Endpoint(func(req *http.Request) response.Result {
 		id := jelly.RequireIDParam(req)
-		user := req.Context().Value(middle.AuthUser).(jellydao.User)
+		user := req.Context().Value(middle.AuthUser).(db.User)
 
 		var submitted Template
 
@@ -297,7 +297,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 		// via config)? they'd betta be the admin if so!
 		//
 		// also applies if updating the user.Creator; only admin can do that!
-		if (t.Creator != user.ID || t.Creator != daoSubmitted.Creator) && user.Role != jellydao.Admin {
+		if (t.Creator != user.ID || t.Creator != daoSubmitted.Creator) && user.Role != db.Admin {
 			var creatorStr string
 			var zeroUUID uuid.UUID
 			if t.Creator == zeroUUID {

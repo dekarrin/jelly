@@ -1,18 +1,23 @@
-// Package dao provides data access objects compatible with the rest of the
+// Package db provides data access objects compatible with the rest of the
 // jelly framework packages.
 //
 // It includes basics as well as a sample implementation of Store that is
 // compatible with jelly auth middleware.
-package dao
+//
+// TODO: call this package db or somefin and move auth-specific to middleware.
+// For sure by GHI-016 if not before.
+package db
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
 	"time"
 
+	"github.com/dekarrin/jelly/serr"
 	"github.com/google/uuid"
 )
 
@@ -101,7 +106,73 @@ type Repo[ID any, M Model[ID]] interface {
 	// GetOneBy(Filter).
 }
 
-type Role int
+func NowTimestamp() Timestamp {
+	return Timestamp(time.Now())
+}
+
+// Timestamp is a time.Time variation that stores itself in the DB as the number
+// of seconds since the Unix epoch.
+type Timestamp time.Time
+
+func (ts Timestamp) Format(layout string) string {
+	return ts.Time().Format(layout)
+}
+
+func (ts Timestamp) Value() (driver.Value, error) {
+	return time.Time(ts).Unix(), nil
+}
+
+func (ts *Timestamp) Scan(value interface{}) error {
+	iVal, ok := value.(int64)
+	if !ok {
+		return fmt.Errorf("not an integer value: %v", value)
+	}
+
+	tVal := time.Unix(iVal, 0)
+	*ts = Timestamp(tVal)
+	return nil
+}
+
+func (ts Timestamp) Time() time.Time {
+	return time.Time(ts)
+}
+
+// Email is a mail.Addresss that stores itself as a string.
+type Email struct {
+	V *mail.Address
+}
+
+func (em Email) String() string {
+	if em.V == nil {
+		return ""
+	}
+	return em.V.Address
+}
+
+func (em Email) Value() (driver.Value, error) {
+	return em.String(), nil
+}
+
+func (em *Email) Scan(value interface{}) error {
+	s, ok := value.(string)
+	if !ok {
+		return serr.New(fmt.Sprintf("not an integer value: %v", value), ErrDecodingFailure)
+	}
+	if s == "" {
+		em.V = nil
+		return nil
+	}
+
+	email, err := mail.ParseAddress(s)
+	if err != nil {
+		return serr.New("", err, ErrDecodingFailure)
+	}
+
+	em.V = email
+	return nil
+}
+
+type Role int64
 
 const (
 	Guest Role = iota
@@ -126,6 +197,21 @@ func (r Role) String() string {
 	}
 }
 
+func (r Role) Value() (driver.Value, error) {
+	return int64(r), nil
+}
+
+func (r *Role) Scan(value interface{}) error {
+	iVal, ok := value.(int64)
+	if !ok {
+		return fmt.Errorf("not an integer value: %v", value)
+	}
+
+	*r = Role(iVal)
+
+	return nil
+}
+
 func ParseRole(s string) (Role, error) {
 	check := strings.ToLower(s)
 	switch check {
@@ -145,15 +231,15 @@ func ParseRole(s string) (Role, error) {
 // User is an auth model for use in the pre-rolled auth mechanism of user-in-db
 // and login identified via JWT.
 type User struct {
-	ID             uuid.UUID     // PK, NOT NULL
-	Username       string        // UNIQUE, NOT NULL
-	Password       string        // NOT NULL
-	Email          *mail.Address // NOT NULL
-	Role           Role          // NOT NULL
-	Created        time.Time     // NOT NULL
-	Modified       time.Time
-	LastLogoutTime time.Time // NOT NULL DEFAULT NOW()
-	LastLoginTime  time.Time // NOT NULL
+	ID         uuid.UUID // PK, NOT NULL
+	Username   string    // UNIQUE, NOT NULL
+	Password   string    // NOT NULL
+	Email      Email     // NOT NULL
+	Role       Role      // NOT NULL
+	Created    Timestamp // NOT NULL
+	Modified   Timestamp // NOT NULL
+	LastLogout Timestamp // NOT NULL DEFAULT NOW()
+	LastLogin  Timestamp // NOT NULL
 }
 
 func (u User) ModelID() uuid.UUID {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/dao"
+	"github.com/dekarrin/jelly/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -18,8 +18,8 @@ var (
 	Issuer = "jelly"
 )
 
-func Validate(ctx context.Context, tok string, secret []byte, db dao.AuthUserRepo) (dao.User, error) {
-	var user dao.User
+func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUserRepo) (db.User, error) {
+	var user db.User
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
@@ -33,9 +33,9 @@ func Validate(ctx context.Context, tok string, secret []byte, db dao.AuthUserRep
 			return nil, fmt.Errorf("cannot parse subject UUID: %w", err)
 		}
 
-		user, err = db.Get(ctx, id)
+		user, err = userDB.Get(ctx, id)
 		if err != nil {
-			if err == dao.ErrNotFound {
+			if err == db.ErrNotFound {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")
@@ -45,12 +45,12 @@ func Validate(ctx context.Context, tok string, secret []byte, db dao.AuthUserRep
 		var signKey []byte
 		signKey = append(signKey, secret...)
 		signKey = append(signKey, []byte(user.Password)...)
-		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogoutTime.Unix()))...)
+		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogout.Time().Unix()))...)
 		return signKey, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
 	if err != nil {
-		return dao.User{}, err
+		return db.User{}, err
 	}
 
 	return user, nil
@@ -79,7 +79,7 @@ func Get(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func Generate(secret []byte, u dao.User) (string, error) {
+func Generate(secret []byte, u db.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        Issuer,
 		"exp":        time.Now().Add(time.Hour).Unix(),
@@ -91,7 +91,7 @@ func Generate(secret []byte, u dao.User) (string, error) {
 	var signKey []byte
 	signKey = append(signKey, secret...)
 	signKey = append(signKey, []byte(u.Password)...)
-	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogoutTime.Unix()))...)
+	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogout.Time().Unix()))...)
 
 	tokStr, err := tok.SignedString(signKey)
 	if err != nil {
