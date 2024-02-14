@@ -85,17 +85,6 @@ type Component interface {
 	Config() config.APIConfig
 }
 
-type IEnvironment interface {
-	UseComponent(c Component)
-	RegisterConfigSection(name string, provider func() config.APIConfig)
-	SetMainAuthenticator(name string) error
-	RegisterConnector(engine DBType, name string, connector func(DatabaseConfig) (db.Store, error)) error
-	RegisterAuthenticator(name string, authen middle.Authenticator) error
-	LoadConfig(file string) (config.Config, error)
-	NewServer(cfg *config.Config) (RESTServer, error)
-}
-
-// TODO: move this to the main restServer type declared here to close
 type RESTServer interface {
 	Config() config.Config
 	RoutesIndex() string

@@ -11,6 +11,7 @@ import (
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
+	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -25,7 +26,7 @@ var (
 	}
 )
 
-type EndpointFunc func(req *http.Request) response.Result
+type EndpointFunc func(req *http.Request) types.Result
 
 func UnPathParam(s string) string {
 	for name, pat := range paramTypePats {

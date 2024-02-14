@@ -10,14 +10,13 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/google/uuid"
 )
 
-func initDBWithTemplates(ctx context.Context, log logging.Logger, repo dao.Templates, creator uuid.UUID, contents []string) error {
+func initDBWithTemplates(ctx context.Context, log jelly.Logger, repo dao.Templates, creator uuid.UUID, contents []string) error {
 	for _, m := range contents {
 		dbMsg := dao.Template{
 			Content: m,

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jellog"
-	"github.com/dekarrin/jelly/response"
+	"github.com/dekarrin/jelly/types"
 )
 
 type Provider int
@@ -97,7 +97,7 @@ type Logger interface {
 	WarnBreak()
 
 	// LogResult logs a request and the response to that request.
-	LogResult(req *http.Request, r response.Result)
+	LogResult(req *http.Request, r types.Result)
 }
 
 // New creates a new logger of the given provider. If filename is blank, it will
@@ -135,22 +135,22 @@ func New(p Provider, filename string) (Logger, error) {
 // NoOpLogger is a logger that performs no operations.
 type NoOpLogger struct{}
 
-func (log NoOpLogger) Debug(msg string)                               {}
-func (log NoOpLogger) Warn(msg string)                                {}
-func (log NoOpLogger) Trace(msg string)                               {}
-func (log NoOpLogger) Info(msg string)                                {}
-func (log NoOpLogger) Error(msg string)                               {}
-func (log NoOpLogger) Debugf(msg string, a ...interface{})            {}
-func (log NoOpLogger) Warnf(msg string, a ...interface{})             {}
-func (log NoOpLogger) Tracef(msg string, a ...interface{})            {}
-func (log NoOpLogger) Infof(msg string, a ...interface{})             {}
-func (log NoOpLogger) Errorf(msg string, a ...interface{})            {}
-func (log NoOpLogger) ErrorBreak()                                    {}
-func (log NoOpLogger) InfoBreak()                                     {}
-func (log NoOpLogger) WarnBreak()                                     {}
-func (log NoOpLogger) TraceBreak()                                    {}
-func (log NoOpLogger) DebugBreak()                                    {}
-func (log NoOpLogger) LogResult(req *http.Request, r response.Result) {}
+func (log NoOpLogger) Debug(msg string)                            {}
+func (log NoOpLogger) Warn(msg string)                             {}
+func (log NoOpLogger) Trace(msg string)                            {}
+func (log NoOpLogger) Info(msg string)                             {}
+func (log NoOpLogger) Error(msg string)                            {}
+func (log NoOpLogger) Debugf(msg string, a ...interface{})         {}
+func (log NoOpLogger) Warnf(msg string, a ...interface{})          {}
+func (log NoOpLogger) Tracef(msg string, a ...interface{})         {}
+func (log NoOpLogger) Infof(msg string, a ...interface{})          {}
+func (log NoOpLogger) Errorf(msg string, a ...interface{})         {}
+func (log NoOpLogger) ErrorBreak()                                 {}
+func (log NoOpLogger) InfoBreak()                                  {}
+func (log NoOpLogger) WarnBreak()                                  {}
+func (log NoOpLogger) TraceBreak()                                 {}
+func (log NoOpLogger) DebugBreak()                                 {}
+func (log NoOpLogger) LogResult(req *http.Request, r types.Result) {}
 
 type jellogLogger struct {
 	j jellog.Logger[string]
@@ -216,7 +216,7 @@ func (log jellogLogger) DebugBreak() {
 	log.j.InsertBreak(jellog.LvDebug)
 }
 
-func (log jellogLogger) LogResult(req *http.Request, r response.Result) {
+func (log jellogLogger) LogResult(req *http.Request, r types.Result) {
 	if r.IsErr {
 		log.logHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
 	} else {

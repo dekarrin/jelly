@@ -6,7 +6,6 @@ import (
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/db/sqlite"
-	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
 )
 
@@ -58,9 +57,3 @@ type (
 func GetLoggedInUser(req *http.Request) (user User, loggedIn bool) {
 	return middle.GetLoggedInUser(req)
 }
-
-// logging aliases
-
-type (
-	Logger = logging.Logger
-)
