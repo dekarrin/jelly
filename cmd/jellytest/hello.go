@@ -10,10 +10,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/logging"
-	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -27,7 +23,7 @@ const (
 )
 
 type HelloConfig struct {
-	CommonConf config.Common
+	CommonConf jelly.CommonConfig
 
 	Rudeness       float64
 	RudeMessages   []string
@@ -37,7 +33,7 @@ type HelloConfig struct {
 
 // FillDefaults returns a new *HelloConfig identical to cfg but with unset
 // values set to their defaults and values normalized.
-func (cfg *HelloConfig) FillDefaults() config.APIConfig {
+func (cfg *HelloConfig) FillDefaults() jelly.APIConfig {
 	newCFG := new(HelloConfig)
 	*newCFG = *cfg
 
@@ -83,13 +79,13 @@ func (cfg *HelloConfig) Validate() error {
 		return fmt.Errorf(ConfigKeySecrets + ": must exist and have at least one item")
 	}
 	if len(cfg.CommonConf.UsesDBs) < 1 {
-		return fmt.Errorf(config.KeyAPIUsesDBs + ": must exist and have at least one item")
+		return fmt.Errorf(jelly.ConfigKeyAPIUsesDBs + ": must exist and have at least one item")
 	}
 
 	return nil
 }
 
-func (cfg *HelloConfig) Common() config.Common {
+func (cfg *HelloConfig) Common() jelly.CommonConfig {
 	return cfg.CommonConf
 }
 
@@ -124,19 +120,19 @@ func (cfg *HelloConfig) Set(key string, value interface{}) error {
 			return fmt.Errorf("key '"+ConfigKeyRudeness+"' requires a []string but got a %T", value)
 		}
 	case ConfigKeyPolites:
-		valueStr, err := config.TypedSlice[string](ConfigKeyPolites, value)
+		valueStr, err := jelly.TypedSlice[string](ConfigKeyPolites, value)
 		if err == nil {
 			cfg.PoliteMessages = valueStr
 		}
 		return err
 	case ConfigKeyRudes:
-		valueStr, err := config.TypedSlice[string](ConfigKeyRudes, value)
+		valueStr, err := jelly.TypedSlice[string](ConfigKeyRudes, value)
 		if err == nil {
 			cfg.RudeMessages = valueStr
 		}
 		return err
 	case ConfigKeySecrets:
-		valueStr, err := config.TypedSlice[string](ConfigKeySecrets, value)
+		valueStr, err := jelly.TypedSlice[string](ConfigKeySecrets, value)
 		if err == nil {
 			cfg.SecretMessages = valueStr
 		}
@@ -182,7 +178,7 @@ type HelloAPI struct {
 	// random greeting. Float between 0 and 1 for percentage.
 	rudeChance float64
 
-	log logging.Logger
+	log jelly.Logger
 
 	uriBase string
 }
@@ -190,7 +186,7 @@ type HelloAPI struct {
 func (api *HelloAPI) Init(cb jelly.Bundle) error {
 	api.log = cb.Logger()
 
-	jellyStore := cb.DB(0) // will exist, enforced by config.Validate
+	jellyStore := cb.DB(0) // will exist, enforced by Validate
 	store, ok := jellyStore.(dao.Datastore)
 	if !ok {
 		return fmt.Errorf("received unexpected store type %T", jellyStore)
@@ -223,7 +219,7 @@ func (api *HelloAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (api *HelloAPI) Authenticators() map[string]middle.Authenticator {
+func (api *HelloAPI) Authenticators() map[string]jelly.Authenticator {
 	return nil
 }
 
@@ -280,9 +276,8 @@ func (api HelloAPI) httpGetNice(em jelly.EndpointCreator) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		user, loggedIn := jelly.GetLoggedInUser(req)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
@@ -304,9 +299,8 @@ func (api HelloAPI) httpGetRude(em jelly.EndpointCreator) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		user, loggedIn := jelly.GetLoggedInUser(req)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
@@ -348,9 +342,8 @@ func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		user, loggedIn := jelly.GetLoggedInUser(req)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
@@ -363,7 +356,7 @@ func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
 // available only for logged-in users.
 func (api HelloAPI) httpGetSecret(em jelly.EndpointCreator) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
-		user := req.Context().Value(middle.AuthUser).(db.User)
+		user, _ := jelly.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"
 
 		msg, err := api.secrets.GetRandom(req.Context())

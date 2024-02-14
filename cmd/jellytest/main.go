@@ -45,7 +45,6 @@ import (
 	"github.com/dekarrin/jelly"
 	jellyauth "github.com/dekarrin/jelly/auth"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao/sqlite"
-	"github.com/dekarrin/jelly/config"
 	"github.com/spf13/pflag"
 )
 
@@ -162,14 +161,14 @@ func main() {
 	env := jelly.Environment{}
 
 	// register our db connector
-	env.RegisterConnector(config.DatabaseSQLite, "messages", sqlite.New)
+	env.RegisterConnector(jelly.DatabaseSQLite, "messages", sqlite.New)
 
 	// mark jellyauth as in-use before loading config
 	env.UseComponent(jellyauth.Component)
 
 	// tell jelly's config module about our config structs
-	env.RegisterConfigSection("echo", func() config.APIConfig { return &EchoConfig{} })
-	env.RegisterConfigSection("hello", func() config.APIConfig { return &HelloConfig{} })
+	env.RegisterConfigSection("echo", func() jelly.APIConfig { return &EchoConfig{} })
+	env.RegisterConfigSection("hello", func() jelly.APIConfig { return &HelloConfig{} })
 
 	confPath := filepath.Clean(*flagConf)
 	logger.Infof("Loading config file %s...", confPath)

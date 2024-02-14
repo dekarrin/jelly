@@ -41,6 +41,15 @@ type Provider struct {
 	DisableDefaults   bool
 }
 
+func GetLoggedInUser(req *http.Request) (user db.User, loggedIn bool) {
+	loggedIn = req.Context().Value(AuthLoggedIn).(bool)
+	if loggedIn {
+		user = req.Context().Value(AuthUser).(db.User)
+	}
+
+	return user, loggedIn
+}
+
 func (p *Provider) initDefaults() {
 	if p.authenticators == nil {
 		p.authenticators = map[string]Authenticator{}

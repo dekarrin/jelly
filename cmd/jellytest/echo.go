@@ -8,10 +8,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/logging"
-	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -22,14 +18,14 @@ const (
 )
 
 type EchoConfig struct {
-	CommonConf config.Common
+	CommonConf jelly.CommonConfig
 
 	Messages []string
 }
 
 // FillDefaults returns a new *EchoConfig identical to cfg but with unset values
 // set to their defaults and values normalized.
-func (cfg *EchoConfig) FillDefaults() config.APIConfig {
+func (cfg *EchoConfig) FillDefaults() jelly.APIConfig {
 	newCFG := new(EchoConfig)
 	*newCFG = *cfg
 
@@ -61,7 +57,7 @@ func (cfg *EchoConfig) Validate() error {
 	return nil
 }
 
-func (cfg *EchoConfig) Common() config.Common {
+func (cfg *EchoConfig) Common() jelly.CommonConfig {
 	return cfg.CommonConf
 }
 
@@ -83,7 +79,7 @@ func (cfg *EchoConfig) Get(key string) interface{} {
 func (cfg *EchoConfig) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
 	case ConfigKeyMessages:
-		valueStr, err := config.TypedSlice[string](ConfigKeyMessages, value)
+		valueStr, err := jelly.TypedSlice[string](ConfigKeyMessages, value)
 		if err == nil {
 			cfg.Messages = valueStr
 		}
@@ -108,7 +104,7 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 
 type EchoAPI struct {
 	store   dao.Datastore
-	log     logging.Logger
+	log     jelly.Logger
 	uriBase string
 }
 
@@ -133,7 +129,7 @@ func (echo *EchoAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (echo *EchoAPI) Authenticators() map[string]middle.Authenticator {
+func (echo *EchoAPI) Authenticators() map[string]jelly.Authenticator {
 	return nil
 }
 
@@ -203,9 +199,8 @@ func (api EchoAPI) httpGetEcho(em jelly.EndpointCreator) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		user, loggedIn := jelly.GetLoggedInUser(req)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}

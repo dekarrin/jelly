@@ -157,7 +157,7 @@ func (env *Environment) SetMainAuthenticator(name string) error {
 // RegisterConnector allows the specification of database connection methods.
 // The registered name can then be specified as the connector field of any DB
 // in config whose type is the given engine.
-func (env *Environment) RegisterConnector(engine config.DBType, name string, connector func(config.Database) (db.Store, error)) error {
+func (env *Environment) RegisterConnector(engine DBType, name string, connector func(DatabaseConfig) (db.Store, error)) error {
 	env.initDefaults()
 	return env.connectors.Register(engine, name, connector)
 }
@@ -200,6 +200,15 @@ type RESTServer struct {
 	log logging.Logger // used for logging. if logging disabled, this will be set to a no-op logger
 
 	env *Environment // ptr back to the environment that this server was created in.
+}
+
+// TODO: move this to the main restServer type declared here to close
+type IRESTServer interface {
+	Config() config.Config
+	RoutesIndex() string
+	Add(name string, api API) error
+	ServeForever() error
+	Shutdown(ctx context.Context) error
 }
 
 // NewServer creates a new RESTServer ready to have new APIs added to it. All
