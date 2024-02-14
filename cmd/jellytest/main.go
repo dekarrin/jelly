@@ -45,6 +45,7 @@ import (
 	"github.com/dekarrin/jelly"
 	jellyauth "github.com/dekarrin/jelly/auth"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao/sqlite"
+	"github.com/dekarrin/jelly/server"
 	"github.com/spf13/pflag"
 )
 
@@ -158,7 +159,7 @@ func main() {
 	logger.AddHandler(jellog.LvTrace, stdErrOutput)
 	loggerSetup = true
 
-	env := jelly.Environment{}
+	env := server.Environment{}
 
 	// register our db connector
 	env.RegisterConnector(jelly.DatabaseSQLite, "messages", sqlite.New)

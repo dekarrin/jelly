@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/response"
@@ -28,7 +27,7 @@ var (
 
 type EndpointFunc func(req *http.Request) response.Result
 
-func unpathParam(s string) string {
+func UnPathParam(s string) string {
 	for name, pat := range paramTypePats {
 		s = strings.ReplaceAll(s, ":"+pat+"}", ":"+name+"}")
 	}
@@ -151,7 +150,7 @@ type Override struct {
 	Authenticators []string
 }
 
-func combineOverrides(overs []Override) Override {
+func CombineOverrides(overs []Override) Override {
 	newOver := Override{}
 	for i := range overs {
 		newOver.Authenticators = append(newOver.Authenticators, overs[i].Authenticators...)
@@ -162,41 +161,10 @@ func combineOverrides(overs []Override) Override {
 // EndpointCreator is passed to an API's Routes method and is used to access
 // jelly middleware and standardized endpoint function wrapping to produce an
 // http.HandlerFunc from an EndpointFunc.
-type EndpointCreator struct {
-	mid *middle.Provider
-}
-
-func (em EndpointCreator) DontPanic() middle.Middleware {
-	return em.mid.DontPanic()
-}
-
-func (em EndpointCreator) OptionalAuth(authenticators ...string) middle.Middleware {
-	return em.mid.OptionalAuth(authenticators...)
-}
-
-func (em EndpointCreator) RequiredAuth(authenticators ...string) middle.Middleware {
-	return em.mid.RequiredAuth(authenticators...)
-}
-
-func (em EndpointCreator) SelectAuthenticator(authenticators ...string) middle.Authenticator {
-	return em.mid.SelectAuthenticator(authenticators...)
-}
-
-func (em EndpointCreator) Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
-	overs := combineOverrides(overrides)
-
-	return func(w http.ResponseWriter, req *http.Request) {
-		r := ep(req)
-
-		if r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden || r.Status == http.StatusInternalServerError {
-			// if it's one of these statuses, either the user is improperly
-			// logging in or tried to access a forbidden resource, both of which
-			// should force the wait time before responding.
-			auth := em.mid.SelectAuthenticator(overs.Authenticators...)
-			time.Sleep(auth.UnauthDelay())
-		}
-
-		r.WriteResponse(w)
-		r.Log(req)
-	}
+type EndpointCreator interface {
+	DontPanic() middle.Middleware
+	OptionalAuth(authenticators ...string) middle.Middleware
+	RequiredAuth(authenticators ...string) middle.Middleware
+	SelectAuthenticator(authenticators ...string) middle.Authenticator
+	Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc
 }

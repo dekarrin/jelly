@@ -1,4 +1,4 @@
-package jelly
+package server
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
@@ -17,10 +18,10 @@ func Test_ServeForever(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running tests that require server up")
 	}
-	getInitializedServer := func() *RESTServer {
-		return &RESTServer{
+	getInitializedServer := func() *restServer {
+		return &restServer{
 			mtx:         &sync.Mutex{},
-			apis:        map[string]API{},
+			apis:        map[string]jelly.API{},
 			apiBases:    map[string]string{},
 			basesToAPIs: map[string]string{},
 			log:         logging.NoOpLogger{},
