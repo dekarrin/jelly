@@ -4,12 +4,14 @@ package token
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly/types"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -35,7 +37,7 @@ func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUser
 
 		user, err = userDB.Get(ctx, id)
 		if err != nil {
-			if err == db.ErrNotFound {
+			if errors.Is(err, types.DBErrNotFound) {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")

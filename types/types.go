@@ -6,6 +6,7 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -244,3 +245,9 @@ func ParseLogProvider(s string) (LogProvider, error) {
 		return NoLog, fmt.Errorf("unknown LogProvider %q", s)
 	}
 }
+
+var (
+	DBErrConstraintViolation = errors.New("a uniqueness constraint was violated")
+	DBErrNotFound            = errors.New("the requested resource was not found")
+	DBErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
+)

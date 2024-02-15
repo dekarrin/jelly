@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/db"
+
+	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
 
@@ -122,7 +124,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User)
 		return db.User{}, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return db.User{}, db.ErrNotFound
+		return db.User{}, types.DBErrNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
@@ -195,7 +197,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (db.User, err
 		return curVal, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, db.ErrNotFound
+		return curVal, types.DBErrNotFound
 	}
 
 	return curVal, nil

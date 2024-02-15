@@ -11,20 +11,14 @@ package db
 import (
 	"context"
 	"database/sql/driver"
-	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
 	"time"
 
 	"github.com/dekarrin/jelly/serr"
+	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
-)
-
-var (
-	ErrConstraintViolation = errors.New("a uniqueness constraint was violated")
-	ErrNotFound            = errors.New("the requested resource was not found")
-	ErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
 
 type Store interface {
@@ -156,7 +150,7 @@ func (em Email) Value() (driver.Value, error) {
 func (em *Email) Scan(value interface{}) error {
 	s, ok := value.(string)
 	if !ok {
-		return serr.New(fmt.Sprintf("not an integer value: %v", value), ErrDecodingFailure)
+		return serr.New(fmt.Sprintf("not an integer value: %v", value), types.DBErrDecodingFailure)
 	}
 	if s == "" {
 		em.V = nil
@@ -165,7 +159,7 @@ func (em *Email) Scan(value interface{}) error {
 
 	email, err := mail.ParseAddress(s)
 	if err != nil {
-		return serr.New("", err, ErrDecodingFailure)
+		return serr.New("", err, types.DBErrDecodingFailure)
 	}
 
 	em.V = email

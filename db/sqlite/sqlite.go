@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly/types"
 	"modernc.org/sqlite"
 )
 
@@ -70,7 +71,7 @@ func WrapDBError(err error) error {
 	if errors.As(err, &sqliteErr) {
 		primaryCode := sqliteErr.Code() & 0xff
 		if primaryCode == 19 {
-			return fmt.Errorf("%w: %s", db.ErrConstraintViolation, err.Error())
+			return fmt.Errorf("%w: %s", types.DBErrConstraintViolation, err.Error())
 		}
 		if primaryCode == 1 {
 			// this is a generic error and thus the string is not descriptive,
@@ -79,7 +80,7 @@ func WrapDBError(err error) error {
 		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
-		return db.ErrNotFound
+		return types.DBErrNotFound
 	}
 	return err
 }

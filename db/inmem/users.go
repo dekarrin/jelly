@@ -7,6 +7,7 @@ import (
 
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/internal/jelsort"
+	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
 
@@ -36,7 +37,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, user db.User) (db.User, err
 
 	// make sure it's not already in the DB
 	if _, ok := aur.byUsernameIndex[user.Username]; ok {
-		return db.User{}, db.ErrConstraintViolation
+		return db.User{}, types.DBErrConstraintViolation
 	}
 
 	now := db.Timestamp(time.Now())
@@ -69,7 +70,7 @@ func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]db.User, error) {
 func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User) (db.User, error) {
 	existing, ok := aur.users[id]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return db.User{}, types.DBErrNotFound
 	}
 
 	// check for conflicts on this table only
@@ -77,12 +78,12 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User)
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := aur.byUsernameIndex[user.Username]; ok {
-			return db.User{}, db.ErrConstraintViolation
+			return db.User{}, types.DBErrConstraintViolation
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
 		if _, ok := aur.users[user.ID]; ok {
-			return db.User{}, db.ErrConstraintViolation
+			return db.User{}, types.DBErrConstraintViolation
 		}
 	}
 
@@ -99,7 +100,7 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User)
 func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (db.User, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return db.User{}, types.DBErrNotFound
 	}
 
 	return user, nil
@@ -108,7 +109,7 @@ func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (db.User, error) {
 	userID, ok := aur.byUsernameIndex[username]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return db.User{}, types.DBErrNotFound
 	}
 
 	return aur.users[userID], nil
@@ -117,7 +118,7 @@ func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (db
 func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (db.User, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return db.User{}, types.DBErrNotFound
 	}
 
 	delete(aur.byUsernameIndex, user.Username)
