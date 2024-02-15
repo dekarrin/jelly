@@ -12,6 +12,7 @@ import (
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
+	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -30,7 +31,7 @@ type restServer struct {
 	dbs         map[string]db.Store
 	cfg         config.Config // config that it was started with.
 
-	log logging.Logger // used for logging. if logging disabled, this will be set to a no-op logger
+	log types.Logger // used for logging. if logging disabled, this will be set to a no-op logger
 
 	env *Environment // ptr back to the environment that this server was created in.
 }
@@ -56,7 +57,7 @@ func (env *Environment) NewServer(cfg *config.Config) (jelly.RESTServer, error) 
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	var logger logging.Logger = logging.NoOpLogger{}
+	var logger types.Logger = logging.NoOpLogger{}
 	// config is loaded, make the first thing we start be our logger
 	if cfg.Log.Enabled {
 		var err error

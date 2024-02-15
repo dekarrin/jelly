@@ -10,8 +10,8 @@ import (
 
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/middle"
+	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -95,11 +95,11 @@ type RESTServer interface {
 
 type Bundle struct {
 	config.Bundle
-	logger logging.Logger
+	logger types.Logger
 	dbs    map[string]db.Store
 }
 
-func NewBundle(apiConf config.Bundle, log logging.Logger, dbs map[string]db.Store) Bundle {
+func NewBundle(apiConf config.Bundle, log types.Logger, dbs map[string]db.Store) Bundle {
 	return Bundle{
 		Bundle: apiConf,
 		logger: log,
@@ -107,7 +107,7 @@ func NewBundle(apiConf config.Bundle, log logging.Logger, dbs map[string]db.Stor
 	}
 }
 
-func (bndl Bundle) Logger() logging.Logger {
+func (bndl Bundle) Logger() types.Logger {
 	return bndl.logger
 }
 

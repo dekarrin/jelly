@@ -7,7 +7,14 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly/logging"
+	"github.com/dekarrin/jelly/types"
 )
+
+type ILog interface {
+	Create() (types.Logger, error)
+	FillDefaults() ILog
+	Validate() error
+}
 
 // Log contains logging options. Loggers are provided to APIs in the form of
 // sub-components of the primary logger. If logging is enabled, the Jelly server
@@ -20,7 +27,7 @@ type Log struct {
 
 	// Provider must be the name of one of the logging providers. If set to
 	// None or unset, it will default to logging.Jellog.
-	Provider logging.Provider
+	Provider types.LogProvider
 
 	// File to log to. If not set, all logging will be done to stderr and it
 	// will display all logging statements. If set, the file will receive all
@@ -29,22 +36,22 @@ type Log struct {
 	File string
 }
 
-func (log Log) Create() (logging.Logger, error) {
+func (log Log) Create() (types.Logger, error) {
 	return logging.New(log.Provider, log.File)
 }
 
 func (log Log) FillDefaults() Log {
 	newLog := log
 
-	if newLog.Provider == logging.None {
-		newLog.Provider = logging.Jellog
+	if newLog.Provider == types.NoLog {
+		newLog.Provider = types.Jellog
 	}
 
 	return newLog
 }
 
 func (g Log) Validate() error {
-	if g.Provider == logging.None {
+	if g.Provider == types.NoLog {
 		return fmt.Errorf("provider: must not be empty")
 	}
 

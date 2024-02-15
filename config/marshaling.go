@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dekarrin/jelly/logging"
+	"github.com/dekarrin/jelly/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -334,7 +334,7 @@ func (log *Log) unmarshal(m marshaledLog) error {
 	var err error
 
 	log.Enabled = m.Enabled
-	log.Provider, err = logging.ParseProvider(m.Provider)
+	log.Provider, err = types.ParseLogProvider(m.Provider)
 	if err != nil {
 		return fmt.Errorf("provider: %w", err)
 	}
