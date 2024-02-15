@@ -136,3 +136,20 @@ func LogHTTPResponse(level string, req *http.Request, respStatus int, msg string
 
 	log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }
+
+type ResponseGenerator interface {
+	OK(respObj interface{}, internalMsg ...interface{}) Result
+	NoContent(internalMsg ...interface{}) Result
+	Created(respObj interface{}, internalMsg ...interface{}) Result
+	Conflict(userMsg string, internalMsg ...interface{}) Result
+	BadRequest(userMsg string, internalMsg ...interface{}) Result
+	MethodNotAllowed(req *http.Request, internalMsg ...interface{}) Result
+	NotFound(internalMsg ...interface{}) Result
+	Forbidden(internalMsg ...interface{}) Result
+	Unauthorized(userMsg string, internalMsg ...interface{}) Result
+	InternalServerError(internalMsg ...interface{}) Result
+	Redirection(uri string) Result
+	Response(status int, respObj interface{}, internalMsg string, v ...interface{}) Result
+	Err(status int, userMsg, internalMsg string, v ...interface{}) Result
+	TextErr(status int, userMsg, internalMsg string, v ...interface{}) Result
+}

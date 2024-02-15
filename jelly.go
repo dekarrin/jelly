@@ -61,7 +61,7 @@ type API interface {
 	// Init is guaranteed to have been called for all APIs in the server before
 	// Routes is called, and it is safe to refer to middleware services that
 	// rely on other APIs within.
-	Routes(EndpointCreator) (router chi.Router, subpaths bool)
+	Routes(ServiceProvider) (router chi.Router, subpaths bool) // TODO: remove subpaths!!
 
 	// Shutdown terminates any pending operations cleanly and releases any held
 	// resources. It will be called after the server listener socket is shut

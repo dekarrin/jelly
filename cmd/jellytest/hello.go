@@ -229,7 +229,7 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *HelloAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpaths bool) {
+func (api *HelloAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
 	niceTemplates := templateEndpoints{em: em, uriBase: api.uriBase, requireFormatVerb: false}
 	rudeTemplates := niceTemplates
 	secretTemplates := niceTemplates
@@ -264,7 +264,7 @@ func (api *HelloAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpat
 }
 
 // httpGetNice returns a HandlerFunc that returns a polite greeting message.
-func (api HelloAPI) httpGetNice(em jelly.EndpointCreator) http.HandlerFunc {
+func (api HelloAPI) httpGetNice(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		msg, err := api.nices.GetRandom(req.Context())
 		if err != nil {
@@ -287,7 +287,7 @@ func (api HelloAPI) httpGetNice(em jelly.EndpointCreator) http.HandlerFunc {
 }
 
 // httpGetRude returns a HandlerFunc that returns a rude greeting message.
-func (api HelloAPI) httpGetRude(em jelly.EndpointCreator) http.HandlerFunc {
+func (api HelloAPI) httpGetRude(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		msg, err := api.rudes.GetRandom(req.Context())
 		if err != nil {
@@ -310,7 +310,7 @@ func (api HelloAPI) httpGetRude(em jelly.EndpointCreator) http.HandlerFunc {
 }
 
 // httpGetRandom returns a HandlerFunc that returns a random greeting message.
-func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
+func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		var resp messageResponseBody
 		var msg dao.Template
@@ -354,7 +354,7 @@ func (api HelloAPI) httpGetRandom(em jelly.EndpointCreator) http.HandlerFunc {
 
 // httpGetSecret returns a HandlerFunc that returns a secret greeting message
 // available only for logged-in users.
-func (api HelloAPI) httpGetSecret(em jelly.EndpointCreator) http.HandlerFunc {
+func (api HelloAPI) httpGetSecret(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		user, _ := jelly.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"

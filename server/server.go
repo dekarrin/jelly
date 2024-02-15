@@ -178,9 +178,11 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 		env.initDefaults()
 	}
 
+	sp := endpointCreator{mid: env.middleProv}
+
 	// Create root router
 	root := chi.NewRouter()
-	root.Use(env.middleProv.DontPanic())
+	root.Use(env.middleProv.DontPanic(sp))
 
 	// make server base router
 	r := root
@@ -194,7 +196,7 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
 			// TODO: remove subpaths once we realize inferred works
-			apiRouter, _ := api.Routes(endpointCreator{mid: env.middleProv})
+			apiRouter, _ := api.Routes(sp)
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)
@@ -212,7 +214,7 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 					})
 
 					if !hasSubpaths {
-						r.HandleFunc(base+"/", jelly.RedirectNoTrailingSlash)
+						r.HandleFunc(base+"/", jelly.RedirectNoTrailingSlash(sp))
 					}
 				}
 			}

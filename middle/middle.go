@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/response"
+	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
 
@@ -315,6 +315,7 @@ type AuthHandler struct {
 	provider Authenticator
 	required bool
 	next     http.Handler
+	resp     types.ResponseGenerator
 }
 
 func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -331,7 +332,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			} else {
 				msg = "authorization is required"
 			}
-			r := response.Unauthorized("", msg)
+			r := ah.resp.Unauthorized("", msg)
 			time.Sleep(ah.provider.UnauthDelay())
 			r.WriteResponse(w)
 			r.Log(req)
@@ -351,7 +352,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // were registered as an Authenticator with this package, in priority order. If
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
-func (p Provider) RequiredAuth(authenticators ...string) Middleware {
+func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...string) Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
@@ -359,6 +360,7 @@ func (p Provider) RequiredAuth(authenticators ...string) Middleware {
 			provider: prov,
 			required: true,
 			next:     next,
+			resp:     resp,
 		}
 	}
 }
@@ -369,7 +371,7 @@ func (p Provider) RequiredAuth(authenticators ...string) Middleware {
 // package, in priority order. If none of the given authenticators exist, this
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.
-func (p Provider) OptionalAuth(authenticators ...string) Middleware {
+func (p Provider) OptionalAuth(resp types.ResponseGenerator, authenticators ...string) Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
@@ -377,6 +379,7 @@ func (p Provider) OptionalAuth(authenticators ...string) Middleware {
 			provider: prov,
 			required: false,
 			next:     next,
+			resp:     resp,
 		}
 	}
 }
@@ -384,25 +387,21 @@ func (p Provider) OptionalAuth(authenticators ...string) Middleware {
 // DontPanic returns a Middleware that performs a panic check as it exits. If
 // the function is panicking, it will write out an HTTP response with a generic
 // message to the client and add it to the log.
-func (p Provider) DontPanic() Middleware {
+func (p Provider) DontPanic(resp types.ResponseGenerator) Middleware {
 	return func(next http.Handler) http.Handler {
-		return mwFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer panicTo500(w, r)
-			next.ServeHTTP(w, r)
+		return mwFunc(func(w http.ResponseWriter, req *http.Request) {
+			defer func() {
+				if panicErr := recover(); panicErr != nil {
+					r := resp.TextErr(
+						http.StatusInternalServerError,
+						"An internal server error occurred",
+						fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
+					)
+					r.WriteResponse(w)
+					r.Log(req)
+				}
+			}()
+			next.ServeHTTP(w, req)
 		})
 	}
-}
-
-func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{}) {
-	if panicErr := recover(); panicErr != nil {
-		r := response.TextErr(
-			http.StatusInternalServerError,
-			"An internal server error occurred",
-			fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
-		)
-		r.WriteResponse(w)
-		r.Log(req)
-		return true
-	}
-	return false
 }

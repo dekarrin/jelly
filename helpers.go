@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly/middle"
-	"github.com/dekarrin/jelly/response"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
@@ -83,11 +82,13 @@ func PathParam(nameType string) string {
 
 // RedirectNoTrailingSlash is an http.HandlerFunc that redirects to the same URL as the
 // request but with no trailing slash.
-func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
-	redirPath := strings.TrimRight(req.URL.Path, "/")
-	r := response.Redirection(redirPath)
-	r.WriteResponse(w)
-	r.Log(req)
+func RedirectNoTrailingSlash(sp ServiceProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		redirPath := strings.TrimRight(req.URL.Path, "/")
+		r := sp.Redirection(redirPath)
+		r.WriteResponse(w)
+		r.Log(req)
+	}
 }
 
 // v must be a pointer to a type. Will return error such that
@@ -159,10 +160,11 @@ func CombineOverrides(overs []Override) Override {
 	return newOver
 }
 
-// EndpointCreator is passed to an API's Routes method and is used to access
+// ServiceProvider is passed to an API's Routes method and is used to access
 // jelly middleware and standardized endpoint function wrapping to produce an
 // http.HandlerFunc from an EndpointFunc.
-type EndpointCreator interface {
+type ServiceProvider interface {
+	types.ResponseGenerator
 	DontPanic() middle.Middleware
 	OptionalAuth(authenticators ...string) middle.Middleware
 	RequiredAuth(authenticators ...string) middle.Middleware

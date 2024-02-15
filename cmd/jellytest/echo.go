@@ -139,7 +139,7 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *EchoAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpaths bool) {
+func (api *EchoAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
 	templateEndpoints := templateEndpoints{
 		em:                em,
 		templates:         api.store.EchoTemplates,
@@ -180,7 +180,7 @@ type echoRequestBody struct {
 }
 
 // httpGetEcho returns a HandlerFunc that echoes the user message.
-func (api EchoAPI) httpGetEcho(em jelly.EndpointCreator) http.HandlerFunc {
+func (api EchoAPI) httpGetEcho(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) response.Result {
 		var echoData echoRequestBody
 

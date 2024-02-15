@@ -13,15 +13,15 @@ type endpointCreator struct {
 }
 
 func (em endpointCreator) DontPanic() middle.Middleware {
-	return em.mid.DontPanic()
+	return em.mid.DontPanic(em)
 }
 
 func (em endpointCreator) OptionalAuth(authenticators ...string) middle.Middleware {
-	return em.mid.OptionalAuth(authenticators...)
+	return em.mid.OptionalAuth(em, authenticators...)
 }
 
 func (em endpointCreator) RequiredAuth(authenticators ...string) middle.Middleware {
-	return em.mid.RequiredAuth(authenticators...)
+	return em.mid.RequiredAuth(em, authenticators...)
 }
 
 func (em endpointCreator) SelectAuthenticator(authenticators ...string) middle.Authenticator {
