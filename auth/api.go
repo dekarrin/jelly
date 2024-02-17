@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/token"
@@ -53,7 +52,7 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 	api.UnauthDelay = d
 
 	authRaw := cb.DB(0)
-	authStore, ok := authRaw.(db.AuthUserStore)
+	authStore, ok := authRaw.(types.AuthUserStore)
 	if !ok {
 		return fmt.Errorf("DB provided under 'auth' does not implement db.AuthUserStore")
 	}

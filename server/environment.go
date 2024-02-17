@@ -6,8 +6,8 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/middle"
+	"github.com/dekarrin/jelly/types"
 )
 
 // Environment is a full Jelly environment that contains all parameters needed
@@ -78,7 +78,7 @@ func (env *Environment) SetMainAuthenticator(name string) error {
 // RegisterConnector allows the specification of database connection methods.
 // The registered name can then be specified as the connector field of any DB
 // in config whose type is the given engine.
-func (env *Environment) RegisterConnector(engine jelly.DBType, name string, connector func(jelly.DatabaseConfig) (db.Store, error)) error {
+func (env *Environment) RegisterConnector(engine jelly.DBType, name string, connector func(jelly.DatabaseConfig) (types.Store, error)) error {
 	env.initDefaults()
 	return env.connectors.Register(engine, name, connector)
 }

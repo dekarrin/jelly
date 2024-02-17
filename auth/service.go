@@ -7,7 +7,6 @@ import (
 	"net/mail"
 	"time"
 
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
@@ -20,7 +19,7 @@ import (
 // The zero-value of LoginService is not ready to be used until its Provider is
 // set.
 type LoginService struct {
-	Provider db.AuthUserStore
+	Provider types.AuthUserStore
 }
 
 // Login verifies the provided username and password against the existing user

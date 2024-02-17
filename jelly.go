@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
@@ -96,10 +95,10 @@ type RESTServer interface {
 type Bundle struct {
 	config.Bundle
 	logger types.Logger
-	dbs    map[string]db.Store
+	dbs    map[string]types.Store
 }
 
-func NewBundle(apiConf config.Bundle, log types.Logger, dbs map[string]db.Store) Bundle {
+func NewBundle(apiConf config.Bundle, log types.Logger, dbs map[string]types.Store) Bundle {
 	return Bundle{
 		Bundle: apiConf,
 		logger: log,
@@ -113,13 +112,13 @@ func (bndl Bundle) Logger() types.Logger {
 
 // DB gets the connection to the Nth DB listed in the API's uses. Panics if the API
 // config does not have at least n+1 entries.
-func (bndl Bundle) DB(n int) db.Store {
+func (bndl Bundle) DB(n int) types.Store {
 	dbName := bndl.UsesDBs()[n]
 	return bndl.DBNamed(dbName)
 }
 
 // NamedDB gets the exact DB with the given name. This will only return the DB if it
 // was configured as one of the used DBs for the API.
-func (bndl Bundle) DBNamed(name string) db.Store {
+func (bndl Bundle) DBNamed(name string) types.Store {
 	return bndl.dbs[strings.ToLower(name)]
 }

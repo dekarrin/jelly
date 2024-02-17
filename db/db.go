@@ -9,7 +9,6 @@
 package db
 
 import (
-	"context"
 	"database/sql/driver"
 	"fmt"
 	"net/mail"
@@ -19,14 +18,6 @@ import (
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
-
-type Store interface {
-
-	// Close closes any pending operations on the DAO store and on all of its
-	// Repos. It performs any clean-up operations necessary and should always be
-	// called once the Store is no longer in use.
-	Close() error
-}
 
 type Model[ID any] interface {
 	// ModelID returns a jeldao-usable ID that identifies the Model uniquely.
@@ -151,83 +142,4 @@ func NewUserFromAuthUser(au types.AuthUser) User {
 	}
 
 	return u
-}
-
-type AuthUserRepo interface {
-	// Create creates a new model in the DB based on the provided one. Some
-	// attributes in the provided one might not be used; for instance, many
-	// Repos will automatically set the ID of new entities on creation, ignoring
-	// any initially set ID. It is up to implementors to decide which attributes
-	// are used.
-	//
-	// This returns the object as it appears in the DB after creation.
-	//
-	// An implementor may provide an empty implementation with a function that
-	// always returns an error regardless of state and input. Consult the
-	// documentation of the implementor for info.
-	Create(context.Context, types.AuthUser) (types.AuthUser, error)
-
-	// Get retrieves the model with the given ID. If no entity with that ID
-	// exists, an error is returned.
-	//
-	// An implementor may provide an empty implementation with a function that
-	// always returns an error regardless of state and input. Consult the
-	// documentation of the implementor for info.
-	Get(context.Context, uuid.UUID) (types.AuthUser, error)
-
-	// GetAll retrieves all entities in the associated store. If no entities
-	// exist but no error otherwise occurred, the returned list of entities will
-	// have a length of zero and the returned error will be nil.
-	//
-	// An implementor may provide an empty implementation with a function that
-	// always returns an error regardless of state and input. Consult the
-	// documentation of the implementor for info.
-	GetAll(context.Context) ([]types.AuthUser, error)
-
-	// Update updates a particular entity in the store to match the provided
-	// model. Implementors may choose which properties of the provided value are
-	// actually used.
-	//
-	// This returns the object as it appears in the DB after updating.
-	//
-	// An implementor may provide an empty implementation with a function that
-	// always returns an error regardless of state and input. Consult the
-	// documentation of the implementor for info.
-	Update(context.Context, uuid.UUID, types.AuthUser) (types.AuthUser, error)
-
-	// Delete removes the given entity from the store.
-	//
-	// This returns the object as it appeared in the DB immediately before
-	// deletion.
-	//
-	// An implementor may provide an empty implementation with a function that
-	// always returns an error regardless of state and input. Consult the
-	// documentation of the implementor for info.
-	Delete(context.Context, uuid.UUID) (types.AuthUser, error)
-
-	// Close performs any clean-up operations required and flushes pending
-	// operations. Not all Repos will actually perform operations, but it should
-	// always be called as part of tear-down operations.
-	Close() error
-
-	// TODO: one day, move owdb Criterion functionality over and use that as a
-	// generic interface into searches. Then we can have a GetAllBy(Filter) and
-	// GetOneBy(Filter).
-
-	// GetByUsername retrieves the User with the given username. If no entity
-	// with that username exists, an error is returned.
-	GetByUsername(ctx context.Context, username string) (types.AuthUser, error)
-}
-
-// AuthUserStore is an interface that defines methods for building a DAO store
-// to be used as part of user auth via the jelly framework packages.
-//
-// TODO: should this be its own "sub-package"? example implementations. Or
-// something. feels like it should live closer to auth-y type things.
-type AuthUserStore interface {
-	Store
-
-	// AuthUsers returns a repository that holds users used as part of
-	// authentication and login.
-	AuthUsers() AuthUserRepo
 }

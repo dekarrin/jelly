@@ -4,14 +4,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/token"
 	"github.com/dekarrin/jelly/types"
 )
 
 type JWTAuthProvider struct {
-	db          db.AuthUserRepo
+	db          types.AuthUserRepo
 	secret      []byte
 	unauthDelay time.Duration
 	srv         LoginService

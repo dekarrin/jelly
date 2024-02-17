@@ -10,7 +10,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
@@ -28,7 +27,7 @@ type restServer struct {
 	apis        map[string]jelly.API
 	apiBases    map[string]string
 	basesToAPIs map[string]string // used for tracking that APIs do not eat each other
-	dbs         map[string]db.Store
+	dbs         map[string]types.Store
 	cfg         config.Config // config that it was started with.
 
 	log types.Logger // used for logging. if logging disabled, this will be set to a no-op logger
@@ -69,7 +68,7 @@ func (env *Environment) NewServer(cfg *config.Config) (jelly.RESTServer, error) 
 	}
 
 	// connect DBs
-	dbs := map[string]db.Store{}
+	dbs := map[string]types.Store{}
 	for name, db := range cfg.DBs {
 		db, err := env.connectors.Connect(db)
 		if err != nil {
@@ -295,7 +294,7 @@ func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
 	apiConf := rs.getAPIConfigBundle(name)
 
 	// find the actual dbs it uses
-	usedDBs := map[string]db.Store{}
+	usedDBs := map[string]types.Store{}
 	usedDBNames := apiConf.UsesDBs()
 
 	for _, dbName := range usedDBNames {

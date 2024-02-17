@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/types"
 	"modernc.org/sqlite"
 )
@@ -45,7 +44,7 @@ func NewAuthUserStore(storageDir string) (*AuthUserStore, error) {
 	return st, nil
 }
 
-func (aus *AuthUserStore) AuthUsers() db.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() types.AuthUserRepo {
 	return aus.users
 }
 

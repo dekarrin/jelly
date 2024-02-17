@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/types"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -20,7 +19,7 @@ var (
 	Issuer = "jelly"
 )
 
-func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUserRepo) (types.AuthUser, error) {
+func Validate(ctx context.Context, tok string, secret []byte, userDB types.AuthUserRepo) (types.AuthUser, error) {
 	var user types.AuthUser
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
