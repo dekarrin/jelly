@@ -13,43 +13,13 @@ import (
 	"github.com/dekarrin/jelly/types"
 )
 
-// DBType is the type of a Database connection.
-type DBType string
-
-func (dbt DBType) String() string {
-	return string(dbt)
-}
-
-const (
-	DatabaseNone     DBType = "none"
-	DatabaseSQLite   DBType = "sqlite"
-	DatabaseOWDB     DBType = "owdb"
-	DatabaseInMemory DBType = "inmem"
-)
-
-// ParseDBType parses a string found in a connection string into a DBType.
-func ParseDBType(s string) (DBType, error) {
-	sLower := strings.ToLower(s)
-
-	switch sLower {
-	case DatabaseSQLite.String():
-		return DatabaseSQLite, nil
-	case DatabaseInMemory.String():
-		return DatabaseInMemory, nil
-	case DatabaseOWDB.String():
-		return DatabaseOWDB, nil
-	default:
-		return DatabaseNone, fmt.Errorf("DB type %q is not one of 'sqlite', 'owdb', or 'inmem'", s)
-	}
-}
-
 // Database contains configuration settings for connecting to a persistence
 // layer.
 type Database struct {
 	// Type is the type of database the config refers to, primarily for data
 	// validation purposes. It also determines which of its other fields are
 	// valid.
-	Type DBType
+	Type types.DBType
 
 	// Connector is the name of the registered connector function that should be
 	// used. The function name must be registered for DBs of the given type.
@@ -67,14 +37,14 @@ type Database struct {
 
 // FillDefaults returns a new Database identical to db but with unset values
 // set to their defaults. In this case, if the type is not set, it is changed to
-// DatabaseInMemory. If OWDB File is not set, it is changed to "db.owv".
+// types.DatabaseInMemory. If OWDB File is not set, it is changed to "db.owv".
 func (db Database) FillDefaults() Database {
 	newDB := db
 
-	if newDB.Type == DatabaseNone {
-		newDB = Database{Type: DatabaseInMemory}
+	if newDB.Type == types.DatabaseNone {
+		newDB = Database{Type: types.DatabaseInMemory}
 	}
-	if newDB.Type == DatabaseOWDB && newDB.DataFile == "" {
+	if newDB.Type == types.DatabaseOWDB && newDB.DataFile == "" {
 		newDB.DataFile = "db.owv"
 	}
 	if newDB.Connector == "" {
@@ -89,20 +59,20 @@ func (db Database) FillDefaults() Database {
 // any fields necessary for connecting to that type of DB are also checked.
 func (db Database) Validate() error {
 	switch db.Type {
-	case DatabaseInMemory:
+	case types.DatabaseInMemory:
 		// nothing else to check
 		return nil
-	case DatabaseSQLite:
+	case types.DatabaseSQLite:
 		if db.DataDir == "" {
 			return fmt.Errorf("DataDir not set to path")
 		}
 		return nil
-	case DatabaseOWDB:
+	case types.DatabaseOWDB:
 		if db.DataDir == "" {
 			return fmt.Errorf("DataDir not set to path")
 		}
 		return nil
-	case DatabaseNone:
+	case types.DatabaseNone:
 		return fmt.Errorf("'none' DB is not valid")
 	default:
 		return fmt.Errorf("unknown database type: %q", db.Type.String())
@@ -131,20 +101,20 @@ func ParseDBConnString(s string) (Database, error) {
 
 	// parse the first section into a type, from there we can determine if
 	// further params are required.
-	dbEng, err := ParseDBType(strings.TrimSpace(dbParts[0]))
+	dbEng, err := types.ParseDBType(strings.TrimSpace(dbParts[0]))
 	if err != nil {
 		return Database{}, fmt.Errorf("unsupported DB engine: %w", err)
 	}
 
 	switch dbEng {
-	case DatabaseInMemory:
+	case types.DatabaseInMemory:
 		// there cannot be any other options
 		if paramStr != "" {
 			return Database{}, fmt.Errorf("unsupported param(s) for in-memory DB engine: %s", paramStr)
 		}
 
-		return Database{Type: DatabaseInMemory}, nil
-	case DatabaseSQLite:
+		return Database{Type: types.DatabaseInMemory}, nil
+	case types.DatabaseSQLite:
 		// there must be options
 		if paramStr == "" {
 			return Database{}, fmt.Errorf("sqlite DB engine requires path to data directory after ':'")
@@ -155,8 +125,8 @@ func ParseDBConnString(s string) (Database, error) {
 
 		// convert slashes to correct type
 		dd := filepath.FromSlash(paramStr)
-		return Database{Type: DatabaseSQLite, DataDir: dd}, nil
-	case DatabaseOWDB:
+		return Database{Type: types.DatabaseSQLite, DataDir: dd}, nil
+	case types.DatabaseOWDB:
 		// there must be options
 		if paramStr == "" {
 			return Database{}, fmt.Errorf("owdb DB engine requires qualified path to data directory after ':'")
@@ -168,7 +138,7 @@ func ParseDBConnString(s string) (Database, error) {
 			return Database{}, err
 		}
 
-		db := Database{Type: DatabaseOWDB}
+		db := Database{Type: types.DatabaseOWDB}
 
 		if val, ok := params["dir"]; ok {
 			db.DataDir = filepath.FromSlash(val)
@@ -182,7 +152,7 @@ func ParseDBConnString(s string) (Database, error) {
 			db.DataFile = "db.owv"
 		}
 		return db, nil
-	case DatabaseNone:
+	case types.DatabaseNone:
 		// not allowed
 		return Database{}, fmt.Errorf("cannot specify DB engine 'none' (perhaps you wanted 'inmem'?)")
 	default:
@@ -262,24 +232,24 @@ func splitWithEscaped(s, sep string) []string {
 // DisableDefaults to true before attempting to use it.
 type ConnectorRegistry struct {
 	DisableDefaults bool
-	reg             map[DBType]map[string]func(Database) (types.Store, error)
+	reg             map[types.DBType]map[string]func(Database) (types.Store, error)
 }
 
 func (cr *ConnectorRegistry) initDefaults() {
 	// TODO: follow initDefaults pattern on all env-y structs
 
 	if cr.reg == nil {
-		cr.reg = map[DBType]map[string]func(Database) (types.Store, error){
-			DatabaseInMemory: {},
-			DatabaseSQLite:   {},
-			DatabaseOWDB:     {},
+		cr.reg = map[types.DBType]map[string]func(Database) (types.Store, error){
+			types.DatabaseInMemory: {},
+			types.DatabaseSQLite:   {},
+			types.DatabaseOWDB:     {},
 		}
 
 		if !cr.DisableDefaults {
-			cr.reg[DatabaseInMemory]["authuser"] = func(d Database) (types.Store, error) {
+			cr.reg[types.DatabaseInMemory]["authuser"] = func(d Database) (types.Store, error) {
 				return inmem.NewAuthUserStore(), nil
 			}
-			cr.reg[DatabaseSQLite]["authuser"] = func(db Database) (types.Store, error) {
+			cr.reg[types.DatabaseSQLite]["authuser"] = func(db Database) (types.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -292,7 +262,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 
 				return store, nil
 			}
-			cr.reg[DatabaseOWDB]["*"] = func(db Database) (types.Store, error) {
+			cr.reg[types.DatabaseOWDB]["*"] = func(db Database) (types.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -310,7 +280,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 	}
 }
 
-func (cr *ConnectorRegistry) Register(engine DBType, name string, connector func(Database) (types.Store, error)) error {
+func (cr *ConnectorRegistry) Register(engine types.DBType, name string, connector func(Database) (types.Store, error)) error {
 	if connector == nil {
 		return fmt.Errorf("connector function cannot be nil")
 	}
@@ -334,7 +304,7 @@ func (cr *ConnectorRegistry) Register(engine DBType, name string, connector func
 
 // List returns an alphabetized list of all currently registered connector
 // names for an engine.
-func (cr *ConnectorRegistry) List(engine DBType) []string {
+func (cr *ConnectorRegistry) List(engine types.DBType) []string {
 	cr.initDefaults()
 
 	engConns := cr.reg[engine]

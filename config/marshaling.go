@@ -451,7 +451,7 @@ func (cfg Config) marshal() marshaledConfig {
 func (db *Database) unmarshal(m marshaledDatabase) error {
 	var err error
 
-	db.Type, err = ParseDBType(m.Type)
+	db.Type, err = types.ParseDBType(m.Type)
 	if err != nil {
 		return fmt.Errorf("type: %w", err)
 	}

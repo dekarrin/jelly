@@ -13,11 +13,6 @@ func WrapSqliteError(dbErr error) error {
 // config aliases
 
 var (
-	DatabaseNone     = config.DatabaseNone
-	DatabaseOWDB     = config.DatabaseOWDB
-	DatabaseInMemory = config.DatabaseInMemory
-	DatabaseSQLite   = config.DatabaseSQLite
-
 	ConfigKeyAPIBase    = config.KeyAPIBase
 	ConfigKeyAPIName    = config.KeyAPIName
 	ConfigKeyAPIEnabled = config.KeyAPIEnabled
@@ -25,7 +20,6 @@ var (
 )
 
 type (
-	DBType         = config.DBType
 	APIConfig      = config.APIConfig
 	CommonConfig   = config.Common
 	DatabaseConfig = config.Database

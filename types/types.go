@@ -541,3 +541,33 @@ type Authenticator interface {
 	// to unauthenticated requests to endpoints that require auth.
 	UnauthDelay() time.Duration
 }
+
+// DBType is the type of a Database connection.
+type DBType string
+
+func (dbt DBType) String() string {
+	return string(dbt)
+}
+
+const (
+	DatabaseNone     DBType = "none"
+	DatabaseSQLite   DBType = "sqlite"
+	DatabaseOWDB     DBType = "owdb"
+	DatabaseInMemory DBType = "inmem"
+)
+
+// ParseDBType parses a string found in a connection string into a DBType.
+func ParseDBType(s string) (DBType, error) {
+	sLower := strings.ToLower(s)
+
+	switch sLower {
+	case DatabaseSQLite.String():
+		return DatabaseSQLite, nil
+	case DatabaseInMemory.String():
+		return DatabaseInMemory, nil
+	case DatabaseOWDB.String():
+		return DatabaseOWDB, nil
+	default:
+		return DatabaseNone, fmt.Errorf("DB type %q is not one of 'sqlite', 'owdb', or 'inmem'", s)
+	}
+}
