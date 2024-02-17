@@ -10,7 +10,7 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/response"
+	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -178,7 +178,7 @@ type HelloAPI struct {
 	// random greeting. Float between 0 and 1 for percentage.
 	rudeChance float64
 
-	log jelly.Logger
+	log types.Logger
 
 	uriBase string
 }
@@ -265,10 +265,10 @@ func (api *HelloAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 
 // httpGetNice returns a HandlerFunc that returns a polite greeting message.
 func (api HelloAPI) httpGetNice(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) response.Result {
+	return em.Endpoint(func(req *http.Request) types.Result {
 		msg, err := api.nices.GetRandom(req.Context())
 		if err != nil {
-			return response.InternalServerError("could not get random nice message: %v", err)
+			return em.InternalServerError("could not get random nice message: %v", err)
 		}
 
 		resp := messageResponseBody{
@@ -282,16 +282,16 @@ func (api HelloAPI) httpGetNice(em jelly.ServiceProvider) http.HandlerFunc {
 			userStr = "user '" + user.Username + "'"
 		}
 
-		return response.OK(resp, "%s requested a nice hello and got %s", userStr, msg.ID)
+		return em.OK(resp, "%s requested a nice hello and got %s", userStr, msg.ID)
 	})
 }
 
 // httpGetRude returns a HandlerFunc that returns a rude greeting message.
 func (api HelloAPI) httpGetRude(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) response.Result {
+	return em.Endpoint(func(req *http.Request) types.Result {
 		msg, err := api.rudes.GetRandom(req.Context())
 		if err != nil {
-			return response.InternalServerError("could not get random rude message: %v", err)
+			return em.InternalServerError("could not get random rude message: %v", err)
 		}
 
 		resp := messageResponseBody{
@@ -305,13 +305,13 @@ func (api HelloAPI) httpGetRude(em jelly.ServiceProvider) http.HandlerFunc {
 			userStr = "user '" + user.Username + "'"
 		}
 
-		return response.OK(resp, "%s requested a rude hello and got %s", userStr, msg.ID)
+		return em.OK(resp, "%s requested a rude hello and got %s", userStr, msg.ID)
 	})
 }
 
 // httpGetRandom returns a HandlerFunc that returns a random greeting message.
 func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) response.Result {
+	return em.Endpoint(func(req *http.Request) types.Result {
 		var resp messageResponseBody
 		var msg dao.Template
 		var selected string
@@ -322,7 +322,7 @@ func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 
 			msg, err = api.rudes.GetRandom(req.Context())
 			if err != nil {
-				return response.InternalServerError("could not get random rude message: %v", err)
+				return em.InternalServerError("could not get random rude message: %v", err)
 			}
 
 			resp = messageResponseBody{
@@ -333,7 +333,7 @@ func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 
 			msg, err = api.nices.GetRandom(req.Context())
 			if err != nil {
-				return response.InternalServerError("could not get random nice message: %v", err)
+				return em.InternalServerError("could not get random nice message: %v", err)
 			}
 
 			resp = messageResponseBody{
@@ -348,20 +348,20 @@ func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 			userStr = "user '" + user.Username + "'"
 		}
 
-		return response.OK(resp, "%s requested a random hello and got (%s) %s", userStr, selected, msg.ID)
+		return em.OK(resp, "%s requested a random hello and got (%s) %s", userStr, selected, msg.ID)
 	})
 }
 
 // httpGetSecret returns a HandlerFunc that returns a secret greeting message
 // available only for logged-in users.
 func (api HelloAPI) httpGetSecret(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) response.Result {
+	return em.Endpoint(func(req *http.Request) types.Result {
 		user, _ := jelly.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"
 
 		msg, err := api.secrets.GetRandom(req.Context())
 		if err != nil {
-			return response.InternalServerError("could not get random secret message: %v", err)
+			return em.InternalServerError("could not get random secret message: %v", err)
 		}
 
 		resp := messageResponseBody{
@@ -369,6 +369,6 @@ func (api HelloAPI) httpGetSecret(em jelly.ServiceProvider) http.HandlerFunc {
 			Recipient: user.Username,
 		}
 
-		return response.OK(resp, "%s requested a secret hello and got %s", userStr, msg.ID)
+		return em.OK(resp, "%s requested a secret hello and got %s", userStr, msg.ID)
 	})
 }

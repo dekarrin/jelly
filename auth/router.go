@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -25,19 +24,19 @@ func (api *LoginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 	r.Mount("/tokens", tokens)
 	r.Mount("/users", users)
 	r.Mount("/info", info)
-	r.HandleFunc("/info/", jelly.RedirectNoTrailingSlash) // TODO: this doesn't appear to do anyfin
+	r.HandleFunc("/info/", jelly.RedirectNoTrailingSlash(em)) // TODO: this doesn't appear to do anyfin
 
 	// TODO: make this library properly use jelly.RedirectNoTrailingSlash
 
 	// TODO: should these be at top level and controlled by jelly?
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
-		res := response.NotFound()
+		res := em.NotFound()
 		res.WriteResponse(w)
 		res.Log(req)
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(api.UnauthDelay)
-		res := response.MethodNotAllowed(req)
+		res := em.MethodNotAllowed(req)
 		res.WriteResponse(w)
 		res.Log(req)
 	})
@@ -50,9 +49,9 @@ func (api LoginAPI) routesForLogin(em jelly.ServiceProvider) chi.Router {
 
 	r := chi.NewRouter()
 
-	r.Post("/", api.HTTPCreateLogin(em))
-	r.With(reqAuth).Delete("/"+p("id:uuid"), api.HTTPDeleteLogin(em))
-	r.HandleFunc("/"+p("id:uuid")+"/", jelly.RedirectNoTrailingSlash)
+	r.Post("/", api.httpCreateLogin(em))
+	r.With(reqAuth).Delete("/"+p("id:uuid"), api.httpDeleteLogin(em))
+	r.HandleFunc("/"+p("id:uuid")+"/", jelly.RedirectNoTrailingSlash(em))
 
 	return r
 }
@@ -62,7 +61,7 @@ func (api LoginAPI) routesForToken(em jelly.ServiceProvider) chi.Router {
 
 	r := chi.NewRouter()
 
-	r.With(reqAuth).Post("/", api.HTTPCreateToken(em))
+	r.With(reqAuth).Post("/", api.httpCreateToken(em))
 
 	return r
 }
@@ -74,14 +73,14 @@ func (api LoginAPI) routesForAuthUser(em jelly.ServiceProvider) chi.Router {
 
 	r.Use(reqAuth)
 
-	r.Get("/", api.HTTPGetAllUsers(em))
-	r.Post("/", api.HTTPCreateUser(em))
+	r.Get("/", api.httpGetAllUsers(em))
+	r.Post("/", api.httpCreateUser(em))
 
 	r.Route("/"+p("id:uuid"), func(r chi.Router) {
-		r.Get("/", api.HTTPGetUser(em))
-		r.Put("/", api.HTTPReplaceUser(em))
-		r.Patch("/", api.HTTPUpdateUser(em))
-		r.Delete("/", api.HTTPDeleteUser(em))
+		r.Get("/", api.httpGetUser(em))
+		r.Put("/", api.httpReplaceUser(em))
+		r.Patch("/", api.httpUpdateUser(em))
+		r.Delete("/", api.httpDeleteUser(em))
 	})
 
 	return r
@@ -92,7 +91,7 @@ func (api LoginAPI) routesForInfo(em jelly.ServiceProvider) chi.Router {
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/", api.HTTPGetInfo(em))
+	r.With(optAuth).Get("/", api.httpGetInfo(em))
 
 	return r
 }

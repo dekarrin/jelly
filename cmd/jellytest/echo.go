@@ -8,7 +8,7 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/response"
+	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -104,7 +104,7 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 
 type EchoAPI struct {
 	store   dao.Datastore
-	log     jelly.Logger
+	log     types.Logger
 	uriBase string
 }
 
@@ -181,17 +181,17 @@ type echoRequestBody struct {
 
 // httpGetEcho returns a HandlerFunc that echoes the user message.
 func (api EchoAPI) httpGetEcho(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) response.Result {
+	return em.Endpoint(func(req *http.Request) types.Result {
 		var echoData echoRequestBody
 
 		err := jelly.ParseJSONRequest(req, &echoData)
 		if err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return em.BadRequest(err.Error(), err.Error())
 		}
 
 		t, err := api.store.EchoTemplates.GetRandom(req.Context())
 		if err != nil {
-			return response.InternalServerError("could not get echo template: %v", err)
+			return em.InternalServerError("could not get echo template: %v", err)
 		}
 
 		resp := messageResponseBody{
@@ -205,6 +205,6 @@ func (api EchoAPI) httpGetEcho(em jelly.ServiceProvider) http.HandlerFunc {
 			userStr = "user '" + user.Username + "'"
 		}
 
-		return response.OK(resp, "%s requested echo (msg len=%d), got template %s", userStr, len(echoData.Message), t.ID)
+		return em.OK(resp, "%s requested echo (msg len=%d), got template %s", userStr, len(echoData.Message), t.ID)
 	})
 }

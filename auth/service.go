@@ -8,6 +8,7 @@ import (
 
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
+	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -33,7 +34,7 @@ type LoginService struct {
 func (svc LoginService) Login(ctx context.Context, username string, password string) (db.User, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.ErrBadCredentials
 		}
 		return db.User{}, serr.WrapDB("", err)
@@ -73,7 +74,7 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (db.User, error) {
 	existing, err := svc.Provider.AuthUsers().Get(ctx, who)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.ErrNotFound
 		}
 		return db.User{}, serr.WrapDB("could not retrieve user", err)
@@ -114,7 +115,7 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (db.User, error)
 
 	user, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.ErrNotFound
 		}
 		return db.User{}, serr.WrapDB("could not get user", err)
@@ -133,7 +134,7 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (db.User, error)
 func (svc LoginService) GetUserByUsername(ctx context.Context, username string) (db.User, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.ErrNotFound
 		}
 		return db.User{}, serr.WrapDB("could not get user", err)
@@ -183,7 +184,7 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 	_, err = svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err == nil {
 		return db.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
-	} else if !errors.Is(err, db.ErrNotFound) {
+	} else if !errors.Is(err, types.DBErrNotFound) {
 		return db.User{}, serr.WrapDB("", err)
 	}
 
@@ -201,7 +202,7 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 
 	user, err := svc.Provider.AuthUsers().Create(ctx, newUser)
 	if err != nil {
-		if errors.Is(err, db.ErrConstraintViolation) {
+		if errors.Is(err, types.DBErrConstraintViolation) {
 			return db.User{}, serr.ErrAlreadyExists
 		}
 		return db.User{}, serr.WrapDB("could not create user", err)
@@ -250,7 +251,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 
 	daoUser, err := svc.Provider.AuthUsers().Get(ctx, uuidCurID)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.New("user not found", serr.ErrNotFound)
 		}
 	}
@@ -259,7 +260,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 		_, err := svc.Provider.AuthUsers().Get(ctx, uuidNewID)
 		if err == nil {
 			return db.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
-		} else if !errors.Is(err, db.ErrNotFound) {
+		} else if !errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.WrapDB("", err)
 		}
 	}
@@ -267,7 +268,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 		_, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 		if err == nil {
 			return db.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
-		} else if !errors.Is(err, db.ErrNotFound) {
+		} else if !errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.WrapDB("", err)
 		}
 	}
@@ -279,9 +280,9 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 
 	updatedUser, err := svc.Provider.AuthUsers().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
-		if errors.Is(err, db.ErrConstraintViolation) {
+		if errors.Is(err, types.DBErrConstraintViolation) {
 			return db.User{}, serr.New("a user with that ID/username already exists", serr.ErrAlreadyExists)
-		} else if errors.Is(err, db.ErrNotFound) {
+		} else if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.New("user not found", serr.ErrNotFound)
 		}
 		return db.User{}, serr.WrapDB("", err)
@@ -309,7 +310,7 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 
 	existing, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
 		return db.User{}, serr.WrapDB("", err)
@@ -330,7 +331,7 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, uuidID, existing)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
 		return db.User{}, serr.WrapDB("could not update user", err)
@@ -355,7 +356,7 @@ func (svc LoginService) DeleteUser(ctx context.Context, id string) (db.User, err
 
 	user, err := svc.Provider.AuthUsers().Delete(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, db.ErrNotFound) {
+		if errors.Is(err, types.DBErrNotFound) {
 			return db.User{}, serr.ErrNotFound
 		}
 		return db.User{}, serr.WrapDB("could not delete user", err)
