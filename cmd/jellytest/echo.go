@@ -18,14 +18,14 @@ const (
 )
 
 type EchoConfig struct {
-	CommonConf jelly.CommonConfig
+	CommonConf types.CommonConfig
 
 	Messages []string
 }
 
 // FillDefaults returns a new *EchoConfig identical to cfg but with unset values
 // set to their defaults and values normalized.
-func (cfg *EchoConfig) FillDefaults() jelly.APIConfig {
+func (cfg *EchoConfig) FillDefaults() types.APIConfig {
 	newCFG := new(EchoConfig)
 	*newCFG = *cfg
 
@@ -57,7 +57,7 @@ func (cfg *EchoConfig) Validate() error {
 	return nil
 }
 
-func (cfg *EchoConfig) Common() jelly.CommonConfig {
+func (cfg *EchoConfig) Common() types.CommonConfig {
 	return cfg.CommonConf
 }
 

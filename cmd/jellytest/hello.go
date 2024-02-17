@@ -23,7 +23,7 @@ const (
 )
 
 type HelloConfig struct {
-	CommonConf jelly.CommonConfig
+	CommonConf types.CommonConfig
 
 	Rudeness       float64
 	RudeMessages   []string
@@ -33,7 +33,7 @@ type HelloConfig struct {
 
 // FillDefaults returns a new *HelloConfig identical to cfg but with unset
 // values set to their defaults and values normalized.
-func (cfg *HelloConfig) FillDefaults() jelly.APIConfig {
+func (cfg *HelloConfig) FillDefaults() types.APIConfig {
 	newCFG := new(HelloConfig)
 	*newCFG = *cfg
 
@@ -79,13 +79,13 @@ func (cfg *HelloConfig) Validate() error {
 		return fmt.Errorf(ConfigKeySecrets + ": must exist and have at least one item")
 	}
 	if len(cfg.CommonConf.UsesDBs) < 1 {
-		return fmt.Errorf(jelly.ConfigKeyAPIUsesDBs + ": must exist and have at least one item")
+		return fmt.Errorf(types.ConfigKeyAPIUsesDBs + ": must exist and have at least one item")
 	}
 
 	return nil
 }
 
-func (cfg *HelloConfig) Common() jelly.CommonConfig {
+func (cfg *HelloConfig) Common() types.CommonConfig {
 	return cfg.CommonConf
 }
 

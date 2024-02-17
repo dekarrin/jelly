@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -569,5 +570,218 @@ func ParseDBType(s string) (DBType, error) {
 		return DatabaseOWDB, nil
 	default:
 		return DatabaseNone, fmt.Errorf("DB type %q is not one of 'sqlite', 'owdb', or 'inmem'", s)
+	}
+}
+
+type APIConfig interface {
+	// Common returns the parts of the API configuration that all APIs are
+	// required to have. Its keys should be considered part of the configuration
+	// held within the APIConfig and any function that accepts keys will accept
+	// the Common keys; additionally, FillDefaults and Validate will both
+	// perform their operations on the Common's keys.
+	//
+	// Performing mutation operations on the Common() returned will not
+	// necessarily affect the APIConfig it came from. Affecting one of its key's
+	// values should be done by calling the appropriate method on the APIConfig
+	// with the key name.
+	Common() CommonConfig
+
+	// Keys returns a list of strings, each of which is a valid key that this
+	// configuration contains. These keys may be passed to other methods to
+	// access values in this config.
+	//
+	// Each key returned should be alpha-numeric, and snake-case is preferred
+	// (though not required). If a key contains an illegal character for a
+	// particular format of a config source, it will be replaced with an
+	// underscore in that format; e.g. a key called "test!" would be retrieved
+	// from an envvar called "APPNAME_TEST_" as opposed to "APPNAME_TEST!", as
+	// the exclamation mark is not allowed in most environment variable names.
+	//
+	// The returned slice will contain the values returned by Common()'s Keys()
+	// function as well as any other keys provided by the APIConfig. Each item
+	// in the returned slice must be non-empty and unique when all keys are
+	// converted to lowercase.
+	Keys() []string
+
+	// Get gets the current value of a config key. The parameter key should be a
+	// string that is returned from Keys(). If key is not a string that was
+	// returned from Keys, this function must return nil.
+	//
+	// The key is not case-sensitive.
+	Get(key string) interface{}
+
+	// Set sets the current value of a config key directly. The value must be of
+	// the correct type; no parsing is done in Set.
+	//
+	// The key is not case-sensitive.
+	Set(key string, value interface{}) error
+
+	// SetFromString sets the current value of a config key by parsing the given
+	// string for its value.
+	//
+	// The key is not case-sensitive.
+	SetFromString(key string, value string) error
+
+	// FillDefaults returns a copy of the APIConfig with any unset values set to
+	// default values, if possible. It need not be a brand new copy; it is legal
+	// for implementers to returns the same APIConfig that FillDefaults was
+	// called on.
+	//
+	// Implementors must ensure that the returned APIConfig's Common() returns a
+	// common config that has had its keys set to their defaults as well.
+	FillDefaults() APIConfig
+
+	// Validate checks all current values of the APIConfig and returns whether
+	// there is any issues with them.
+	//
+	// Implementors must ensure that calling Validate() also calls validation on
+	// the common keys as well as those that they provide.
+	Validate() error
+}
+
+const (
+	ConfigKeyAPIName    = "name"
+	ConfigKeyAPIBase    = "base"
+	ConfigKeyAPIEnabled = "enabled"
+	ConfigKeyAPIUsesDBs = "uses"
+)
+
+// CommonConfig holds configuration options common to all APIs.
+type CommonConfig struct {
+	// Name is the name of the API. Must be unique.
+	Name string
+
+	// Enabled is whether the API is to be enabled. By default, this is false in
+	// all cases.
+	Enabled bool
+
+	// Base is the base URI that all paths will be rooted at, relative to the
+	// server base path. This can be "/" (or "", which is equivalent) to
+	// indicate that the API is to be based directly at the URIBase of the
+	// server config that this API is a part of.
+	Base string
+
+	// UsesDBs is a list of names of data stores and authenticators that the API
+	// uses directly. When Init is called, it is passed active connections to
+	// each of the DBs. There must be a corresponding entry for each DB name in
+	// the root DBs listing in the Config this API is a part of. The
+	// Authenticators slice should contain only authenticators that are provided
+	// by other APIs; see their documentation for which they provide.
+	UsesDBs []string
+}
+
+// FillDefaults returns a new *Common identical to cc but with unset values set
+// to their defaults and values normalized.
+func (cc *CommonConfig) FillDefaults() APIConfig {
+	newCC := new(CommonConfig)
+	*newCC = *cc
+
+	if newCC.Base == "" {
+		newCC.Base = "/"
+	}
+
+	return newCC
+}
+
+func validateBaseURI(base string) error {
+	if strings.ContainsRune(base, '{') {
+		return fmt.Errorf("contains disallowed char \"{\"")
+	}
+	if strings.ContainsRune(base, '}') {
+		return fmt.Errorf("contains disallowed char \"}\"")
+	}
+	if strings.Contains(base, "//") {
+		return fmt.Errorf("contains disallowed double-slash \"//\"")
+	}
+	return nil
+}
+
+// Validate returns an error if the Config has invalid field values set. Empty
+// and unset values are considered invalid; if defaults are intended to be used,
+// call Validate on the return value of FillDefaults.
+func (cc *CommonConfig) Validate() error {
+	if err := validateBaseURI(cc.Base); err != nil {
+		return fmt.Errorf(ConfigKeyAPIBase+": %w", err)
+	}
+
+	return nil
+}
+
+func (cc *CommonConfig) Common() CommonConfig {
+	return *cc
+}
+
+func (cc *CommonConfig) Keys() []string {
+	return []string{ConfigKeyAPIName, ConfigKeyAPIEnabled, ConfigKeyAPIBase, ConfigKeyAPIUsesDBs}
+}
+
+func (cc *CommonConfig) Get(key string) interface{} {
+	switch strings.ToLower(key) {
+	case ConfigKeyAPIName:
+		return cc.Name
+	case ConfigKeyAPIEnabled:
+		return cc.Enabled
+	case ConfigKeyAPIBase:
+		return cc.Base
+	case ConfigKeyAPIUsesDBs:
+		return cc.UsesDBs
+	default:
+		return nil
+	}
+}
+
+func (cc *CommonConfig) Set(key string, value interface{}) error {
+	switch strings.ToLower(key) {
+	case ConfigKeyAPIName:
+		if valueStr, ok := value.(string); ok {
+			cc.Name = valueStr
+			return nil
+		} else {
+			return fmt.Errorf("key '"+ConfigKeyAPIName+"' requires a string but got a %T", value)
+		}
+	case ConfigKeyAPIEnabled:
+		if valueBool, ok := value.(bool); ok {
+			cc.Enabled = valueBool
+			return nil
+		} else {
+			return fmt.Errorf("key '"+ConfigKeyAPIEnabled+"' requires a bool but got a %T", value)
+		}
+	case ConfigKeyAPIBase:
+		if valueStr, ok := value.(string); ok {
+			cc.Base = valueStr
+			return nil
+		} else {
+			return fmt.Errorf("key '"+ConfigKeyAPIBase+"' requires a string but got a %T", value)
+		}
+	case ConfigKeyAPIUsesDBs:
+		if valueStrSlice, ok := value.([]string); ok {
+			cc.UsesDBs = valueStrSlice
+			return nil
+		} else {
+			return fmt.Errorf("key '"+ConfigKeyAPIUsesDBs+"' requires a []string but got a %T", value)
+		}
+	default:
+		return fmt.Errorf("not a valid key: %q", key)
+	}
+}
+
+func (cc *CommonConfig) SetFromString(key string, value string) error {
+	switch strings.ToLower(key) {
+	case ConfigKeyAPIName, ConfigKeyAPIBase:
+		return cc.Set(key, value)
+	case ConfigKeyAPIEnabled:
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return err
+		}
+		return cc.Set(key, b)
+	case ConfigKeyAPIUsesDBs:
+		if value == "" {
+			return cc.Set(key, []string{})
+		}
+		dbsStrSlice := strings.Split(value, ",")
+		return cc.Set(key, dbsStrSlice)
+	default:
+		return fmt.Errorf("not a valid key: %q", key)
 	}
 }

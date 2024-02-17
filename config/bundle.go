@@ -3,17 +3,19 @@ package config
 import (
 	"strings"
 	"time"
+
+	"github.com/dekarrin/jelly/types"
 )
 
 // Bundle contains configuration specific to an API and global server properties
 // to make a complete API-specific view of a config. It also makes accessing
 // properties a little less cumbersome via its particular GetX functions.
 type Bundle struct {
-	api APIConfig
+	api types.APIConfig
 	g   Globals
 }
 
-func NewBundle(api APIConfig, g Globals) Bundle {
+func NewBundle(api types.APIConfig, g Globals) Bundle {
 	return Bundle{api: api, g: g}
 }
 
@@ -83,7 +85,7 @@ func (bnd Bundle) Has(key string) bool {
 //
 // This is a convenience function equivalent to calling bnd.Get(KeyAPIName).
 func (bnd Bundle) Name() string {
-	return bnd.Get(KeyAPIName)
+	return bnd.Get(types.ConfigKeyAPIName)
 }
 
 // APIBase returns the base path of the API that its routes are all mounted at.
@@ -95,7 +97,7 @@ func (bnd Bundle) Name() string {
 //
 // This is a convenience function equivalent to calling bnd.Get(KeyAPIBase).
 func (bnd Bundle) APIBase() string {
-	base := bnd.Get(KeyAPIBase)
+	base := bnd.Get(types.ConfigKeyAPIBase)
 
 	for len(base) > 0 && base[len(base)-1] == '/' {
 		// do not end with a slash, please
@@ -114,7 +116,7 @@ func (bnd Bundle) APIBase() string {
 // This is a convenience function equivalent to calling
 // bnd.GetSlice(KeyAPIUsesDBs).
 func (bnd Bundle) UsesDBs() []string {
-	return bnd.GetSlice(KeyAPIUsesDBs)
+	return bnd.GetSlice(types.ConfigKeyAPIUsesDBs)
 }
 
 // Enabled returns whether the API was set to be enabled. Since this is required
@@ -124,7 +126,7 @@ func (bnd Bundle) UsesDBs() []string {
 // This is a convenience function equivalent to calling
 // bnd.GetBool(KeyAPIEnabled).
 func (bnd Bundle) Enabled() bool {
-	return bnd.GetBool(KeyAPIEnabled)
+	return bnd.GetBool(types.ConfigKeyAPIEnabled)
 }
 
 // Get retrieves the value of a string-typed API configuration key. If it

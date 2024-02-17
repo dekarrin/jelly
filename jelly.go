@@ -80,7 +80,7 @@ type Component interface {
 
 	// Config returns a new APIConfig instance that the Component's config
 	// section is loaded into.
-	Config() config.APIConfig
+	Config() types.APIConfig
 }
 
 type RESTServer interface {

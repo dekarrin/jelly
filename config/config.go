@@ -109,72 +109,6 @@ func (g Globals) Validate() error {
 	return nil
 }
 
-type APIConfig interface {
-	// Common returns the parts of the API configuration that all APIs are
-	// required to have. Its keys should be considered part of the configuration
-	// held within the APIConfig and any function that accepts keys will accept
-	// the Common keys; additionally, FillDefaults and Validate will both
-	// perform their operations on the Common's keys.
-	//
-	// Performing mutation operations on the Common() returned will not
-	// necessarily affect the APIConfig it came from. Affecting one of its key's
-	// values should be done by calling the appropriate method on the APIConfig
-	// with the key name.
-	Common() Common
-
-	// Keys returns a list of strings, each of which is a valid key that this
-	// configuration contains. These keys may be passed to other methods to
-	// access values in this config.
-	//
-	// Each key returned should be alpha-numeric, and snake-case is preferred
-	// (though not required). If a key contains an illegal character for a
-	// particular format of a config source, it will be replaced with an
-	// underscore in that format; e.g. a key called "test!" would be retrieved
-	// from an envvar called "APPNAME_TEST_" as opposed to "APPNAME_TEST!", as
-	// the exclamation mark is not allowed in most environment variable names.
-	//
-	// The returned slice will contain the values returned by Common()'s Keys()
-	// function as well as any other keys provided by the APIConfig. Each item
-	// in the returned slice must be non-empty and unique when all keys are
-	// converted to lowercase.
-	Keys() []string
-
-	// Get gets the current value of a config key. The parameter key should be a
-	// string that is returned from Keys(). If key is not a string that was
-	// returned from Keys, this function must return nil.
-	//
-	// The key is not case-sensitive.
-	Get(key string) interface{}
-
-	// Set sets the current value of a config key directly. The value must be of
-	// the correct type; no parsing is done in Set.
-	//
-	// The key is not case-sensitive.
-	Set(key string, value interface{}) error
-
-	// SetFromString sets the current value of a config key by parsing the given
-	// string for its value.
-	//
-	// The key is not case-sensitive.
-	SetFromString(key string, value string) error
-
-	// FillDefaults returns a copy of the APIConfig with any unset values set to
-	// default values, if possible. It need not be a brand new copy; it is legal
-	// for implementers to returns the same APIConfig that FillDefaults was
-	// called on.
-	//
-	// Implementors must ensure that the returned APIConfig's Common() returns a
-	// common config that has had its keys set to their defaults as well.
-	FillDefaults() APIConfig
-
-	// Validate checks all current values of the APIConfig and returns whether
-	// there is any issues with them.
-	//
-	// Implementors must ensure that calling Validate() also calls validation on
-	// the common keys as well as those that they provide.
-	Validate() error
-}
-
 // Config is a complete configuration for a server. It contains all parameters
 // that can be used to configure its operation.
 type Config struct {
@@ -191,7 +125,7 @@ type Config struct {
 	// configured jelly framework server. Each APIConfig must return a
 	// CommonConfig whose Name is either set to blank or to the key that maps to
 	// it.
-	APIs map[string]APIConfig
+	APIs map[string]types.APIConfig
 
 	// Log is used to configure the built-in logging system. It can be left
 	// blank to disable logging entirely.
@@ -211,8 +145,8 @@ func (cfg Config) FillDefaults() Config {
 	}
 	newCFG.Globals = newCFG.Globals.FillDefaults()
 	for name, api := range newCFG.APIs {
-		if Get[string](api, KeyAPIName) == "" {
-			if err := api.Set(KeyAPIName, name); err != nil {
+		if Get[string](api, types.ConfigKeyAPIName) == "" {
+			if err := api.Set(types.ConfigKeyAPIName, name); err != nil {
 				panic(fmt.Sprintf("setting a config global failed; should never happen: %v", err))
 			}
 		}
@@ -224,8 +158,8 @@ func (cfg Config) FillDefaults() Config {
 	// if the user has enabled the jellyauth API, set defaults now.
 	if authConf, ok := newCFG.APIs["jellyauth"]; ok {
 		// make shore the first DB exists
-		if Get[bool](authConf, KeyAPIEnabled) {
-			dbs := Get[[]string](authConf, KeyAPIUsesDBs)
+		if Get[bool](authConf, types.ConfigKeyAPIEnabled) {
+			dbs := Get[[]string](authConf, types.ConfigKeyAPIUsesDBs)
 			if len(dbs) > 0 {
 				// make shore this DB exists
 				if _, ok := newCFG.DBs[dbs[0]]; !ok {
@@ -272,10 +206,10 @@ func (cfg Config) Validate() error {
 	return nil
 }
 
-// Get returns a value from an APIConfig. Panics if the given value is not of
+// Get returns a value from an types.APIConfig. Panics if the given value is not of
 // the given type or if there is an error retrieving it or if the given key does
 // not exist.
-func Get[E any](api APIConfig, key string) E {
+func Get[E any](api types.APIConfig, key string) E {
 	if !apiHas(api, key) {
 		panic(fmt.Sprintf("config does not contain key %q", key))
 	}
@@ -313,7 +247,7 @@ func TypedSlice[E any](key string, value interface{}) ([]E, error) {
 	}
 }
 
-func apiHas(api APIConfig, key string) bool {
+func apiHas(api types.APIConfig, key string) bool {
 	needle := strings.ToLower(key)
 
 	for _, k := range api.Keys() {

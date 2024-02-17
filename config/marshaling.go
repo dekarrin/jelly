@@ -18,14 +18,14 @@ import (
 // the config package and any others that contain the concept of registration of
 // certain key procedures and types prior to actual use.
 type Environment struct {
-	apiConfigProviders map[string]func() APIConfig
+	apiConfigProviders map[string]func() types.APIConfig
 
 	DisableDefaults bool
 }
 
 func (env *Environment) initDefaults() {
 	if env.apiConfigProviders == nil {
-		env.apiConfigProviders = map[string]func() APIConfig{}
+		env.apiConfigProviders = map[string]func() types.APIConfig{}
 	}
 }
 
@@ -246,7 +246,7 @@ func (env *Environment) Load(file string) (Config, error) {
 	return f.Decode(env, data)
 }
 
-func (env *Environment) Register(name string, provider func() APIConfig) error {
+func (env *Environment) Register(name string, provider func() types.APIConfig) error {
 	env.initDefaults()
 
 	normName := strings.ToLower(name)
@@ -260,16 +260,16 @@ func (env *Environment) Register(name string, provider func() APIConfig) error {
 	return nil
 }
 
-func marshalAPI(api APIConfig) marshaledAPI {
+func marshalAPI(api types.APIConfig) marshaledAPI {
 	ma := marshaledAPI{
-		Enabled: Get[bool](api, KeyAPIEnabled),
-		Base:    Get[string](api, KeyAPIBase),
-		Uses:    Get[[]string](api, KeyAPIUsesDBs),
+		Enabled: Get[bool](api, types.ConfigKeyAPIEnabled),
+		Base:    Get[string](api, types.ConfigKeyAPIBase),
+		Uses:    Get[[]string](api, types.ConfigKeyAPIUsesDBs),
 		others:  map[string]interface{}{},
 	}
 
 	commonKeys := map[string]struct{}{}
-	for _, ck := range (&Common{}).Keys() {
+	for _, ck := range (&types.CommonConfig{}).Keys() {
 		commonKeys[ck] = struct{}{}
 	}
 
@@ -290,31 +290,31 @@ func marshalAPI(api APIConfig) marshaledAPI {
 	return ma
 }
 
-func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (APIConfig, error) {
+func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (types.APIConfig, error) {
 	env.initDefaults()
 
 	nameNorm := strings.ToLower(name)
 
-	var api APIConfig
+	var api types.APIConfig
 	prov, ok := env.apiConfigProviders[nameNorm]
 	if ok {
 		api = prov()
 	} else {
 		// fallback - if it fails to provide one, it just gets a common config
-		api = &Common{}
+		api = &types.CommonConfig{}
 	}
 
-	if err := api.Set(KeyAPIName, nameNorm); err != nil {
-		return nil, fmt.Errorf(KeyAPIName+": %w", err)
+	if err := api.Set(types.ConfigKeyAPIName, nameNorm); err != nil {
+		return nil, fmt.Errorf(types.ConfigKeyAPIName+": %w", err)
 	}
-	if err := api.Set(KeyAPIEnabled, ma.Enabled); err != nil {
-		return nil, fmt.Errorf(KeyAPIEnabled+": %w", err)
+	if err := api.Set(types.ConfigKeyAPIEnabled, ma.Enabled); err != nil {
+		return nil, fmt.Errorf(types.ConfigKeyAPIEnabled+": %w", err)
 	}
-	if err := api.Set(KeyAPIBase, ma.Base); err != nil {
-		return nil, fmt.Errorf(KeyAPIBase+": %w", err)
+	if err := api.Set(types.ConfigKeyAPIBase, ma.Base); err != nil {
+		return nil, fmt.Errorf(types.ConfigKeyAPIBase+": %w", err)
 	}
-	if err := api.Set(KeyAPIUsesDBs, ma.Uses); err != nil {
-		return nil, fmt.Errorf(KeyAPIUsesDBs+": %w", err)
+	if err := api.Set(types.ConfigKeyAPIUsesDBs, ma.Uses); err != nil {
+		return nil, fmt.Errorf(types.ConfigKeyAPIUsesDBs+": %w", err)
 	}
 
 	for k, v := range ma.others {
@@ -407,7 +407,7 @@ func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 		}
 		cfg.DBs[n] = db
 	}
-	cfg.APIs = map[string]APIConfig{}
+	cfg.APIs = map[string]types.APIConfig{}
 	for n, mAPI := range m.APIs {
 		api, err := unmarshalAPI(env, mAPI, n)
 		if err != nil {
