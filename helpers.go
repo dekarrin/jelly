@@ -165,9 +165,10 @@ func CombineOverrides(overs []Override) Override {
 // http.HandlerFunc from an EndpointFunc.
 type ServiceProvider interface {
 	types.ResponseGenerator
-	DontPanic() middle.Middleware
-	OptionalAuth(authenticators ...string) middle.Middleware
-	RequiredAuth(authenticators ...string) middle.Middleware
+	DontPanic() types.Middleware
+	OptionalAuth(authenticators ...string) types.Middleware
+	RequiredAuth(authenticators ...string) types.Middleware
 	SelectAuthenticator(authenticators ...string) middle.Authenticator
 	Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc
+	GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool)
 }

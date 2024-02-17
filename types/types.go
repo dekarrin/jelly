@@ -413,3 +413,7 @@ type AuthUserStore interface {
 	// authentication and login.
 	AuthUsers() AuthUserRepo
 }
+
+// Middleware is a function that takes a handler and returns a new handler which
+// wraps the given one and provides some additional functionality.
+type Middleware func(next http.Handler) http.Handler

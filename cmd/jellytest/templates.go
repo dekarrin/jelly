@@ -11,6 +11,7 @@ import (
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -114,9 +115,26 @@ type templateEndpoints struct {
 	requireFormatVerb bool
 }
 
+func (ep templateEndpoints) routes() (router chi.Router) {
+	r := chi.NewRouter()
+
+	r.Use(ep.em.RequiredAuth())
+
+	r.Get("/", ep.httpGetAllTemplates())
+	r.Post("/", ep.httpCreateTemplate())
+
+	r.Route("/"+jelly.PathParam("id:uuid"), func(r chi.Router) {
+		r.Get("/", ep.httpGetTemplate())
+		r.Put("/", ep.httpUpdateTemplate())
+		r.Delete("/", ep.httpDeleteTemplate())
+	})
+
+	return r
+}
+
 func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
 	return ep.em.Endpoint(func(req *http.Request) types.Result {
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		all, err := ep.templates.GetAll(req.Context())
 		if err != nil {
@@ -139,7 +157,7 @@ func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
 func (ep templateEndpoints) httpGetTemplate() http.HandlerFunc {
 	return ep.em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		retrieved, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
@@ -158,7 +176,7 @@ func (ep templateEndpoints) httpGetTemplate() http.HandlerFunc {
 
 func (ep templateEndpoints) httpCreateTemplate() http.HandlerFunc {
 	return ep.em.Endpoint(func(req *http.Request) types.Result {
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := ep.em.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"
 
 		var data Template
@@ -197,7 +215,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 
 	return ep.em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		// first, find the template owner
 		t, err := ep.templates.Get(req.Context(), id)
@@ -253,7 +271,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 
 	return ep.em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		var submitted Template
 

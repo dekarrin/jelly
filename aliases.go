@@ -1,12 +1,9 @@
 package jelly
 
 import (
-	"net/http"
-
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/db/sqlite"
 	"github.com/dekarrin/jelly/middle"
-	"github.com/dekarrin/jelly/types"
 )
 
 // TODO: put this on the DB type. Or make it at least just WrapDBError.
@@ -44,7 +41,3 @@ func TypedSlice[E any](key string, value interface{}) ([]E, error) {
 type (
 	Authenticator = middle.Authenticator
 )
-
-func GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool) {
-	return middle.GetLoggedInUser(req)
-}

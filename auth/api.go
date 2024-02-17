@@ -130,7 +130,7 @@ func (api *LoginAPI) Shutdown(ctx context.Context) error {
 // a value denoting whether the client making the request is logged-in.
 func (api LoginAPI) httpGetInfo(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
-		user, loggedIn := jelly.GetLoggedInUser(req)
+		user, loggedIn := em.GetLoggedInUser(req)
 
 		var resp InfoModel
 		resp.Version.Auth = Version
@@ -194,7 +194,7 @@ func (api LoginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
 func (api LoginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		// is the user trying to delete someone else's login? they'd betta be the
 		// admin if so!
@@ -264,7 +264,7 @@ func (api LoginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
 // the logged-in user of the client making the request.
 func (api LoginAPI) httpGetAllUsers(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		if user.Role != types.Admin {
 			return em.Forbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
@@ -303,7 +303,7 @@ func (api LoginAPI) httpGetAllUsers(em jelly.ServiceProvider) http.HandlerFunc {
 // the logged-in user of the client making the request.
 func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		if user.Role != types.Admin {
 			return em.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
@@ -367,7 +367,7 @@ func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 func (api LoginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		// is the user trying to delete someone else? they'd betta be the admin if so!
 		if id != user.ID && user.Role != types.Admin {
@@ -434,7 +434,7 @@ func (api LoginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
 func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		if id != user.ID && user.Role != types.Admin {
 			var otherUserStr string
@@ -548,7 +548,7 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		if user.Role != types.Admin {
 			return em.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
@@ -627,7 +627,7 @@ func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 func (api LoginAPI) httpDeleteUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
 		id := jelly.RequireIDParam(req)
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 
 		// is the user trying to delete someone else? they'd betta be the admin if so!
 		if id != user.ID && user.Role != types.Admin {

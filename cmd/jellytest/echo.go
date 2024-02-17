@@ -158,23 +158,6 @@ func (api *EchoAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpath
 	return r, true
 }
 
-func (ep templateEndpoints) routes() (router chi.Router) {
-	r := chi.NewRouter()
-
-	r.Use(ep.em.RequiredAuth())
-
-	r.Get("/", ep.httpGetAllTemplates())
-	r.Post("/", ep.httpCreateTemplate())
-
-	r.Route("/"+jelly.PathParam("id:uuid"), func(r chi.Router) {
-		r.Get("/", ep.httpGetTemplate())
-		r.Put("/", ep.httpUpdateTemplate())
-		r.Delete("/", ep.httpDeleteTemplate())
-	})
-
-	return r
-}
-
 type echoRequestBody struct {
 	Message string `json:"message"`
 }
@@ -199,7 +182,7 @@ func (api EchoAPI) httpGetEcho(em jelly.ServiceProvider) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		user, loggedIn := jelly.GetLoggedInUser(req)
+		user, loggedIn := em.GetLoggedInUser(req)
 		if loggedIn {
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"

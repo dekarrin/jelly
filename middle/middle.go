@@ -19,10 +19,6 @@ func (sf mwFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	sf(w, req)
 }
 
-// Middleware is a function that takes a handler and returns a new handler which
-// wraps the given one and provides some additional functionality.
-type Middleware func(next http.Handler) http.Handler
-
 // AuthKey is a key in the context of a request populated by an AuthHandler.
 type AuthKey int64
 
@@ -351,7 +347,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // were registered as an Authenticator with this package, in priority order. If
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
-func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...string) Middleware {
+func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...string) types.Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
@@ -370,7 +366,7 @@ func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...s
 // package, in priority order. If none of the given authenticators exist, this
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.
-func (p Provider) OptionalAuth(resp types.ResponseGenerator, authenticators ...string) Middleware {
+func (p Provider) OptionalAuth(resp types.ResponseGenerator, authenticators ...string) types.Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
@@ -386,7 +382,7 @@ func (p Provider) OptionalAuth(resp types.ResponseGenerator, authenticators ...s
 // DontPanic returns a Middleware that performs a panic check as it exits. If
 // the function is panicking, it will write out an HTTP response with a generic
 // message to the client and add it to the log.
-func (p Provider) DontPanic(resp types.ResponseGenerator) Middleware {
+func (p Provider) DontPanic(resp types.ResponseGenerator) types.Middleware {
 	return func(next http.Handler) http.Handler {
 		return mwFunc(func(w http.ResponseWriter, req *http.Request) {
 			defer func() {

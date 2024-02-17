@@ -276,7 +276,7 @@ func (api HelloAPI) httpGetNice(em jelly.ServiceProvider) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		user, loggedIn := jelly.GetLoggedInUser(req)
+		user, loggedIn := em.GetLoggedInUser(req)
 		if loggedIn {
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
@@ -299,7 +299,7 @@ func (api HelloAPI) httpGetRude(em jelly.ServiceProvider) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		user, loggedIn := jelly.GetLoggedInUser(req)
+		user, loggedIn := em.GetLoggedInUser(req)
 		if loggedIn {
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
@@ -342,7 +342,7 @@ func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		user, loggedIn := jelly.GetLoggedInUser(req)
+		user, loggedIn := em.GetLoggedInUser(req)
 		if loggedIn {
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
@@ -356,7 +356,7 @@ func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 // available only for logged-in users.
 func (api HelloAPI) httpGetSecret(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
-		user, _ := jelly.GetLoggedInUser(req)
+		user, _ := em.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"
 
 		msg, err := api.secrets.GetRandom(req.Context())
