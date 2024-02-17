@@ -330,7 +330,7 @@ func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (types.APIConf
 // unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
-func (log *Log) unmarshal(m marshaledLog) error {
+func unmarshalLog(log *types.LogConfig, m marshaledLog) error {
 	var err error
 
 	log.Enabled = m.Enabled
@@ -345,7 +345,7 @@ func (log *Log) unmarshal(m marshaledLog) error {
 
 // marshal returns the marshaledLog that would re-create Log if passed to
 // unmarshal.
-func (log Log) marshal() marshaledLog {
+func marshalLog(log types.LogConfig) marshaledLog {
 	return marshaledLog{
 		Enabled:  log.Enabled,
 		Provider: log.Provider.String(),
@@ -356,7 +356,7 @@ func (log Log) marshal() marshaledLog {
 // unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
-func (cfg *Globals) unmarshal(m marshaledConfig) error {
+func unmarshalGlobals(cfg *types.Globals, m marshaledConfig) error {
 	var err error
 
 	// listen address part...
@@ -380,7 +380,7 @@ func (cfg *Globals) unmarshal(m marshaledConfig) error {
 
 // marshalToConfig modifies the given marshaledConfig such that it would
 // re-create cfg when it is passed to unmarshal.
-func (cfg Globals) marshalToConfig(mc *marshaledConfig) {
+func marshalGlobalsToConfig(cfg types.Globals, mc *marshaledConfig) {
 	mc.Listen = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 	mc.Base = cfg.URIBase
 	mc.Auth = cfg.MainAuthProvider
@@ -395,7 +395,7 @@ func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 		env = &Environment{}
 	}
 
-	if err := cfg.Globals.unmarshal(m); err != nil {
+	if err := unmarshalGlobals(&cfg.Globals, m); err != nil {
 		return err
 	}
 	cfg.DBs = map[string]Database{}
@@ -415,7 +415,7 @@ func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 		}
 		cfg.APIs[n] = api
 	}
-	if err := cfg.Log.unmarshal(m.Logging); err != nil {
+	if err := unmarshalLog(&cfg.Log, m.Logging); err != nil {
 		return fmt.Errorf("logging: %w", err)
 	}
 
@@ -428,10 +428,10 @@ func (cfg Config) marshal() marshaledConfig {
 	mc := marshaledConfig{
 		DBs:     map[string]marshaledDatabase{},
 		APIs:    map[string]marshaledAPI{},
-		Logging: cfg.Log.marshal(),
+		Logging: marshalLog(cfg.Log),
 	}
 
-	cfg.Globals.marshalToConfig(&mc)
+	marshalGlobalsToConfig(cfg.Globals, &mc)
 	for n, db := range cfg.DBs {
 		mDB := db.marshal()
 		mc.DBs[n] = mDB

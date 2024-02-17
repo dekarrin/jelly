@@ -785,3 +785,92 @@ func (cc *CommonConfig) SetFromString(key string, value string) error {
 		return fmt.Errorf("not a valid key: %q", key)
 	}
 }
+
+// LogConfig contains logging options. Loggers are provided to APIs in the form of
+// sub-components of the primary logger. If logging is enabled, the Jelly server
+// will configure the logger of the chosen provider and use it for messages
+// about the server itself, and will pass a sub-component logger to each API to
+// use for its own logging.
+type LogConfig struct {
+	// Enabled is whether to enable built-in logging statements.
+	Enabled bool
+
+	// Provider must be the name of one of the logging providers. If set to
+	// None or unset, it will default to logging.Jellog.
+	Provider LogProvider
+
+	// File to log to. If not set, all logging will be done to stderr and it
+	// will display all logging statements. If set, the file will receive all
+	// levels of log messages and stderr will show only those of Info level or
+	// higher.
+	File string
+}
+
+func (log LogConfig) FillDefaults() LogConfig {
+	newLog := log
+
+	if newLog.Provider == NoLog {
+		newLog.Provider = Jellog
+	}
+
+	return newLog
+}
+
+func (g LogConfig) Validate() error {
+	if g.Provider == NoLog {
+		return fmt.Errorf("provider: must not be empty")
+	}
+
+	return nil
+}
+
+// Globals are the values of global configuration values from the top level
+// config. These values are shared with every API.
+type Globals struct {
+
+	// Port is the port that the server will listen on. It will default to 8080
+	// if none is given.
+	Port int
+
+	// Address is the internet address that the server will listen on. It will
+	// default to "localhost" if none is given.
+	Address string
+
+	// URIBase is the base path that all APIs are rooted on. It will default to
+	// "/", which is equivalent to being directly on root.
+	URIBase string
+
+	// The main auth provider to use for the project. Must be the
+	// fully-qualified name of it, e.g. COMPONENT.PROVIDER format.
+	MainAuthProvider string
+}
+
+func (g Globals) FillDefaults() Globals {
+	newG := g
+
+	if newG.Port == 0 {
+		newG.Port = 8080
+	}
+	if newG.Address == "" {
+		newG.Address = "localhost"
+	}
+	if newG.URIBase == "" {
+		newG.URIBase = "/"
+	}
+
+	return newG
+}
+
+func (g Globals) Validate() error {
+	if g.Port < 1 {
+		return fmt.Errorf("port: must be greater than 0")
+	}
+	if g.Address == "" {
+		return fmt.Errorf("address: must not be empty")
+	}
+	if err := validateBaseURI(g.URIBase); err != nil {
+		return fmt.Errorf("base: %w", err)
+	}
+
+	return nil
+}

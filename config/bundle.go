@@ -12,10 +12,10 @@ import (
 // properties a little less cumbersome via its particular GetX functions.
 type Bundle struct {
 	api types.APIConfig
-	g   Globals
+	g   types.Globals
 }
 
-func NewBundle(api types.APIConfig, g Globals) Bundle {
+func NewBundle(api types.APIConfig, g types.Globals) Bundle {
 	return Bundle{api: api, g: g}
 }
 

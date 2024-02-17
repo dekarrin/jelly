@@ -61,7 +61,7 @@ func (env *Environment) NewServer(cfg *config.Config) (jelly.RESTServer, error) 
 	if cfg.Log.Enabled {
 		var err error
 
-		logger, err = cfg.Log.Create()
+		logger, err = logging.New(cfg.Log.Provider, cfg.Log.File)
 		if err != nil {
 			return nil, fmt.Errorf("create logger: %w", err)
 		}
