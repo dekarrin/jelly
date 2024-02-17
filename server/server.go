@@ -280,7 +280,7 @@ func (rs *restServer) Add(name string, api jelly.API) error {
 func (rs *restServer) getAPIConfigBundle(name string) config.Bundle {
 	conf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
-		return config.NewBundle((&config.Common{Name: name}).FillDefaults(), rs.cfg.Globals)
+		return config.NewBundle((&types.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals)
 	}
 	return config.NewBundle(conf, rs.cfg.Globals)
 }

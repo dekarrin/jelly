@@ -61,7 +61,7 @@ func (env *Environment) UseComponent(c jelly.Component) {
 // should be loaded into it. You must call this for every custom API config
 // sections, or they will be given the default common config only at
 // initialization.
-func (env *Environment) RegisterConfigSection(name string, provider func() config.APIConfig) error {
+func (env *Environment) RegisterConfigSection(name string, provider func() types.APIConfig) error {
 	env.initDefaults()
 	return env.confEnv.Register(name, provider)
 }

@@ -12,7 +12,7 @@ package auth
 
 import (
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/config"
+	"github.com/dekarrin/jelly/types"
 )
 
 const (
@@ -29,7 +29,7 @@ func (ci ComponentInfo) API() jelly.API {
 	return &LoginAPI{}
 }
 
-func (ci ComponentInfo) Config() config.APIConfig {
+func (ci ComponentInfo) Config() types.APIConfig {
 	return &Config{}
 }
 
