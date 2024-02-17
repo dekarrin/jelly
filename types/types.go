@@ -5,12 +5,16 @@
 package types
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type ErrorResponse struct {
@@ -251,3 +255,73 @@ var (
 	DBErrNotFound            = errors.New("the requested resource was not found")
 	DBErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
+
+type Role int64
+
+const (
+	Guest Role = iota
+	Unverified
+	Normal
+
+	Admin Role = 100
+)
+
+func (r Role) String() string {
+	switch r {
+	case Guest:
+		return "guest"
+	case Unverified:
+		return "unverified"
+	case Normal:
+		return "normal"
+	case Admin:
+		return "admin"
+	default:
+		return fmt.Sprintf("Role(%d)", r)
+	}
+}
+
+func (r Role) Value() (driver.Value, error) {
+	return int64(r), nil
+}
+
+func (r *Role) Scan(value interface{}) error {
+	iVal, ok := value.(int64)
+	if !ok {
+		return fmt.Errorf("not an integer value: %v", value)
+	}
+
+	*r = Role(iVal)
+
+	return nil
+}
+
+func ParseRole(s string) (Role, error) {
+	check := strings.ToLower(s)
+	switch check {
+	case "guest":
+		return Guest, nil
+	case "unverified":
+		return Unverified, nil
+	case "normal":
+		return Normal, nil
+	case "admin":
+		return Admin, nil
+	default:
+		return Guest, fmt.Errorf("must be one of 'guest', 'unverified', 'normal', or 'admin'")
+	}
+}
+
+// AuthUser is an auth model for use in the pre-rolled auth mechanism of user-in-db
+// and login identified via JWT.
+type AuthUser struct {
+	ID         uuid.UUID // PK, NOT NULL
+	Username   string    // UNIQUE, NOT NULL
+	Password   string    // NOT NULL
+	Email      string    // NOT NULL
+	Role       Role      // NOT NULL
+	Created    time.Time // NOT NULL
+	Modified   time.Time // NOT NULL
+	LastLogout time.Time // NOT NULL DEFAULT NOW()
+	LastLogin  time.Time // NOT NULL
+}

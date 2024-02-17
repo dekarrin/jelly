@@ -20,8 +20,8 @@ var (
 	Issuer = "jelly"
 )
 
-func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUserRepo) (db.User, error) {
-	var user db.User
+func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUserRepo) (types.AuthUser, error) {
+	var user types.AuthUser
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
@@ -47,12 +47,12 @@ func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUser
 		var signKey []byte
 		signKey = append(signKey, secret...)
 		signKey = append(signKey, []byte(user.Password)...)
-		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogout.Time().Unix()))...)
+		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogout.Unix()))...)
 		return signKey, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
 	if err != nil {
-		return db.User{}, err
+		return types.AuthUser{}, err
 	}
 
 	return user, nil
@@ -81,7 +81,7 @@ func Get(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func Generate(secret []byte, u db.User) (string, error) {
+func Generate(secret []byte, u types.AuthUser) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        Issuer,
 		"exp":        time.Now().Add(time.Hour).Unix(),
@@ -93,7 +93,7 @@ func Generate(secret []byte, u db.User) (string, error) {
 	var signKey []byte
 	signKey = append(signKey, secret...)
 	signKey = append(signKey, []byte(u.Password)...)
-	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogout.Time().Unix()))...)
+	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogout.Unix()))...)
 
 	tokStr, err := tok.SignedString(signKey)
 	if err != nil {

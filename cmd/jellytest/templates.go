@@ -9,7 +9,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
@@ -211,7 +210,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 
 		// is the user trying to delete someone else's template (or one added
 		// via config)? they'd betta be the admin if so!
-		if t.Creator != user.ID && user.Role != db.Admin {
+		if t.Creator != user.ID && user.Role != types.Admin {
 			var creatorStr string
 			var zeroUUID uuid.UUID
 			if t.Creator == zeroUUID {
@@ -295,7 +294,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 		// via config)? they'd betta be the admin if so!
 		//
 		// also applies if updating the user.Creator; only admin can do that!
-		if (t.Creator != user.ID || t.Creator != daoSubmitted.Creator) && user.Role != db.Admin {
+		if (t.Creator != user.ID || t.Creator != daoSubmitted.Creator) && user.Role != types.Admin {
 			var creatorStr string
 			var zeroUUID uuid.UUID
 			if t.Creator == zeroUUID {

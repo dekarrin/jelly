@@ -7,6 +7,7 @@ import (
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/token"
+	"github.com/dekarrin/jelly/types"
 )
 
 type JWTAuthProvider struct {
@@ -16,7 +17,7 @@ type JWTAuthProvider struct {
 	srv         LoginService
 }
 
-func (ap JWTAuthProvider) Authenticate(req *http.Request) (db.User, bool, error) {
+func (ap JWTAuthProvider) Authenticate(req *http.Request) (types.AuthUser, bool, error) {
 	tok, err := token.Get(req)
 	if err != nil {
 		// might not actually be a problem, let the auth engine decide if so but
@@ -24,13 +25,13 @@ func (ap JWTAuthProvider) Authenticate(req *http.Request) (db.User, bool, error)
 		//
 		// TODO: when/if logging ever added, do that instead of just losing the
 		// error
-		return db.User{}, false, nil
+		return types.AuthUser{}, false, nil
 	}
 
 	// validate the token
 	lookupUser, err := token.Validate(req.Context(), tok, ap.secret, ap.db)
 	if err != nil {
-		return db.User{}, false, err
+		return types.AuthUser{}, false, err
 	}
 
 	return lookupUser, true, nil

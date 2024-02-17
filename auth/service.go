@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/mail"
+	"time"
 
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/serr"
@@ -31,34 +32,34 @@ type LoginService struct {
 // a user or if the password is incorrect, it will match ErrBadCredentials. If
 // the error occured due to an unexpected problem with the DB, it will match
 // serr.ErrDB.
-func (svc LoginService) Login(ctx context.Context, username string, password string) (db.User, error) {
+func (svc LoginService) Login(ctx context.Context, username string, password string) (types.AuthUser, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.ErrBadCredentials
+			return types.AuthUser{}, serr.ErrBadCredentials
 		}
-		return db.User{}, serr.WrapDB("", err)
+		return types.AuthUser{}, serr.WrapDB("", err)
 	}
 
 	// verify password
 	bcryptHash, err := base64.StdEncoding.DecodeString(user.Password)
 	if err != nil {
-		return db.User{}, err
+		return types.AuthUser{}, err
 	}
 
 	err = bcrypt.CompareHashAndPassword(bcryptHash, []byte(password))
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return db.User{}, serr.ErrBadCredentials
+			return types.AuthUser{}, serr.ErrBadCredentials
 		}
-		return db.User{}, serr.WrapDB("", err)
+		return types.AuthUser{}, serr.WrapDB("", err)
 	}
 
 	// successful login; update the DB
-	user.LastLogin = db.NowTimestamp()
+	user.LastLogin = time.Now()
 	user, err = svc.Provider.AuthUsers().Update(ctx, user.ID, user)
 	if err != nil {
-		return db.User{}, serr.WrapDB("cannot update user login time", err)
+		return types.AuthUser{}, serr.WrapDB("cannot update user login time", err)
 	}
 
 	return user, nil
@@ -71,27 +72,27 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 // errors.Is depending on what caused the error. If the user doesn't exist, it
 // will match serr.ErrNotFound. If the error occured due to an unexpected
 // problem with the DB, it will match serr.ErrDB.
-func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (db.User, error) {
+func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (types.AuthUser, error) {
 	existing, err := svc.Provider.AuthUsers().Get(ctx, who)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.ErrNotFound
+			return types.AuthUser{}, serr.ErrNotFound
 		}
-		return db.User{}, serr.WrapDB("could not retrieve user", err)
+		return types.AuthUser{}, serr.WrapDB("could not retrieve user", err)
 	}
 
-	existing.LastLogout = db.NowTimestamp()
+	existing.LastLogout = time.Now()
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, existing.ID, existing)
 	if err != nil {
-		return db.User{}, serr.WrapDB("could not update user", err)
+		return types.AuthUser{}, serr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
 }
 
 // GetAllUsers returns all auth users currently in persistence.
-func (svc LoginService) GetAllUsers(ctx context.Context) ([]db.User, error) {
+func (svc LoginService) GetAllUsers(ctx context.Context) ([]types.AuthUser, error) {
 	users, err := svc.Provider.AuthUsers().GetAll(ctx)
 	if err != nil {
 		return nil, serr.WrapDB("", err)
@@ -107,18 +108,18 @@ func (svc LoginService) GetAllUsers(ctx context.Context) ([]db.User, error) {
 // it will match serr.ErrNotFound. If the error occured due to an unexpected
 // problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
 // with one of the arguments, it will match serr.ErrBadArgument.
-func (svc LoginService) GetUser(ctx context.Context, id string) (db.User, error) {
+func (svc LoginService) GetUser(ctx context.Context, id string) (types.AuthUser, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return db.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.ErrNotFound
+			return types.AuthUser{}, serr.ErrNotFound
 		}
-		return db.User{}, serr.WrapDB("could not get user", err)
+		return types.AuthUser{}, serr.WrapDB("could not get user", err)
 	}
 
 	return user, nil
@@ -131,13 +132,13 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (db.User, error)
 // it will match serr.ErrNotFound. If the error occured due to an unexpected
 // problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
 // with one of the arguments, it will match serr.ErrBadArgument.
-func (svc LoginService) GetUserByUsername(ctx context.Context, username string) (db.User, error) {
+func (svc LoginService) GetUserByUsername(ctx context.Context, username string) (types.AuthUser, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.ErrNotFound
+			return types.AuthUser{}, serr.ErrNotFound
 		}
-		return db.User{}, serr.WrapDB("could not get user", err)
+		return types.AuthUser{}, serr.WrapDB("could not get user", err)
 	}
 
 	return user, nil
@@ -164,48 +165,47 @@ func hashUserPass(password string) (string, error) {
 // already present, it will match serr.ErrAlreadyExists. If the error occured
 // due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
 // if one of the arguments is invalid, it will match serr.ErrBadArgument.
-func (svc LoginService) CreateUser(ctx context.Context, username, password, email string, role db.Role) (db.User, error) {
+func (svc LoginService) CreateUser(ctx context.Context, username, password, email string, role types.Role) (types.AuthUser, error) {
 	var err error
 	if username == "" {
-		return db.User{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
 	}
 	if password == "" {
-		return db.User{}, serr.New("password cannot be blank", err, serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("password cannot be blank", err, serr.ErrBadArgument)
 	}
 
-	var storedEmail *mail.Address
 	if email != "" {
-		storedEmail, err = mail.ParseAddress(email)
+		_, err = mail.ParseAddress(email)
 		if err != nil {
-			return db.User{}, serr.New("email is not valid", err, serr.ErrBadArgument)
+			return types.AuthUser{}, serr.New("email is not valid", err, serr.ErrBadArgument)
 		}
 	}
 
 	_, err = svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err == nil {
-		return db.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+		return types.AuthUser{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
 	} else if !errors.Is(err, types.DBErrNotFound) {
-		return db.User{}, serr.WrapDB("", err)
+		return types.AuthUser{}, serr.WrapDB("", err)
 	}
 
 	storedPass, err := hashUserPass(password)
 	if err != nil {
-		return db.User{}, err
+		return types.AuthUser{}, err
 	}
 
-	newUser := db.User{
+	newUser := types.AuthUser{
 		Username: username,
 		Password: storedPass,
-		Email:    db.Email{V: storedEmail},
+		Email:    email,
 		Role:     role,
 	}
 
 	user, err := svc.Provider.AuthUsers().Create(ctx, newUser)
 	if err != nil {
 		if errors.Is(err, types.DBErrConstraintViolation) {
-			return db.User{}, serr.ErrAlreadyExists
+			return types.AuthUser{}, serr.ErrAlreadyExists
 		}
-		return db.User{}, serr.WrapDB("could not create user", err)
+		return types.AuthUser{}, serr.WrapDB("could not create user", err)
 	}
 
 	return user, nil
@@ -225,55 +225,54 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 // serr.ErrNotFound. If the error occured due to an unexpected problem with the
 // DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
 // will match serr.ErrBadArgument.
-func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role db.Role) (db.User, error) {
+func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role types.Role) (types.AuthUser, error) {
 	var err error
 
 	if username == "" {
-		return db.User{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
 	}
 
-	var storedEmail *mail.Address
 	if email != "" {
-		storedEmail, err = mail.ParseAddress(email)
+		_, err = mail.ParseAddress(email)
 		if err != nil {
-			return db.User{}, serr.New("email is not valid", err, serr.ErrBadArgument)
+			return types.AuthUser{}, serr.New("email is not valid", err, serr.ErrBadArgument)
 		}
 	}
 
 	uuidCurID, err := uuid.Parse(curID)
 	if err != nil {
-		return db.User{}, serr.New("current ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("current ID is not valid", serr.ErrBadArgument)
 	}
 	uuidNewID, err := uuid.Parse(newID)
 	if err != nil {
-		return db.User{}, serr.New("new ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("new ID is not valid", serr.ErrBadArgument)
 	}
 
 	daoUser, err := svc.Provider.AuthUsers().Get(ctx, uuidCurID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.New("user not found", serr.ErrNotFound)
+			return types.AuthUser{}, serr.New("user not found", serr.ErrNotFound)
 		}
 	}
 
 	if curID != newID {
 		_, err := svc.Provider.AuthUsers().Get(ctx, uuidNewID)
 		if err == nil {
-			return db.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+			return types.AuthUser{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
 		} else if !errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.WrapDB("", err)
+			return types.AuthUser{}, serr.WrapDB("", err)
 		}
 	}
 	if daoUser.Username != username {
 		_, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 		if err == nil {
-			return db.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+			return types.AuthUser{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
 		} else if !errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.WrapDB("", err)
+			return types.AuthUser{}, serr.WrapDB("", err)
 		}
 	}
 
-	daoUser.Email.V = storedEmail
+	daoUser.Email = email
 	daoUser.ID = uuidNewID
 	daoUser.Username = username
 	daoUser.Role = role
@@ -281,11 +280,11 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 	updatedUser, err := svc.Provider.AuthUsers().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
 		if errors.Is(err, types.DBErrConstraintViolation) {
-			return db.User{}, serr.New("a user with that ID/username already exists", serr.ErrAlreadyExists)
+			return types.AuthUser{}, serr.New("a user with that ID/username already exists", serr.ErrAlreadyExists)
 		} else if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.New("user not found", serr.ErrNotFound)
+			return types.AuthUser{}, serr.New("user not found", serr.ErrNotFound)
 		}
-		return db.User{}, serr.WrapDB("", err)
+		return types.AuthUser{}, serr.WrapDB("", err)
 	}
 
 	return updatedUser, nil
@@ -299,29 +298,29 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 // exists, it will match serr.ErrNotFound. If the error occured due to an
 // unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
 // the arguments is invalid, it will match serr.ErrBadArgument.
-func (svc LoginService) UpdatePassword(ctx context.Context, id, password string) (db.User, error) {
+func (svc LoginService) UpdatePassword(ctx context.Context, id, password string) (types.AuthUser, error) {
 	if password == "" {
-		return db.User{}, serr.New("password cannot be empty", serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("password cannot be empty", serr.ErrBadArgument)
 	}
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return db.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	existing, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
+			return types.AuthUser{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
-		return db.User{}, serr.WrapDB("", err)
+		return types.AuthUser{}, serr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return db.User{}, serr.New("password is too long", err, serr.ErrBadArgument)
+			return types.AuthUser{}, serr.New("password is too long", err, serr.ErrBadArgument)
 		} else {
-			return db.User{}, serr.New("password could not be encrypted", err)
+			return types.AuthUser{}, serr.New("password could not be encrypted", err)
 		}
 	}
 
@@ -332,9 +331,9 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 	updated, err := svc.Provider.AuthUsers().Update(ctx, uuidID, existing)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
+			return types.AuthUser{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
-		return db.User{}, serr.WrapDB("could not update user", err)
+		return types.AuthUser{}, serr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
@@ -348,18 +347,18 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 // exists, it will match serr.ErrNotFound. If the error occured due to an
 // unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
 // is an issue with one of the arguments, it will match serr.ErrBadArgument.
-func (svc LoginService) DeleteUser(ctx context.Context, id string) (db.User, error) {
+func (svc LoginService) DeleteUser(ctx context.Context, id string) (types.AuthUser, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return db.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Delete(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return db.User{}, serr.ErrNotFound
+			return types.AuthUser{}, serr.ErrNotFound
 		}
-		return db.User{}, serr.WrapDB("could not delete user", err)
+		return types.AuthUser{}, serr.WrapDB("could not delete user", err)
 	}
 
 	return user, nil

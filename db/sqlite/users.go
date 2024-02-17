@@ -35,18 +35,19 @@ func (repo *AuthUsersDB) init() error {
 	return nil
 }
 
-func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, error) {
+func (repo *AuthUsersDB) Create(ctx context.Context, u types.AuthUser) (types.AuthUser, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return db.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return types.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return types.AuthUser{}, WrapDBError(err)
 	}
 
 	now := db.Timestamp(time.Now())
+	user := db.NewUserFromAuthUser(u)
 	_, err = stmt.ExecContext(
 		ctx,
 		newUUID,
@@ -60,20 +61,20 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, err
 		db.Timestamp{},
 	)
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return types.AuthUser{}, WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
 }
 
-func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
+func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]types.AuthUser, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
 		return nil, WrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []db.User
+	var all []types.AuthUser
 
 	for rows.Next() {
 		var user db.User
@@ -93,7 +94,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 			return nil, WrapDBError(err)
 		}
 
-		all = append(all, user)
+		all = append(all, user.AuthUser())
 	}
 
 	if err := rows.Err(); err != nil {
@@ -103,7 +104,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 	return all, nil
 }
 
-func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User) (db.User, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user types.AuthUser) (types.AuthUser, error) {
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		user.ID,
@@ -117,20 +118,20 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User)
 		id,
 	)
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return types.AuthUser{}, WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return types.AuthUser{}, WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return db.User{}, types.DBErrNotFound
+		return types.AuthUser{}, types.DBErrNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
 }
 
-func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db.User, error) {
+func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (types.AuthUser, error) {
 	user := db.User{
 		Username: username,
 	}
@@ -150,13 +151,13 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 	)
 
 	if err != nil {
-		return user, WrapDBError(err)
+		return user.AuthUser(), WrapDBError(err)
 	}
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (types.AuthUser, error) {
 	user := db.User{
 		ID: id,
 	}
@@ -176,13 +177,13 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 	)
 
 	if err != nil {
-		return user, WrapDBError(err)
+		return user.AuthUser(), WrapDBError(err)
 	}
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (types.AuthUser, error) {
 	curVal, err := repo.Get(ctx, id)
 	if err != nil {
 		return curVal, err

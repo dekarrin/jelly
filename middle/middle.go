@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
@@ -41,10 +40,10 @@ type Provider struct {
 	DisableDefaults   bool
 }
 
-func GetLoggedInUser(req *http.Request) (user db.User, loggedIn bool) {
+func GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool) {
 	loggedIn = req.Context().Value(AuthLoggedIn).(bool)
 	if loggedIn {
-		user = req.Context().Value(AuthUser).(db.User)
+		user = req.Context().Value(AuthUser).(types.AuthUser)
 	}
 
 	return user, loggedIn
@@ -153,7 +152,7 @@ type Authenticator interface {
 	//
 	// If the user is logged-in, returns the logged-in user, true, and a nil
 	// error.
-	Authenticate(req *http.Request) (db.User, bool, error)
+	Authenticate(req *http.Request) (types.AuthUser, bool, error)
 
 	// Service returns the UserLoginService that can be used to control active
 	// logins and the list of users.
@@ -176,7 +175,7 @@ type UserLoginService interface {
 	// a user or if the password is incorrect, it will match ErrBadCredentials. If
 	// the error occured due to an unexpected problem with the DB, it will match
 	// serr.ErrDB.
-	Login(ctx context.Context, username string, password string) (db.User, error)
+	Login(ctx context.Context, username string, password string) (types.AuthUser, error)
 
 	// Logout marks the user with the given ID as having logged out, invalidating
 	// any login that may be active. Returns the user entity that was logged out.
@@ -185,10 +184,10 @@ type UserLoginService interface {
 	// errors.Is depending on what caused the error. If the user doesn't exist, it
 	// will match serr.ErrNotFound. If the error occured due to an unexpected
 	// problem with the DB, it will match serr.ErrDB.
-	Logout(ctx context.Context, who uuid.UUID) (db.User, error)
+	Logout(ctx context.Context, who uuid.UUID) (types.AuthUser, error)
 
 	// GetAllUsers returns all auth users currently in persistence.
-	GetAllUsers(ctx context.Context) ([]db.User, error)
+	GetAllUsers(ctx context.Context) ([]types.AuthUser, error)
 
 	// GetUser returns the user with the given ID.
 	//
@@ -197,7 +196,7 @@ type UserLoginService interface {
 	// it will match serr.ErrNotFound. If the error occured due to an unexpected
 	// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
 	// with one of the arguments, it will match serr.ErrBadArgument.
-	GetUser(ctx context.Context, id string) (db.User, error)
+	GetUser(ctx context.Context, id string) (types.AuthUser, error)
 
 	// GetUserByUsername returns the user with the given username.
 	//
@@ -206,7 +205,7 @@ type UserLoginService interface {
 	// it will match serr.ErrNotFound. If the error occured due to an unexpected
 	// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
 	// with one of the arguments, it will match serr.ErrBadArgument.
-	GetUserByUsername(ctx context.Context, username string) (db.User, error)
+	GetUserByUsername(ctx context.Context, username string) (types.AuthUser, error)
 
 	// CreateUser creates a new user with the given username, password, and email
 	// combo. Returns the newly-created user as it exists after creation.
@@ -216,7 +215,7 @@ type UserLoginService interface {
 	// already present, it will match serr.ErrAlreadyExists. If the error occured
 	// due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
 	// if one of the arguments is invalid, it will match serr.ErrBadArgument.
-	CreateUser(ctx context.Context, username, password, email string, role db.Role) (db.User, error)
+	CreateUser(ctx context.Context, username, password, email string, role types.Role) (types.AuthUser, error)
 
 	// UpdateUser sets all properties except the password of the user with the
 	// given ID to the properties in the provider user. All the given properties
@@ -233,7 +232,7 @@ type UserLoginService interface {
 	// serr.ErrNotFound. If the error occured due to an unexpected problem with the
 	// DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
 	// will match serr.ErrBadArgument.
-	UpdateUser(ctx context.Context, curID, newID, username, email string, role db.Role) (db.User, error)
+	UpdateUser(ctx context.Context, curID, newID, username, email string, role types.Role) (types.AuthUser, error)
 
 	// UpdatePassword sets the password of the user with the given ID to the new
 	// password. The new password cannot be empty. Returns the updated user.
@@ -243,7 +242,7 @@ type UserLoginService interface {
 	// exists, it will match serr.ErrNotFound. If the error occured due to an
 	// unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
 	// the arguments is invalid, it will match serr.ErrBadArgument.
-	UpdatePassword(ctx context.Context, id, password string) (db.User, error)
+	UpdatePassword(ctx context.Context, id, password string) (types.AuthUser, error)
 
 	// DeleteUser deletes the user with the given ID. It returns the deleted user
 	// just after they were deleted.
@@ -253,14 +252,14 @@ type UserLoginService interface {
 	// exists, it will match serr.ErrNotFound. If the error occured due to an
 	// unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
 	// is an issue with one of the arguments, it will match serr.ErrBadArgument.
-	DeleteUser(ctx context.Context, id string) (db.User, error)
+	DeleteUser(ctx context.Context, id string) (types.AuthUser, error)
 }
 
 // noopAuthenticator is used as the active one when no others are specified.
 type noopAuthenticator struct{}
 
-func (na noopAuthenticator) Authenticate(req *http.Request) (db.User, bool, error) {
-	return db.User{}, false, fmt.Errorf("no authenticator provider is specified for this project")
+func (na noopAuthenticator) Authenticate(req *http.Request) (types.AuthUser, bool, error) {
+	return types.AuthUser{}, false, fmt.Errorf("no authenticator provider is specified for this project")
 }
 
 func (na noopAuthenticator) UnauthDelay() time.Duration {
@@ -274,32 +273,32 @@ func (na noopAuthenticator) Service() UserLoginService {
 
 type noopLoginService struct{}
 
-func (noop noopLoginService) Login(ctx context.Context, username string, password string) (db.User, error) {
-	return db.User{}, fmt.Errorf("Login called on noop")
+func (noop noopLoginService) Login(ctx context.Context, username string, password string) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("Login called on noop")
 }
-func (noop noopLoginService) Logout(ctx context.Context, who uuid.UUID) (db.User, error) {
-	return db.User{}, fmt.Errorf("Logout called on noop")
+func (noop noopLoginService) Logout(ctx context.Context, who uuid.UUID) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("Logout called on noop")
 }
-func (noop noopLoginService) GetAllUsers(ctx context.Context) ([]db.User, error) {
+func (noop noopLoginService) GetAllUsers(ctx context.Context) ([]types.AuthUser, error) {
 	return nil, fmt.Errorf("GetAllUsers called on noop")
 }
-func (noop noopLoginService) GetUser(ctx context.Context, id string) (db.User, error) {
-	return db.User{}, fmt.Errorf("GetUser called on noop")
+func (noop noopLoginService) GetUser(ctx context.Context, id string) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("GetUser called on noop")
 }
-func (noop noopLoginService) GetUserByUsername(ctx context.Context, username string) (db.User, error) {
-	return db.User{}, fmt.Errorf("GetUserByUsername called on noop")
+func (noop noopLoginService) GetUserByUsername(ctx context.Context, username string) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("GetUserByUsername called on noop")
 }
-func (noop noopLoginService) CreateUser(ctx context.Context, username, password, email string, role db.Role) (db.User, error) {
-	return db.User{}, fmt.Errorf("CreateUser called on noop")
+func (noop noopLoginService) CreateUser(ctx context.Context, username, password, email string, role types.Role) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("CreateUser called on noop")
 }
-func (noop noopLoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role db.Role) (db.User, error) {
-	return db.User{}, fmt.Errorf("UpdateUser called on noop")
+func (noop noopLoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role types.Role) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("UpdateUser called on noop")
 }
-func (noop noopLoginService) UpdatePassword(ctx context.Context, id, password string) (db.User, error) {
-	return db.User{}, fmt.Errorf("UpdatePassword called on noop")
+func (noop noopLoginService) UpdatePassword(ctx context.Context, id, password string) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("UpdatePassword called on noop")
 }
-func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (db.User, error) {
-	return db.User{}, fmt.Errorf("DeleteUser called on noop")
+func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (types.AuthUser, error) {
+	return types.AuthUser{}, fmt.Errorf("DeleteUser called on noop")
 }
 
 // AuthHandler is middleware that will accept a request, extract the token used
