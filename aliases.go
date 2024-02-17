@@ -3,7 +3,6 @@ package jelly
 import (
 	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/db/sqlite"
-	"github.com/dekarrin/jelly/middle"
 )
 
 // TODO: put this on the DB type. Or make it at least just WrapDBError.
@@ -35,9 +34,3 @@ type (
 func TypedSlice[E any](key string, value interface{}) ([]E, error) {
 	return config.TypedSlice[E](key, value)
 }
-
-// middle aliases
-
-type (
-	Authenticator = middle.Authenticator
-)

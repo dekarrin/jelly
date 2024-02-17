@@ -25,7 +25,7 @@ func (em endpointCreator) RequiredAuth(authenticators ...string) types.Middlewar
 	return em.mid.RequiredAuth(em, authenticators...)
 }
 
-func (em endpointCreator) SelectAuthenticator(authenticators ...string) middle.Authenticator {
+func (em endpointCreator) SelectAuthenticator(authenticators ...string) types.Authenticator {
 	return em.mid.SelectAuthenticator(authenticators...)
 }
 

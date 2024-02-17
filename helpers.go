@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
@@ -168,7 +167,7 @@ type ServiceProvider interface {
 	DontPanic() types.Middleware
 	OptionalAuth(authenticators ...string) types.Middleware
 	RequiredAuth(authenticators ...string) types.Middleware
-	SelectAuthenticator(authenticators ...string) middle.Authenticator
+	SelectAuthenticator(authenticators ...string) types.Authenticator
 	Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc
 	GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool)
 }

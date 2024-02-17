@@ -89,7 +89,7 @@ func (env *Environment) RegisterConnector(engine jelly.DBType, name string, conn
 // jelly.Component such as jelly/auth.Component, consider calling UseComponent
 // instead as that will automatically call RegisterAuthenticator for any
 // authenticators the component provides.
-func (env *Environment) RegisterAuthenticator(name string, authen middle.Authenticator) error {
+func (env *Environment) RegisterAuthenticator(name string, authen types.Authenticator) error {
 	env.initDefaults()
 	return env.middleProv.RegisterAuthenticator(name, authen)
 }

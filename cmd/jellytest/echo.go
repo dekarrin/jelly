@@ -129,7 +129,7 @@ func (echo *EchoAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (echo *EchoAPI) Authenticators() map[string]jelly.Authenticator {
+func (echo *EchoAPI) Authenticators() map[string]types.Authenticator {
 	return nil
 }
 

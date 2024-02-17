@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/token"
 	"github.com/dekarrin/jelly/types"
 )
@@ -40,6 +39,6 @@ func (ap JWTAuthProvider) UnauthDelay() time.Duration {
 	return ap.unauthDelay
 }
 
-func (ap JWTAuthProvider) Service() middle.UserLoginService {
+func (ap JWTAuthProvider) Service() types.UserLoginService {
 	return ap.srv
 }

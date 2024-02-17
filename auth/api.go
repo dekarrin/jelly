@@ -102,11 +102,11 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (api *LoginAPI) Authenticators() map[string]middle.Authenticator {
+func (api *LoginAPI) Authenticators() map[string]types.Authenticator {
 	// this provides one and only one authenticator, the jwt one.
 
 	// we will have had Init called, ergo secret and the service db will exist
-	return map[string]middle.Authenticator{
+	return map[string]types.Authenticator{
 		"jwt": JWTAuthProvider{
 			secret:      api.Secret,
 			db:          api.Service.Provider.AuthUsers(),

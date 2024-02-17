@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 )
@@ -43,7 +42,7 @@ type API interface {
 	// Any Authenticator returned from this is automatically registered as an
 	// Authenticator with the Auth middleware engine. Do not do so manually or
 	// there may be conflicts.
-	Authenticators() map[string]middle.Authenticator
+	Authenticators() map[string]types.Authenticator
 
 	// Routes returns a router that leads to all accessible routes in the API.
 	// Additionally, returns whether the API's router contains subpaths beyond

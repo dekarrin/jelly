@@ -31,7 +31,7 @@ const (
 // Generally for callers, it will be accessed via delegated methods on an
 // instance of [jelly.Environment].
 type Provider struct {
-	authenticators    map[string]Authenticator
+	authenticators    map[string]types.Authenticator
 	mainAuthenticator string
 	DisableDefaults   bool
 }
@@ -47,7 +47,7 @@ func GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool) {
 
 func (p *Provider) initDefaults() {
 	if p.authenticators == nil {
-		p.authenticators = map[string]Authenticator{}
+		p.authenticators = map[string]types.Authenticator{}
 		p.mainAuthenticator = ""
 	}
 }
@@ -56,10 +56,10 @@ func (p *Provider) initDefaults() {
 // matches one of the names in from. If no names are provided in from, the main
 // auth for the project is returned. If from is not empty, at least one name
 // listed in it must exist, or this function will panic.
-func (p *Provider) SelectAuthenticator(from ...string) Authenticator {
+func (p *Provider) SelectAuthenticator(from ...string) types.Authenticator {
 	p.initDefaults()
 
-	var authent Authenticator
+	var authent types.Authenticator
 	if len(from) > 0 {
 		if len(p.authenticators) < 1 {
 			panic(fmt.Sprintf("no valid auth provider given in list: %q", from))
@@ -82,7 +82,7 @@ func (p *Provider) SelectAuthenticator(from ...string) Authenticator {
 	return authent
 }
 
-func (p *Provider) getMainAuth() Authenticator {
+func (p *Provider) getMainAuth() types.Authenticator {
 	p.initDefaults()
 
 	if p.mainAuthenticator == "" {
@@ -107,12 +107,12 @@ func (p *Provider) RegisterMainAuthenticator(name string) error {
 	return nil
 }
 
-func (p *Provider) RegisterAuthenticator(name string, authen Authenticator) error {
+func (p *Provider) RegisterAuthenticator(name string, authen types.Authenticator) error {
 	p.initDefaults()
 
 	normName := strings.ToLower(name)
 	if p.authenticators == nil {
-		p.authenticators = map[string]Authenticator{}
+		p.authenticators = map[string]types.Authenticator{}
 	}
 
 	if _, ok := p.authenticators[normName]; ok {
@@ -127,130 +127,6 @@ func (p *Provider) RegisterAuthenticator(name string, authen Authenticator) erro
 	return nil
 }
 
-// Authenticator is middleware for an endpoint that will accept a request,
-// extract the token used for authentication, and make calls to get a User
-// entity that represents the logged in user from the token.
-//
-// Keys are added to the request context before the request is passed to the
-// next step in the chain. AuthUser will contain the logged-in user, and
-// AuthLoggedIn will return whether the user is logged in (only applies for
-// optional logins; for non-optional, not being logged in will result in an
-// HTTP error being returned before the request is passed to the next handler).
-type Authenticator interface {
-
-	// Authenticate retrieves the user details from the request using whatever
-	// method is correct for the auth handler. Returns the user, whether the
-	// user is currently logged in, and any error that occured. If the user is
-	// not logged in but no error actually occured, a default user and logged-in
-	// = false are returned with a nil error. An error should only be returned
-	// if there is an issue authenticating the user, and a user not being logged
-	// in does not count as an issue.
-	//
-	// If the user is logged-in, returns the logged-in user, true, and a nil
-	// error.
-	Authenticate(req *http.Request) (types.AuthUser, bool, error)
-
-	// Service returns the UserLoginService that can be used to control active
-	// logins and the list of users.
-	Service() UserLoginService
-
-	// UnauthDelay is the amount of time that the system should delay responding
-	// to unauthenticated requests to endpoints that require auth.
-	UnauthDelay() time.Duration
-}
-
-// UserLoginService provides a way to control the state of login of users and
-// retrieve users from the backend store.
-type UserLoginService interface {
-	// Login verifies the provided username and password against the existing user
-	// in persistence and returns that user if they match. Returns the user entity
-	// from the persistence layer that the username and password are valid for.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If the credentials do not match
-	// a user or if the password is incorrect, it will match ErrBadCredentials. If
-	// the error occured due to an unexpected problem with the DB, it will match
-	// serr.ErrDB.
-	Login(ctx context.Context, username string, password string) (types.AuthUser, error)
-
-	// Logout marks the user with the given ID as having logged out, invalidating
-	// any login that may be active. Returns the user entity that was logged out.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If the user doesn't exist, it
-	// will match serr.ErrNotFound. If the error occured due to an unexpected
-	// problem with the DB, it will match serr.ErrDB.
-	Logout(ctx context.Context, who uuid.UUID) (types.AuthUser, error)
-
-	// GetAllUsers returns all auth users currently in persistence.
-	GetAllUsers(ctx context.Context) ([]types.AuthUser, error)
-
-	// GetUser returns the user with the given ID.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If no user with that ID exists,
-	// it will match serr.ErrNotFound. If the error occured due to an unexpected
-	// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
-	// with one of the arguments, it will match serr.ErrBadArgument.
-	GetUser(ctx context.Context, id string) (types.AuthUser, error)
-
-	// GetUserByUsername returns the user with the given username.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If no user with that ID exists,
-	// it will match serr.ErrNotFound. If the error occured due to an unexpected
-	// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
-	// with one of the arguments, it will match serr.ErrBadArgument.
-	GetUserByUsername(ctx context.Context, username string) (types.AuthUser, error)
-
-	// CreateUser creates a new user with the given username, password, and email
-	// combo. Returns the newly-created user as it exists after creation.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If a user with that username is
-	// already present, it will match serr.ErrAlreadyExists. If the error occured
-	// due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
-	// if one of the arguments is invalid, it will match serr.ErrBadArgument.
-	CreateUser(ctx context.Context, username, password, email string, role types.Role) (types.AuthUser, error)
-
-	// UpdateUser sets all properties except the password of the user with the
-	// given ID to the properties in the provider user. All the given properties
-	// of the user (except password) will overwrite the existing ones. Returns
-	// the updated user.
-	//
-	// This function cannot be used to update the password. Use UpdatePassword for
-	// that.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If a user with that username or
-	// ID (if they are changing) is already present, it will match
-	// serr.ErrAlreadyExists. If no user with the given ID exists, it will match
-	// serr.ErrNotFound. If the error occured due to an unexpected problem with the
-	// DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
-	// will match serr.ErrBadArgument.
-	UpdateUser(ctx context.Context, curID, newID, username, email string, role types.Role) (types.AuthUser, error)
-
-	// UpdatePassword sets the password of the user with the given ID to the new
-	// password. The new password cannot be empty. Returns the updated user.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If no user with the given ID
-	// exists, it will match serr.ErrNotFound. If the error occured due to an
-	// unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
-	// the arguments is invalid, it will match serr.ErrBadArgument.
-	UpdatePassword(ctx context.Context, id, password string) (types.AuthUser, error)
-
-	// DeleteUser deletes the user with the given ID. It returns the deleted user
-	// just after they were deleted.
-	//
-	// The returned error, if non-nil, will return true for various calls to
-	// errors.Is depending on what caused the error. If no user with that username
-	// exists, it will match serr.ErrNotFound. If the error occured due to an
-	// unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
-	// is an issue with one of the arguments, it will match serr.ErrBadArgument.
-	DeleteUser(ctx context.Context, id string) (types.AuthUser, error)
-}
-
 // noopAuthenticator is used as the active one when no others are specified.
 type noopAuthenticator struct{}
 
@@ -263,7 +139,7 @@ func (na noopAuthenticator) UnauthDelay() time.Duration {
 	return d
 }
 
-func (na noopAuthenticator) Service() UserLoginService {
+func (na noopAuthenticator) Service() types.UserLoginService {
 	return noopLoginService{}
 }
 
@@ -307,7 +183,7 @@ func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (types.A
 // optional logins; for non-optional, not being logged in will result in an
 // HTTP error being returned before the request is passed to the next handler).
 type AuthHandler struct {
-	provider Authenticator
+	provider types.Authenticator
 	required bool
 	next     http.Handler
 	resp     types.ResponseGenerator
@@ -344,7 +220,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // RequiredAuth returns middleware that requires that auth be used. The
 // authenticators, if provided, must give the names of preferred providers that
-// were registered as an Authenticator with this package, in priority order. If
+// were registered as an types.Authenticator with this package, in priority order. If
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
 func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...string) types.Middleware {
@@ -362,7 +238,7 @@ func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...s
 
 // OptionalAuth returns middleware that allows auth be used to retrieved the
 // logged-in user. The authenticators, if provided, must give the names of
-// preferred providers that were registered as an Authenticator with this
+// preferred providers that were registered as an types.Authenticator with this
 // package, in priority order. If none of the given authenticators exist, this
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.

@@ -219,7 +219,7 @@ func (api *HelloAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (api *HelloAPI) Authenticators() map[string]jelly.Authenticator {
+func (api *HelloAPI) Authenticators() map[string]types.Authenticator {
 	return nil
 }
 
