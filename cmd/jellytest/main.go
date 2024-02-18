@@ -184,7 +184,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
 	}
 	if *flagEffectiveConf {
-		logger.Debugf("Effective config:\n%s", string(conf.Dump()))
+		logger.Debugf("Effective config:\n%s", string(env.DumpConfig(conf)))
 	}
 
 	server, err := env.NewServer(&conf)

@@ -98,7 +98,14 @@ func (env *Environment) RegisterAuthenticator(name string, authen types.Authenti
 // called on every component that will be configured (such as jelly/auth), and
 // ensure RegisterConfigSection is called for each custom config section not
 // associated with a component.
-func (env *Environment) LoadConfig(file string) (config.Config, error) {
+func (env *Environment) LoadConfig(file string) (types.Config, error) {
 	env.initDefaults()
 	return env.confEnv.Load(file)
+}
+
+// DumpConfig dumpes the given config to bytes. If Format is not set on the
+// Config, YAML is assumed.
+func (env *Environment) DumpConfig(cfg types.Config) []byte {
+	env.initDefaults()
+	return config.Dump(cfg)
 }

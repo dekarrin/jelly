@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
@@ -28,7 +27,7 @@ type restServer struct {
 	apiBases    map[string]string
 	basesToAPIs map[string]string // used for tracking that APIs do not eat each other
 	dbs         map[string]types.Store
-	cfg         config.Config // config that it was started with.
+	cfg         types.Config // config that it was started with.
 
 	log types.Logger // used for logging. if logging disabled, this will be set to a no-op logger
 
@@ -40,14 +39,14 @@ type restServer struct {
 // is retained for future operations. Any registered auto-APIs are automatically
 // added via Add as per the configuration; this includes both built-in and
 // user-supplied APIs.
-func (env *Environment) NewServer(cfg *config.Config) (jelly.RESTServer, error) {
+func (env *Environment) NewServer(cfg *types.Config) (jelly.RESTServer, error) {
 	env.initDefaults()
 
 	// check config
 	if cfg == nil {
-		cfg = &config.Config{}
+		cfg = &types.Config{}
 	} else {
-		copy := new(config.Config)
+		copy := new(types.Config)
 		*copy = *cfg
 		cfg = copy
 	}
@@ -112,7 +111,7 @@ func (env *Environment) NewServer(cfg *config.Config) (jelly.RESTServer, error) 
 
 // Config returns the conifguration that the server used during creation.
 // Modifying the returned config will have no effect on the server.
-func (rs restServer) Config() config.Config {
+func (rs restServer) Config() types.Config {
 	return rs.cfg.FillDefaults()
 }
 
@@ -277,12 +276,12 @@ func (rs *restServer) Add(name string, api jelly.API) error {
 
 // will return default "common bundle" with only the name set if the named API
 // is not in the configured APIs.
-func (rs *restServer) getAPIConfigBundle(name string) config.Bundle {
+func (rs *restServer) getAPIConfigBundle(name string) types.Bundle {
 	conf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
-		return config.NewBundle((&types.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals)
+		return types.NewBundle((&types.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals)
 	}
-	return config.NewBundle(conf, rs.cfg.Globals)
+	return types.NewBundle(conf, rs.cfg.Globals)
 }
 
 func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {

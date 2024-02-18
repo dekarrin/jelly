@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/types"
 )
 
@@ -50,10 +49,10 @@ func (cfg *Config) FillDefaults() types.APIConfig {
 
 	// if no other options are specified except for enable, fill with standard
 	if newCFG.CommonConf.Enabled {
-		if config.Get[string](newCFG, types.ConfigKeyAPIBase) == "" {
+		if newCFG.CommonConf.Base == "" {
 			newCFG.Set(types.ConfigKeyAPIBase, "/auth")
 		}
-		if len(config.Get[[]string](newCFG, types.ConfigKeyAPIUsesDBs)) < 1 {
+		if len(newCFG.CommonConf.UsesDBs) < 1 {
 			newCFG.Set(types.ConfigKeyAPIUsesDBs, []string{"auth"})
 		}
 	}

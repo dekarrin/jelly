@@ -81,47 +81,15 @@ type marshaledLog struct {
 	File     string `yaml:"file,omitempty" json:"file,omitempty"`
 }
 
-type Format int
-
-const (
-	NoFormat Format = iota
-	JSON
-	YAML
-)
-
-func (f Format) String() string {
-	switch f {
-	case NoFormat:
-		return "NoFormat"
-	case JSON:
-		return "JSON"
-	case YAML:
-		return "YAML"
-	default:
-		return fmt.Sprintf("Format(%d)", int(f))
-	}
-}
-
-func (f Format) Extensions() []string {
-	switch f {
-	case JSON:
-		return []string{"json", "jsn"}
-	case YAML:
-		return []string{"yaml", "yml"}
-	default:
-		return nil
-	}
-}
-
-func (f Format) Decode(env *Environment, data []byte) (Config, error) {
-	var cfg Config
+func decode(f types.Format, env *Environment, data []byte) (types.Config, error) {
+	var cfg types.Config
 	var mc marshaledConfig
 	var err error
 
 	switch f {
-	case JSON:
+	case types.JSON:
 		err = json.Unmarshal(data, &mc)
-	case YAML:
+	case types.YAML:
 		err = yaml.Unmarshal(data, &mc)
 	default:
 		return cfg, fmt.Errorf("cannot unmarshal data in format %q", f.String())
@@ -131,20 +99,20 @@ func (f Format) Decode(env *Environment, data []byte) (Config, error) {
 		return cfg, err
 	}
 
-	cfg.origFormat = f
-	err = cfg.unmarshal(env, mc)
+	cfg.Format = f
+	err = unmarshalConfig(&cfg, env, mc)
 	return cfg, err
 }
 
-func (f Format) Encode(c Config) ([]byte, error) {
-	mc := c.marshal()
+func encode(f types.Format, c types.Config) ([]byte, error) {
+	mc := marshalConfig(c)
 	var err error
 	var data []byte
 
 	switch f {
-	case JSON:
+	case types.JSON:
 		data, err = json.Marshal(mc)
-	case YAML:
+	case types.YAML:
 		data, err = yaml.Marshal(mc)
 	default:
 		return nil, fmt.Errorf("cannot marshal data in format %q", f.String())
@@ -155,14 +123,14 @@ func (f Format) Encode(c Config) ([]byte, error) {
 
 // SupportedFormats returns a list of formats that the config module supports
 // decoding. Includes all but NoFormat.
-func SupportedFormats() []Format {
-	return []Format{JSON, YAML}
+func SupportedFormats() []types.Format {
+	return []types.Format{types.JSON, types.YAML}
 }
 
 // DetectFormat detects the format of a given configuration file and returns the
 // Format that can decode it. Returns NoFormat if the format could not be
 // detected.
-func DetectFormat(file string) Format {
+func DetectFormat(file string) types.Format {
 	ext := strings.ToLower(filepath.Ext(file))
 	ext = strings.TrimPrefix(ext, ".")
 
@@ -176,7 +144,7 @@ func DetectFormat(file string) Format {
 		}
 	}
 
-	return NoFormat
+	return types.NoFormat
 }
 
 // Dump dumps the configuration into the bytes in a formatted file. This is the
@@ -189,12 +157,12 @@ func DetectFormat(file string) Format {
 //
 // This function will cause a panic if there is a problem marshaling the config
 // data in its format.
-func (cfg Config) Dump() []byte {
-	f := cfg.origFormat
-	if f == NoFormat {
-		f = YAML
+func Dump(cfg types.Config) []byte {
+	f := cfg.Format
+	if f == types.NoFormat {
+		f = types.YAML
 	}
-	b, err := f.Encode(cfg)
+	b, err := encode(f, cfg)
 	if err != nil {
 		panic(fmt.Sprintf("format encoding failed: %v", err))
 	}
@@ -208,11 +176,11 @@ func (cfg Config) Dump() []byte {
 //
 // Ensure Register is called on the Environment (or an owning jelly.Environment)
 // with all config sections that will be present in the loaded file.
-func (env *Environment) Load(file string) (Config, error) {
+func (env *Environment) Load(file string) (types.Config, error) {
 	env.initDefaults()
 
 	f := DetectFormat(file)
-	if f == NoFormat {
+	if f == types.NoFormat {
 		var msg strings.Builder
 
 		formats := SupportedFormats()
@@ -235,15 +203,15 @@ func (env *Environment) Load(file string) (Config, error) {
 			}
 		}
 
-		return Config{}, fmt.Errorf("%s: incompatible format; must be a %s file", file, msg.String())
+		return types.Config{}, fmt.Errorf("%s: incompatible format; must be a %s file", file, msg.String())
 	}
 
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return Config{}, fmt.Errorf("%s: %w", file, err)
+		return types.Config{}, fmt.Errorf("%s: %w", file, err)
 	}
 
-	return f.Decode(env, data)
+	return decode(f, env, data)
 }
 
 func (env *Environment) Register(name string, provider func() types.APIConfig) error {
@@ -262,9 +230,9 @@ func (env *Environment) Register(name string, provider func() types.APIConfig) e
 
 func marshalAPI(api types.APIConfig) marshaledAPI {
 	ma := marshaledAPI{
-		Enabled: Get[bool](api, types.ConfigKeyAPIEnabled),
-		Base:    Get[string](api, types.ConfigKeyAPIBase),
-		Uses:    Get[[]string](api, types.ConfigKeyAPIUsesDBs),
+		Enabled: api.Get(types.ConfigKeyAPIEnabled).(bool),
+		Base:    api.Get(types.ConfigKeyAPIBase).(string),
+		Uses:    api.Get(types.ConfigKeyAPIUsesDBs).([]string),
 		others:  map[string]interface{}{},
 	}
 
@@ -390,7 +358,7 @@ func marshalGlobalsToConfig(cfg types.Globals, mc *marshaledConfig) {
 // values or missing values in the marshaledConfig.
 //
 // does no validation except that which is required for parsing.
-func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
+func unmarshalConfig(cfg *types.Config, env *Environment, m marshaledConfig) error {
 	if env == nil {
 		env = &Environment{}
 	}
@@ -424,7 +392,7 @@ func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 
 // marshal converts a config to the marshaledConfig that would recreate it if
 // passed to unmarshal.
-func (cfg Config) marshal() marshaledConfig {
+func marshalConfig(cfg types.Config) marshaledConfig {
 	mc := marshaledConfig{
 		DBs:     map[string]marshaledDatabase{},
 		APIs:    map[string]marshaledAPI{},

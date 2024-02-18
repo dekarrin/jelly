@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/logging"
 	"github.com/dekarrin/jelly/types"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +25,7 @@ func Test_ServeForever(t *testing.T) {
 			basesToAPIs: map[string]string{},
 			log:         logging.NoOpLogger{},
 			dbs:         map[string]types.Store{},
-			cfg:         config.Config{}.FillDefaults(),
+			cfg:         types.Config{}.FillDefaults(),
 		}
 	}
 

@@ -8,7 +8,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 )
@@ -84,7 +83,7 @@ type Component interface {
 }
 
 type RESTServer interface {
-	Config() config.Config
+	Config() types.Config
 	RoutesIndex() string
 	Add(name string, api API) error
 	ServeForever() error
@@ -92,12 +91,12 @@ type RESTServer interface {
 }
 
 type Bundle struct {
-	config.Bundle
+	types.Bundle
 	logger types.Logger
 	dbs    map[string]types.Store
 }
 
-func NewBundle(apiConf config.Bundle, log types.Logger, dbs map[string]types.Store) Bundle {
+func NewBundle(apiConf types.Bundle, log types.Logger, dbs map[string]types.Store) Bundle {
 	return Bundle{
 		Bundle: apiConf,
 		logger: log,
