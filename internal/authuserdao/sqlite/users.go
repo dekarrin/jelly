@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 
 	"github.com/dekarrin/jelly/db/sqlite"
@@ -36,15 +36,15 @@ func (repo *AuthUsersDB) init() error {
 	return nil
 }
 
-func (repo *AuthUsersDB) Create(ctx context.Context, u types.AuthUser) (types.AuthUser, error) {
+func (repo *AuthUsersDB) Create(ctx context.Context, u jelly.AuthUser) (jelly.AuthUser, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return types.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
+		return jelly.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return types.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 
 	now := db.Timestamp(time.Now())
@@ -62,20 +62,20 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u types.AuthUser) (types.Au
 		db.Timestamp{},
 	)
 	if err != nil {
-		return types.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
 }
 
-func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]types.AuthUser, error) {
+func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
 		return nil, sqlite.WrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []types.AuthUser
+	var all []jelly.AuthUser
 
 	for rows.Next() {
 		var user db.User
@@ -105,7 +105,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]types.AuthUser, error) {
 	return all, nil
 }
 
-func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user types.AuthUser) (types.AuthUser, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user jelly.AuthUser) (jelly.AuthUser, error) {
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		user.ID,
@@ -119,20 +119,20 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user types.Au
 		id,
 	)
 	if err != nil {
-		return types.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return types.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return types.AuthUser{}, types.DBErrNotFound
+		return jelly.AuthUser{}, jelly.DBErrNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
 }
 
-func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (types.AuthUser, error) {
+func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
 	user := db.User{
 		Username: username,
 	}
@@ -158,7 +158,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (ty
 	return user.AuthUser(), nil
 }
 
-func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (types.AuthUser, error) {
+func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user := db.User{
 		ID: id,
 	}
@@ -184,7 +184,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (types.AuthUser,
 	return user.AuthUser(), nil
 }
 
-func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (types.AuthUser, error) {
+func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	curVal, err := repo.Get(ctx, id)
 	if err != nil {
 		return curVal, err
@@ -199,7 +199,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (types.AuthUs
 		return curVal, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, types.DBErrNotFound
+		return curVal, jelly.DBErrNotFound
 	}
 
 	return curVal, nil

@@ -4,17 +4,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 )
 
 type JWTAuthProvider struct {
-	db          types.AuthUserRepo
+	db          jelly.AuthUserRepo
 	secret      []byte
 	unauthDelay time.Duration
 	srv         LoginService
 }
 
-func (ap JWTAuthProvider) Authenticate(req *http.Request) (types.AuthUser, bool, error) {
+func (ap JWTAuthProvider) Authenticate(req *http.Request) (jelly.AuthUser, bool, error) {
 	tok, err := getToken(req)
 	if err != nil {
 		// might not actually be a problem, let the auth engine decide if so but
@@ -22,13 +22,13 @@ func (ap JWTAuthProvider) Authenticate(req *http.Request) (types.AuthUser, bool,
 		//
 		// TODO: when/if logging ever added, do that instead of just losing the
 		// error
-		return types.AuthUser{}, false, nil
+		return jelly.AuthUser{}, false, nil
 	}
 
 	// validate the token
 	lookupUser, err := validateToken(req.Context(), tok, ap.secret, ap.db)
 	if err != nil {
-		return types.AuthUser{}, false, err
+		return jelly.AuthUser{}, false, err
 	}
 
 	return lookupUser, true, nil
@@ -38,6 +38,6 @@ func (ap JWTAuthProvider) UnauthDelay() time.Duration {
 	return ap.unauthDelay
 }
 
-func (ap JWTAuthProvider) Service() types.UserLoginService {
+func (ap JWTAuthProvider) Service() jelly.UserLoginService {
 	return ap.srv
 }

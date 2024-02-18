@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db/owdb"
 	"github.com/dekarrin/jelly/internal/authuserdao/inmem"
 	"github.com/dekarrin/jelly/internal/authuserdao/sqlite"
-	"github.com/dekarrin/jelly/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,24 +26,24 @@ import (
 // DisableDefaults to true before attempting to use it.
 type ConnectorRegistry struct {
 	DisableDefaults bool
-	reg             map[types.DBType]map[string]func(types.DatabaseConfig) (types.Store, error)
+	reg             map[jelly.DBType]map[string]func(jelly.DatabaseConfig) (jelly.Store, error)
 }
 
 func (cr *ConnectorRegistry) initDefaults() {
 	// TODO: follow initDefaults pattern on all env-y structs
 
 	if cr.reg == nil {
-		cr.reg = map[types.DBType]map[string]func(types.DatabaseConfig) (types.Store, error){
-			types.DatabaseInMemory: {},
-			types.DatabaseSQLite:   {},
-			types.DatabaseOWDB:     {},
+		cr.reg = map[jelly.DBType]map[string]func(jelly.DatabaseConfig) (jelly.Store, error){
+			jelly.DatabaseInMemory: {},
+			jelly.DatabaseSQLite:   {},
+			jelly.DatabaseOWDB:     {},
 		}
 
 		if !cr.DisableDefaults {
-			cr.reg[types.DatabaseInMemory]["authuser"] = func(d types.DatabaseConfig) (types.Store, error) {
+			cr.reg[jelly.DatabaseInMemory]["authuser"] = func(d jelly.DatabaseConfig) (jelly.Store, error) {
 				return inmem.NewAuthUserStore(), nil
 			}
-			cr.reg[types.DatabaseSQLite]["authuser"] = func(db types.DatabaseConfig) (types.Store, error) {
+			cr.reg[jelly.DatabaseSQLite]["authuser"] = func(db jelly.DatabaseConfig) (jelly.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -56,7 +56,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 
 				return store, nil
 			}
-			cr.reg[types.DatabaseOWDB]["*"] = func(db types.DatabaseConfig) (types.Store, error) {
+			cr.reg[jelly.DatabaseOWDB]["*"] = func(db jelly.DatabaseConfig) (jelly.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -74,7 +74,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 	}
 }
 
-func (cr *ConnectorRegistry) Register(engine types.DBType, name string, connector func(types.DatabaseConfig) (types.Store, error)) error {
+func (cr *ConnectorRegistry) Register(engine jelly.DBType, name string, connector func(jelly.DatabaseConfig) (jelly.Store, error)) error {
 	if connector == nil {
 		return fmt.Errorf("connector function cannot be nil")
 	}
@@ -98,7 +98,7 @@ func (cr *ConnectorRegistry) Register(engine types.DBType, name string, connecto
 
 // List returns an alphabetized list of all currently registered connector
 // names for an engine.
-func (cr *ConnectorRegistry) List(engine types.DBType) []string {
+func (cr *ConnectorRegistry) List(engine jelly.DBType) []string {
 	cr.initDefaults()
 
 	engConns := cr.reg[engine]
@@ -117,7 +117,7 @@ func (cr *ConnectorRegistry) List(engine types.DBType) []string {
 // Connect opens a connection to the configured database, returning a generic
 // db.Store. The Store can then be cast to the appropriate type by APIs in
 // their init method.
-func (cr *ConnectorRegistry) Connect(db types.DatabaseConfig) (types.Store, error) {
+func (cr *ConnectorRegistry) Connect(db jelly.DatabaseConfig) (jelly.Store, error) {
 	cr.initDefaults()
 
 	engConns := cr.reg[db.Type]
@@ -144,14 +144,14 @@ func (cr *ConnectorRegistry) Connect(db types.DatabaseConfig) (types.Store, erro
 // the config package and any others that contain the concept of registration of
 // certain key procedures and types prior to actual use.
 type Environment struct {
-	apiConfigProviders map[string]func() types.APIConfig
+	apiConfigProviders map[string]func() jelly.APIConfig
 
 	DisableDefaults bool
 }
 
 func (env *Environment) initDefaults() {
 	if env.apiConfigProviders == nil {
-		env.apiConfigProviders = map[string]func() types.APIConfig{}
+		env.apiConfigProviders = map[string]func() jelly.APIConfig{}
 	}
 }
 
@@ -207,15 +207,15 @@ type marshaledLog struct {
 	File     string `yaml:"file,omitempty" json:"file,omitempty"`
 }
 
-func decode(f types.Format, env *Environment, data []byte) (types.Config, error) {
-	var cfg types.Config
+func decode(f jelly.Format, env *Environment, data []byte) (jelly.Config, error) {
+	var cfg jelly.Config
 	var mc marshaledConfig
 	var err error
 
 	switch f {
-	case types.JSON:
+	case jelly.JSON:
 		err = json.Unmarshal(data, &mc)
-	case types.YAML:
+	case jelly.YAML:
 		err = yaml.Unmarshal(data, &mc)
 	default:
 		return cfg, fmt.Errorf("cannot unmarshal data in format %q", f.String())
@@ -230,15 +230,15 @@ func decode(f types.Format, env *Environment, data []byte) (types.Config, error)
 	return cfg, err
 }
 
-func encode(f types.Format, c types.Config) ([]byte, error) {
+func encode(f jelly.Format, c jelly.Config) ([]byte, error) {
 	mc := marshalConfig(c)
 	var err error
 	var data []byte
 
 	switch f {
-	case types.JSON:
+	case jelly.JSON:
 		data, err = json.Marshal(mc)
-	case types.YAML:
+	case jelly.YAML:
 		data, err = yaml.Marshal(mc)
 	default:
 		return nil, fmt.Errorf("cannot marshal data in format %q", f.String())
@@ -249,14 +249,14 @@ func encode(f types.Format, c types.Config) ([]byte, error) {
 
 // SupportedFormats returns a list of formats that the config module supports
 // decoding. Includes all but NoFormat.
-func SupportedFormats() []types.Format {
-	return []types.Format{types.JSON, types.YAML}
+func SupportedFormats() []jelly.Format {
+	return []jelly.Format{jelly.JSON, jelly.YAML}
 }
 
 // DetectFormat detects the format of a given configuration file and returns the
 // Format that can decode it. Returns NoFormat if the format could not be
 // detected.
-func DetectFormat(file string) types.Format {
+func DetectFormat(file string) jelly.Format {
 	ext := strings.ToLower(filepath.Ext(file))
 	ext = strings.TrimPrefix(ext, ".")
 
@@ -270,7 +270,7 @@ func DetectFormat(file string) types.Format {
 		}
 	}
 
-	return types.NoFormat
+	return jelly.NoFormat
 }
 
 // Dump dumps the configuration into the bytes in a formatted file. This is the
@@ -283,10 +283,10 @@ func DetectFormat(file string) types.Format {
 //
 // This function will cause a panic if there is a problem marshaling the config
 // data in its format.
-func Dump(cfg types.Config) []byte {
+func Dump(cfg jelly.Config) []byte {
 	f := cfg.Format
-	if f == types.NoFormat {
-		f = types.YAML
+	if f == jelly.NoFormat {
+		f = jelly.YAML
 	}
 	b, err := encode(f, cfg)
 	if err != nil {
@@ -302,11 +302,11 @@ func Dump(cfg types.Config) []byte {
 //
 // Ensure Register is called on the Environment (or an owning jelly.Environment)
 // with all config sections that will be present in the loaded file.
-func (env *Environment) Load(file string) (types.Config, error) {
+func (env *Environment) Load(file string) (jelly.Config, error) {
 	env.initDefaults()
 
 	f := DetectFormat(file)
-	if f == types.NoFormat {
+	if f == jelly.NoFormat {
 		var msg strings.Builder
 
 		formats := SupportedFormats()
@@ -329,18 +329,18 @@ func (env *Environment) Load(file string) (types.Config, error) {
 			}
 		}
 
-		return types.Config{}, fmt.Errorf("%s: incompatible format; must be a %s file", file, msg.String())
+		return jelly.Config{}, fmt.Errorf("%s: incompatible format; must be a %s file", file, msg.String())
 	}
 
 	data, err := os.ReadFile(file)
 	if err != nil {
-		return types.Config{}, fmt.Errorf("%s: %w", file, err)
+		return jelly.Config{}, fmt.Errorf("%s: %w", file, err)
 	}
 
 	return decode(f, env, data)
 }
 
-func (env *Environment) Register(name string, provider func() types.APIConfig) error {
+func (env *Environment) Register(name string, provider func() jelly.APIConfig) error {
 	env.initDefaults()
 
 	normName := strings.ToLower(name)
@@ -354,16 +354,16 @@ func (env *Environment) Register(name string, provider func() types.APIConfig) e
 	return nil
 }
 
-func marshalAPI(api types.APIConfig) marshaledAPI {
+func marshalAPI(api jelly.APIConfig) marshaledAPI {
 	ma := marshaledAPI{
-		Enabled: api.Get(types.ConfigKeyAPIEnabled).(bool),
-		Base:    api.Get(types.ConfigKeyAPIBase).(string),
-		Uses:    api.Get(types.ConfigKeyAPIUsesDBs).([]string),
+		Enabled: api.Get(jelly.ConfigKeyAPIEnabled).(bool),
+		Base:    api.Get(jelly.ConfigKeyAPIBase).(string),
+		Uses:    api.Get(jelly.ConfigKeyAPIUsesDBs).([]string),
 		others:  map[string]interface{}{},
 	}
 
 	commonKeys := map[string]struct{}{}
-	for _, ck := range (&types.CommonConfig{}).Keys() {
+	for _, ck := range (&jelly.CommonConfig{}).Keys() {
 		commonKeys[ck] = struct{}{}
 	}
 
@@ -384,31 +384,31 @@ func marshalAPI(api types.APIConfig) marshaledAPI {
 	return ma
 }
 
-func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (types.APIConfig, error) {
+func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (jelly.APIConfig, error) {
 	env.initDefaults()
 
 	nameNorm := strings.ToLower(name)
 
-	var api types.APIConfig
+	var api jelly.APIConfig
 	prov, ok := env.apiConfigProviders[nameNorm]
 	if ok {
 		api = prov()
 	} else {
 		// fallback - if it fails to provide one, it just gets a common config
-		api = &types.CommonConfig{}
+		api = &jelly.CommonConfig{}
 	}
 
-	if err := api.Set(types.ConfigKeyAPIName, nameNorm); err != nil {
-		return nil, fmt.Errorf(types.ConfigKeyAPIName+": %w", err)
+	if err := api.Set(jelly.ConfigKeyAPIName, nameNorm); err != nil {
+		return nil, fmt.Errorf(jelly.ConfigKeyAPIName+": %w", err)
 	}
-	if err := api.Set(types.ConfigKeyAPIEnabled, ma.Enabled); err != nil {
-		return nil, fmt.Errorf(types.ConfigKeyAPIEnabled+": %w", err)
+	if err := api.Set(jelly.ConfigKeyAPIEnabled, ma.Enabled); err != nil {
+		return nil, fmt.Errorf(jelly.ConfigKeyAPIEnabled+": %w", err)
 	}
-	if err := api.Set(types.ConfigKeyAPIBase, ma.Base); err != nil {
-		return nil, fmt.Errorf(types.ConfigKeyAPIBase+": %w", err)
+	if err := api.Set(jelly.ConfigKeyAPIBase, ma.Base); err != nil {
+		return nil, fmt.Errorf(jelly.ConfigKeyAPIBase+": %w", err)
 	}
-	if err := api.Set(types.ConfigKeyAPIUsesDBs, ma.Uses); err != nil {
-		return nil, fmt.Errorf(types.ConfigKeyAPIUsesDBs+": %w", err)
+	if err := api.Set(jelly.ConfigKeyAPIUsesDBs, ma.Uses); err != nil {
+		return nil, fmt.Errorf(jelly.ConfigKeyAPIUsesDBs+": %w", err)
 	}
 
 	for k, v := range ma.others {
@@ -424,11 +424,11 @@ func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (types.APIConf
 // unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
-func unmarshalLog(log *types.LogConfig, m marshaledLog) error {
+func unmarshalLog(log *jelly.LogConfig, m marshaledLog) error {
 	var err error
 
 	log.Enabled = m.Enabled
-	log.Provider, err = types.ParseLogProvider(m.Provider)
+	log.Provider, err = jelly.ParseLogProvider(m.Provider)
 	if err != nil {
 		return fmt.Errorf("provider: %w", err)
 	}
@@ -439,7 +439,7 @@ func unmarshalLog(log *types.LogConfig, m marshaledLog) error {
 
 // marshal returns the marshaledLog that would re-create Log if passed to
 // unmarshal.
-func marshalLog(log types.LogConfig) marshaledLog {
+func marshalLog(log jelly.LogConfig) marshaledLog {
 	return marshaledLog{
 		Enabled:  log.Enabled,
 		Provider: log.Provider.String(),
@@ -450,7 +450,7 @@ func marshalLog(log types.LogConfig) marshaledLog {
 // unmarshal completely replaces all attributes.
 //
 // does no validation except that which is required for parsing.
-func unmarshalGlobals(cfg *types.Globals, m marshaledConfig) error {
+func unmarshalGlobals(cfg *jelly.Globals, m marshaledConfig) error {
 	var err error
 
 	// listen address part...
@@ -474,7 +474,7 @@ func unmarshalGlobals(cfg *types.Globals, m marshaledConfig) error {
 
 // marshalToConfig modifies the given marshaledConfig such that it would
 // re-create cfg when it is passed to unmarshal.
-func marshalGlobalsToConfig(cfg types.Globals, mc *marshaledConfig) {
+func marshalGlobalsToConfig(cfg jelly.Globals, mc *marshaledConfig) {
 	mc.Listen = fmt.Sprintf("%s:%d", cfg.Address, cfg.Port)
 	mc.Base = cfg.URIBase
 	mc.Auth = cfg.MainAuthProvider
@@ -484,7 +484,7 @@ func marshalGlobalsToConfig(cfg types.Globals, mc *marshaledConfig) {
 // values or missing values in the marshaledConfig.
 //
 // does no validation except that which is required for parsing.
-func unmarshalConfig(cfg *types.Config, env *Environment, m marshaledConfig) error {
+func unmarshalConfig(cfg *jelly.Config, env *Environment, m marshaledConfig) error {
 	if env == nil {
 		env = &Environment{}
 	}
@@ -492,16 +492,16 @@ func unmarshalConfig(cfg *types.Config, env *Environment, m marshaledConfig) err
 	if err := unmarshalGlobals(&cfg.Globals, m); err != nil {
 		return err
 	}
-	cfg.DBs = map[string]types.DatabaseConfig{}
+	cfg.DBs = map[string]jelly.DatabaseConfig{}
 	for n, marshaledDB := range m.DBs {
-		var db types.DatabaseConfig
+		var db jelly.DatabaseConfig
 		err := unmarshalDatabase(&db, marshaledDB)
 		if err != nil {
 			return fmt.Errorf("dbs: %s: %w", n, err)
 		}
 		cfg.DBs[n] = db
 	}
-	cfg.APIs = map[string]types.APIConfig{}
+	cfg.APIs = map[string]jelly.APIConfig{}
 	for n, mAPI := range m.APIs {
 		api, err := unmarshalAPI(env, mAPI, n)
 		if err != nil {
@@ -518,7 +518,7 @@ func unmarshalConfig(cfg *types.Config, env *Environment, m marshaledConfig) err
 
 // marshal converts a config to the marshaledConfig that would recreate it if
 // passed to unmarshal.
-func marshalConfig(cfg types.Config) marshaledConfig {
+func marshalConfig(cfg jelly.Config) marshaledConfig {
 	mc := marshaledConfig{
 		DBs:     map[string]marshaledDatabase{},
 		APIs:    map[string]marshaledAPI{},
@@ -542,10 +542,10 @@ func marshalConfig(cfg types.Config) marshaledConfig {
 // values in the marshaledDatabase.
 //
 // does no validation except that which is required for parsing.
-func unmarshalDatabase(db *types.DatabaseConfig, m marshaledDatabase) error {
+func unmarshalDatabase(db *jelly.DatabaseConfig, m marshaledDatabase) error {
 	var err error
 
-	db.Type, err = types.ParseDBType(m.Type)
+	db.Type, err = jelly.ParseDBType(m.Type)
 	if err != nil {
 		return fmt.Errorf("type: %w", err)
 	}
@@ -559,7 +559,7 @@ func unmarshalDatabase(db *types.DatabaseConfig, m marshaledDatabase) error {
 
 // marshal converts db to the marshaledDatabase that would recreate it if
 // passed to unmarshal.
-func marshalDatabase(db types.DatabaseConfig) marshaledDatabase {
+func marshalDatabase(db jelly.DatabaseConfig) marshaledDatabase {
 	return marshaledDatabase{
 		Type:      db.Type.String(),
 		Dir:       db.DataDir,

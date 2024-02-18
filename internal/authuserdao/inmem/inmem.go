@@ -3,7 +3,7 @@ package inmem
 import (
 	"fmt"
 
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 )
 
 // AuthUserStore is an in-memory database that is compatible with built-in jelly
@@ -23,7 +23,7 @@ func NewAuthUserStore() *AuthUserStore {
 	return st
 }
 
-func (aus *AuthUserStore) AuthUsers() types.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() jelly.AuthUserRepo {
 	return aus.users
 }
 

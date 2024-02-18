@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db/sqlite"
-	"github.com/dekarrin/jelly/types"
 )
 
 // AuthUserStore is a SQLite database that is compatible with built-in jelly
@@ -41,7 +41,7 @@ func NewAuthUserStore(storageDir string) (*AuthUserStore, error) {
 	return st, nil
 }
 
-func (aus *AuthUserStore) AuthUsers() types.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() jelly.AuthUserRepo {
 	return aus.users
 }
 

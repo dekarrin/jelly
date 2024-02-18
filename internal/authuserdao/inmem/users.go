@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/internal/jelsort"
-	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
 
@@ -27,10 +27,10 @@ func (aur *AuthUserRepo) Close() error {
 	return nil
 }
 
-func (aur *AuthUserRepo) Create(ctx context.Context, u types.AuthUser) (types.AuthUser, error) {
+func (aur *AuthUserRepo) Create(ctx context.Context, u jelly.AuthUser) (jelly.AuthUser, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return types.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
+		return jelly.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	user := db.NewUserFromAuthUser(u)
@@ -38,7 +38,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, u types.AuthUser) (types.Au
 
 	// make sure it's not already in the DB
 	if _, ok := aur.byUsernameIndex[user.Username]; ok {
-		return types.AuthUser{}, types.DBErrConstraintViolation
+		return jelly.AuthUser{}, jelly.DBErrConstraintViolation
 	}
 
 	now := db.Timestamp(time.Now())
@@ -52,8 +52,8 @@ func (aur *AuthUserRepo) Create(ctx context.Context, u types.AuthUser) (types.Au
 	return user.AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]types.AuthUser, error) {
-	all := make([]types.AuthUser, len(aur.users))
+func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
+	all := make([]jelly.AuthUser, len(aur.users))
 
 	i := 0
 	for k := range aur.users {
@@ -61,17 +61,17 @@ func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]types.AuthUser, error) {
 		i++
 	}
 
-	all = jelsort.By(all, func(l, r types.AuthUser) bool {
+	all = jelsort.By(all, func(l, r jelly.AuthUser) bool {
 		return l.ID.String() < r.ID.String()
 	})
 
 	return all, nil
 }
 
-func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u types.AuthUser) (types.AuthUser, error) {
+func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
 	existing, ok := aur.users[id]
 	if !ok {
-		return types.AuthUser{}, types.DBErrNotFound
+		return jelly.AuthUser{}, jelly.DBErrNotFound
 	}
 	user := db.NewUserFromAuthUser(u)
 
@@ -80,12 +80,12 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u types.AuthU
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := aur.byUsernameIndex[user.Username]; ok {
-			return types.AuthUser{}, types.DBErrConstraintViolation
+			return jelly.AuthUser{}, jelly.DBErrConstraintViolation
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
 		if _, ok := aur.users[user.ID]; ok {
-			return types.AuthUser{}, types.DBErrConstraintViolation
+			return jelly.AuthUser{}, jelly.DBErrConstraintViolation
 		}
 	}
 
@@ -99,28 +99,28 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u types.AuthU
 	return user.AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (types.AuthUser, error) {
+func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return types.AuthUser{}, types.DBErrNotFound
+		return jelly.AuthUser{}, jelly.DBErrNotFound
 	}
 
 	return user.AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (types.AuthUser, error) {
+func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
 	userID, ok := aur.byUsernameIndex[username]
 	if !ok {
-		return types.AuthUser{}, types.DBErrNotFound
+		return jelly.AuthUser{}, jelly.DBErrNotFound
 	}
 
 	return aur.users[userID].AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (types.AuthUser, error) {
+func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return types.AuthUser{}, types.DBErrNotFound
+		return jelly.AuthUser{}, jelly.DBErrNotFound
 	}
 
 	delete(aur.byUsernameIndex, user.Username)

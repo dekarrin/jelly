@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 	"modernc.org/sqlite"
 )
 
@@ -19,7 +19,7 @@ func WrapDBError(err error) error {
 	if errors.As(err, &sqliteErr) {
 		primaryCode := sqliteErr.Code() & 0xff
 		if primaryCode == 19 {
-			return fmt.Errorf("%w: %s", types.DBErrConstraintViolation, err.Error())
+			return fmt.Errorf("%w: %s", jelly.DBErrConstraintViolation, err.Error())
 		}
 		if primaryCode == 1 {
 			// this is a generic error and thus the string is not descriptive,
@@ -28,7 +28,7 @@ func WrapDBError(err error) error {
 		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
-		return types.DBErrNotFound
+		return jelly.DBErrNotFound
 	}
 	return err
 }

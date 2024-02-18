@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -17,8 +17,8 @@ var (
 	Issuer = "jelly"
 )
 
-func validateToken(ctx context.Context, tok string, secret []byte, userDB types.AuthUserRepo) (types.AuthUser, error) {
-	var user types.AuthUser
+func validateToken(ctx context.Context, tok string, secret []byte, userDB jelly.AuthUserRepo) (jelly.AuthUser, error) {
+	var user jelly.AuthUser
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
@@ -34,7 +34,7 @@ func validateToken(ctx context.Context, tok string, secret []byte, userDB types.
 
 		user, err = userDB.Get(ctx, id)
 		if err != nil {
-			if errors.Is(err, types.DBErrNotFound) {
+			if errors.Is(err, jelly.DBErrNotFound) {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")
@@ -49,7 +49,7 @@ func validateToken(ctx context.Context, tok string, secret []byte, userDB types.
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
 	if err != nil {
-		return types.AuthUser{}, err
+		return jelly.AuthUser{}, err
 	}
 
 	return user, nil
@@ -78,7 +78,7 @@ func getToken(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func generateToken(secret []byte, u types.AuthUser) (string, error) {
+func generateToken(secret []byte, u jelly.AuthUser) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        Issuer,
 		"exp":        time.Now().Add(time.Hour).Unix(),

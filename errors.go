@@ -10,6 +10,10 @@ var (
 	ErrDB             = errors.New("an error occured with the DB")
 	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
 	ErrBodyUnmarshal  = errors.New("malformed data in request")
+
+	DBErrConstraintViolation = errors.New("a uniqueness constraint was violated")
+	DBErrNotFound            = errors.New("the requested resource was not found")
+	DBErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
 
 // Error is a typed error returned by certain functions in the TunaScript server

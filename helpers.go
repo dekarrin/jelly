@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -23,7 +22,7 @@ var (
 	}
 )
 
-type EndpointFunc func(req *http.Request) types.Result
+type EndpointFunc func(req *http.Request) Result
 
 func UnPathParam(s string) string {
 	for name, pat := range paramTypePats {
@@ -162,11 +161,11 @@ func CombineOverrides(overs []Override) Override {
 // jelly middleware and standardized endpoint function wrapping to produce an
 // http.HandlerFunc from an EndpointFunc.
 type ServiceProvider interface {
-	types.ResponseGenerator
-	DontPanic() types.Middleware
-	OptionalAuth(authenticators ...string) types.Middleware
-	RequiredAuth(authenticators ...string) types.Middleware
-	SelectAuthenticator(authenticators ...string) types.Authenticator
+	ResponseGenerator
+	DontPanic() Middleware
+	OptionalAuth(authenticators ...string) Middleware
+	RequiredAuth(authenticators ...string) Middleware
+	SelectAuthenticator(authenticators ...string) Authenticator
 	Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc
-	GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool)
+	GetLoggedInUser(req *http.Request) (user AuthUser, loggedIn bool)
 }

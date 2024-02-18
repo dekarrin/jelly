@@ -7,7 +7,6 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/internal/config"
 	"github.com/dekarrin/jelly/internal/middle"
-	"github.com/dekarrin/jelly/types"
 )
 
 // Environment is a full Jelly environment that contains all parameters needed
@@ -61,7 +60,7 @@ func (env *Environment) UseComponent(c jelly.Component) {
 // should be loaded into it. You must call this for every custom API config
 // sections, or they will be given the default common config only at
 // initialization.
-func (env *Environment) RegisterConfigSection(name string, provider func() types.APIConfig) error {
+func (env *Environment) RegisterConfigSection(name string, provider func() jelly.APIConfig) error {
 	env.initDefaults()
 	return env.confEnv.Register(name, provider)
 }
@@ -78,7 +77,7 @@ func (env *Environment) SetMainAuthenticator(name string) error {
 // RegisterConnector allows the specification of database connection methods.
 // The registered name can then be specified as the connector field of any DB
 // in config whose type is the given engine.
-func (env *Environment) RegisterConnector(engine types.DBType, name string, connector func(types.DatabaseConfig) (types.Store, error)) error {
+func (env *Environment) RegisterConnector(engine jelly.DBType, name string, connector func(jelly.DatabaseConfig) (jelly.Store, error)) error {
 	env.initDefaults()
 	return env.connectors.Register(engine, name, connector)
 }
@@ -89,7 +88,7 @@ func (env *Environment) RegisterConnector(engine types.DBType, name string, conn
 // jelly.Component such as jelly/auth.Component, consider calling UseComponent
 // instead as that will automatically call RegisterAuthenticator for any
 // authenticators the component provides.
-func (env *Environment) RegisterAuthenticator(name string, authen types.Authenticator) error {
+func (env *Environment) RegisterAuthenticator(name string, authen jelly.Authenticator) error {
 	env.initDefaults()
 	return env.middleProv.RegisterAuthenticator(name, authen)
 }
@@ -98,14 +97,14 @@ func (env *Environment) RegisterAuthenticator(name string, authen types.Authenti
 // called on every component that will be configured (such as jelly/auth), and
 // ensure RegisterConfigSection is called for each custom config section not
 // associated with a component.
-func (env *Environment) LoadConfig(file string) (types.Config, error) {
+func (env *Environment) LoadConfig(file string) (jelly.Config, error) {
 	env.initDefaults()
 	return env.confEnv.Load(file)
 }
 
 // DumpConfig dumpes the given config to bytes. If Format is not set on the
 // Config, YAML is assumed.
-func (env *Environment) DumpConfig(cfg types.Config) []byte {
+func (env *Environment) DumpConfig(cfg jelly.Config) []byte {
 	env.initDefaults()
 	return config.Dump(cfg)
 }

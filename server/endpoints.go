@@ -6,30 +6,29 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/internal/middle"
-	"github.com/dekarrin/jelly/types"
 )
 
 type endpointCreator struct {
 	mid *middle.Provider
 }
 
-func (em endpointCreator) DontPanic() types.Middleware {
+func (em endpointCreator) DontPanic() jelly.Middleware {
 	return em.mid.DontPanic(em)
 }
 
-func (em endpointCreator) OptionalAuth(authenticators ...string) types.Middleware {
+func (em endpointCreator) OptionalAuth(authenticators ...string) jelly.Middleware {
 	return em.mid.OptionalAuth(em, authenticators...)
 }
 
-func (em endpointCreator) RequiredAuth(authenticators ...string) types.Middleware {
+func (em endpointCreator) RequiredAuth(authenticators ...string) jelly.Middleware {
 	return em.mid.RequiredAuth(em, authenticators...)
 }
 
-func (em endpointCreator) SelectAuthenticator(authenticators ...string) types.Authenticator {
+func (em endpointCreator) SelectAuthenticator(authenticators ...string) jelly.Authenticator {
 	return em.mid.SelectAuthenticator(authenticators...)
 }
 
-func (em endpointCreator) GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool) {
+func (em endpointCreator) GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
 	return middle.GetLoggedInUser(req)
 }
 

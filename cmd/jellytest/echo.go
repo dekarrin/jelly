@@ -8,7 +8,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -18,14 +17,14 @@ const (
 )
 
 type EchoConfig struct {
-	CommonConf types.CommonConfig
+	CommonConf jelly.CommonConfig
 
 	Messages []string
 }
 
 // FillDefaults returns a new *EchoConfig identical to cfg but with unset values
 // set to their defaults and values normalized.
-func (cfg *EchoConfig) FillDefaults() types.APIConfig {
+func (cfg *EchoConfig) FillDefaults() jelly.APIConfig {
 	newCFG := new(EchoConfig)
 	*newCFG = *cfg
 
@@ -57,7 +56,7 @@ func (cfg *EchoConfig) Validate() error {
 	return nil
 }
 
-func (cfg *EchoConfig) Common() types.CommonConfig {
+func (cfg *EchoConfig) Common() jelly.CommonConfig {
 	return cfg.CommonConf
 }
 
@@ -104,7 +103,7 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 
 type EchoAPI struct {
 	store   dao.Datastore
-	log     types.Logger
+	log     jelly.Logger
 	uriBase string
 }
 
@@ -129,7 +128,7 @@ func (echo *EchoAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (echo *EchoAPI) Authenticators() map[string]types.Authenticator {
+func (echo *EchoAPI) Authenticators() map[string]jelly.Authenticator {
 	return nil
 }
 
@@ -164,7 +163,7 @@ type echoRequestBody struct {
 
 // httpGetEcho returns a HandlerFunc that echoes the user message.
 func (api EchoAPI) httpGetEcho(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) types.Result {
+	return em.Endpoint(func(req *http.Request) jelly.Result {
 		var echoData echoRequestBody
 
 		err := jelly.ParseJSONRequest(req, &echoData)

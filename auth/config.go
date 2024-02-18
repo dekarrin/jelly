@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 )
 
 type Config struct {
-	CommonConf types.CommonConfig
+	CommonConf jelly.CommonConfig
 
 	// Secret is the secret used for signing tokens. If not provided, a default
 	// key is used.
@@ -43,17 +43,17 @@ type Config struct {
 
 // FillDefaults returns a new *Config identical to cfg but with unset values set
 // to their defaults and values normalized.
-func (cfg *Config) FillDefaults() types.APIConfig {
+func (cfg *Config) FillDefaults() jelly.APIConfig {
 	newCFG := new(Config)
 	*newCFG = *cfg
 
 	// if no other options are specified except for enable, fill with standard
 	if newCFG.CommonConf.Enabled {
 		if newCFG.CommonConf.Base == "" {
-			newCFG.Set(types.ConfigKeyAPIBase, "/auth")
+			newCFG.Set(jelly.ConfigKeyAPIBase, "/auth")
 		}
 		if len(newCFG.CommonConf.UsesDBs) < 1 {
-			newCFG.Set(types.ConfigKeyAPIUsesDBs, []string{"auth"})
+			newCFG.Set(jelly.ConfigKeyAPIUsesDBs, []string{"auth"})
 		}
 	}
 
@@ -113,7 +113,7 @@ func parseSetAdmin(s string) (user, pass string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func (cfg *Config) Common() types.CommonConfig {
+func (cfg *Config) Common() jelly.CommonConfig {
 	return cfg.CommonConf
 }
 

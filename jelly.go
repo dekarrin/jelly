@@ -6,9 +6,10 @@ package jelly
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"strings"
 
-	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -41,7 +42,7 @@ type API interface {
 	// Any Authenticator returned from this is automatically registered as an
 	// Authenticator with the Auth middleware engine. Do not do so manually or
 	// there may be conflicts.
-	Authenticators() map[string]types.Authenticator
+	Authenticators() map[string]Authenticator
 
 	// Routes returns a router that leads to all accessible routes in the API.
 	// Additionally, returns whether the API's router contains subpaths beyond
@@ -79,44 +80,148 @@ type Component interface {
 
 	// Config returns a new APIConfig instance that the Component's config
 	// section is loaded into.
-	Config() types.APIConfig
+	Config() APIConfig
 }
 
 type RESTServer interface {
-	Config() types.Config
+	Config() Config
 	RoutesIndex() string
 	Add(name string, api API) error
 	ServeForever() error
 	Shutdown(ctx context.Context) error
 }
 
+// TODO: combine this bundle with the primary one
 type Bundle struct {
-	types.Bundle
-	logger types.Logger
-	dbs    map[string]types.Store
+	CBundle
+	logger Logger
+	dbs    map[string]Store
 }
 
-func NewBundle(apiConf types.Bundle, log types.Logger, dbs map[string]types.Store) Bundle {
+func NewBundle(apiConf CBundle, log Logger, dbs map[string]Store) Bundle {
 	return Bundle{
-		Bundle: apiConf,
-		logger: log,
-		dbs:    dbs,
+		CBundle: apiConf,
+		logger:  log,
+		dbs:     dbs,
 	}
 }
 
-func (bndl Bundle) Logger() types.Logger {
+func (bndl Bundle) Logger() Logger {
 	return bndl.logger
 }
 
 // DB gets the connection to the Nth DB listed in the API's uses. Panics if the API
 // config does not have at least n+1 entries.
-func (bndl Bundle) DB(n int) types.Store {
+func (bndl Bundle) DB(n int) Store {
 	dbName := bndl.UsesDBs()[n]
 	return bndl.DBNamed(dbName)
 }
 
 // NamedDB gets the exact DB with the given name. This will only return the DB if it
 // was configured as one of the used DBs for the API.
-func (bndl Bundle) DBNamed(name string) types.Store {
+func (bndl Bundle) DBNamed(name string) Store {
 	return bndl.dbs[strings.ToLower(name)]
 }
+
+// Logger is an object that is used to log messages. Use the New functions in
+// the logging sub-package to create one.
+type Logger interface {
+	// Debug writes a message to the log at Debug level.
+	Debug(string)
+
+	// Debugf writes a formatted message to the log at Debug level.
+	Debugf(string, ...interface{})
+
+	// Error writes a message to the log at Error level.
+	Error(string)
+
+	// Errorf writes a formatted message to the log at Error level.
+	Errorf(string, ...interface{})
+
+	// Info writes a message to the log at Info level.
+	Info(string)
+
+	// Infof writes a formatted message to the log at Info level.
+	Infof(string, ...interface{})
+
+	// Trace writes a message to the log at Trace level.
+	Trace(string)
+
+	// Tracef writes a formatted message to the log at Trace level.
+	Tracef(string, ...interface{})
+
+	// Warn writes a message to the log at Warn level.
+	Warn(string)
+
+	// Warnf writes a formatted message to the log at Warn level.
+	Warnf(string, ...interface{})
+
+	// DebugBreak adds a 'break' between events in the log at Debug level. The
+	// meaning of a break varies based on the underlying log; for text-based
+	// logs, it is generally a newline character.
+	DebugBreak()
+
+	// ErrorBreak adds a 'break' between events in the log at Error level. The
+	// meaning of a break varies based on the underlying log; for text-based
+	// logs, it is generally a newline character.
+	ErrorBreak()
+
+	// InfoBreak adds a 'break' between events in the log at Info level. The
+	// meaning of a break varies based on the underlying log; for text-based
+	// logs, it is generally a newline character.
+	InfoBreak()
+
+	// TraceBreak adds a 'break' between events in the log at Trace level. The
+	// meaning of a break varies based on the underlying log; for text-based
+	// logs, it is generally a newline character.
+	TraceBreak()
+
+	// WarnBreak adds a 'break' between events in the log at Warn level. The
+	// meaning of a break varies based on the underlying log; for text-based
+	// logs, it is generally a newline character.
+	WarnBreak()
+
+	// LogResult logs a request and the response to that request.
+	LogResult(req *http.Request, r Result)
+}
+
+type LogProvider int
+
+const (
+	NoLog LogProvider = iota
+	Jellog
+)
+
+func (p LogProvider) String() string {
+	switch p {
+	case NoLog:
+		return "none"
+	case Jellog:
+		return "jellog"
+	default:
+		return fmt.Sprintf("LogProvider(%d)", int(p))
+	}
+}
+
+func ParseLogProvider(s string) (LogProvider, error) {
+	switch strings.ToLower(s) {
+	case NoLog.String(), "":
+		return NoLog, nil
+	case Jellog.String():
+		return Jellog, nil
+	default:
+		return NoLog, fmt.Errorf("unknown LogProvider %q", s)
+	}
+}
+
+type Store interface {
+
+	// Close closes any pending operations on the DAO store and on all of its
+	// Repos. It performs any clean-up operations necessary and should always be
+	// called once the Store is no longer in use.
+	Close() error
+}
+
+// Middleware is a function that takes a handler and returns a new handler which
+// wraps the given one and provides some additional functionality.
+type Middleware func(next http.Handler) http.Handler

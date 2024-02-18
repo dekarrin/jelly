@@ -10,7 +10,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -23,7 +22,7 @@ const (
 )
 
 type HelloConfig struct {
-	CommonConf types.CommonConfig
+	CommonConf jelly.CommonConfig
 
 	Rudeness       float64
 	RudeMessages   []string
@@ -33,7 +32,7 @@ type HelloConfig struct {
 
 // FillDefaults returns a new *HelloConfig identical to cfg but with unset
 // values set to their defaults and values normalized.
-func (cfg *HelloConfig) FillDefaults() types.APIConfig {
+func (cfg *HelloConfig) FillDefaults() jelly.APIConfig {
 	newCFG := new(HelloConfig)
 	*newCFG = *cfg
 
@@ -79,13 +78,13 @@ func (cfg *HelloConfig) Validate() error {
 		return fmt.Errorf(ConfigKeySecrets + ": must exist and have at least one item")
 	}
 	if len(cfg.CommonConf.UsesDBs) < 1 {
-		return fmt.Errorf(types.ConfigKeyAPIUsesDBs + ": must exist and have at least one item")
+		return fmt.Errorf(jelly.ConfigKeyAPIUsesDBs + ": must exist and have at least one item")
 	}
 
 	return nil
 }
 
-func (cfg *HelloConfig) Common() types.CommonConfig {
+func (cfg *HelloConfig) Common() jelly.CommonConfig {
 	return cfg.CommonConf
 }
 
@@ -178,7 +177,7 @@ type HelloAPI struct {
 	// random greeting. Float between 0 and 1 for percentage.
 	rudeChance float64
 
-	log types.Logger
+	log jelly.Logger
 
 	uriBase string
 }
@@ -219,7 +218,7 @@ func (api *HelloAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (api *HelloAPI) Authenticators() map[string]types.Authenticator {
+func (api *HelloAPI) Authenticators() map[string]jelly.Authenticator {
 	return nil
 }
 
@@ -265,7 +264,7 @@ func (api *HelloAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 
 // httpGetNice returns a HandlerFunc that returns a polite greeting message.
 func (api HelloAPI) httpGetNice(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) types.Result {
+	return em.Endpoint(func(req *http.Request) jelly.Result {
 		msg, err := api.nices.GetRandom(req.Context())
 		if err != nil {
 			return em.InternalServerError("could not get random nice message: %v", err)
@@ -288,7 +287,7 @@ func (api HelloAPI) httpGetNice(em jelly.ServiceProvider) http.HandlerFunc {
 
 // httpGetRude returns a HandlerFunc that returns a rude greeting message.
 func (api HelloAPI) httpGetRude(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) types.Result {
+	return em.Endpoint(func(req *http.Request) jelly.Result {
 		msg, err := api.rudes.GetRandom(req.Context())
 		if err != nil {
 			return em.InternalServerError("could not get random rude message: %v", err)
@@ -311,7 +310,7 @@ func (api HelloAPI) httpGetRude(em jelly.ServiceProvider) http.HandlerFunc {
 
 // httpGetRandom returns a HandlerFunc that returns a random greeting message.
 func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) types.Result {
+	return em.Endpoint(func(req *http.Request) jelly.Result {
 		var resp messageResponseBody
 		var msg dao.Template
 		var selected string
@@ -355,7 +354,7 @@ func (api HelloAPI) httpGetRandom(em jelly.ServiceProvider) http.HandlerFunc {
 // httpGetSecret returns a HandlerFunc that returns a secret greeting message
 // available only for logged-in users.
 func (api HelloAPI) httpGetSecret(em jelly.ServiceProvider) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) types.Result {
+	return em.Endpoint(func(req *http.Request) jelly.Result {
 		user, _ := em.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"
 

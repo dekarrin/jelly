@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 	"github.com/google/uuid"
 )
 
@@ -31,15 +31,15 @@ const (
 // Generally for callers, it will be accessed via delegated methods on an
 // instance of [jelly.Environment].
 type Provider struct {
-	authenticators    map[string]types.Authenticator
+	authenticators    map[string]jelly.Authenticator
 	mainAuthenticator string
 	DisableDefaults   bool
 }
 
-func GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool) {
+func GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
 	loggedIn = req.Context().Value(AuthLoggedIn).(bool)
 	if loggedIn {
-		user = req.Context().Value(AuthUser).(types.AuthUser)
+		user = req.Context().Value(AuthUser).(jelly.AuthUser)
 	}
 
 	return user, loggedIn
@@ -47,7 +47,7 @@ func GetLoggedInUser(req *http.Request) (user types.AuthUser, loggedIn bool) {
 
 func (p *Provider) initDefaults() {
 	if p.authenticators == nil {
-		p.authenticators = map[string]types.Authenticator{}
+		p.authenticators = map[string]jelly.Authenticator{}
 		p.mainAuthenticator = ""
 	}
 }
@@ -56,10 +56,10 @@ func (p *Provider) initDefaults() {
 // matches one of the names in from. If no names are provided in from, the main
 // auth for the project is returned. If from is not empty, at least one name
 // listed in it must exist, or this function will panic.
-func (p *Provider) SelectAuthenticator(from ...string) types.Authenticator {
+func (p *Provider) SelectAuthenticator(from ...string) jelly.Authenticator {
 	p.initDefaults()
 
-	var authent types.Authenticator
+	var authent jelly.Authenticator
 	if len(from) > 0 {
 		if len(p.authenticators) < 1 {
 			panic(fmt.Sprintf("no valid auth provider given in list: %q", from))
@@ -82,7 +82,7 @@ func (p *Provider) SelectAuthenticator(from ...string) types.Authenticator {
 	return authent
 }
 
-func (p *Provider) getMainAuth() types.Authenticator {
+func (p *Provider) getMainAuth() jelly.Authenticator {
 	p.initDefaults()
 
 	if p.mainAuthenticator == "" {
@@ -107,12 +107,12 @@ func (p *Provider) RegisterMainAuthenticator(name string) error {
 	return nil
 }
 
-func (p *Provider) RegisterAuthenticator(name string, authen types.Authenticator) error {
+func (p *Provider) RegisterAuthenticator(name string, authen jelly.Authenticator) error {
 	p.initDefaults()
 
 	normName := strings.ToLower(name)
 	if p.authenticators == nil {
-		p.authenticators = map[string]types.Authenticator{}
+		p.authenticators = map[string]jelly.Authenticator{}
 	}
 
 	if _, ok := p.authenticators[normName]; ok {
@@ -130,8 +130,8 @@ func (p *Provider) RegisterAuthenticator(name string, authen types.Authenticator
 // noopAuthenticator is used as the active one when no others are specified.
 type noopAuthenticator struct{}
 
-func (na noopAuthenticator) Authenticate(req *http.Request) (types.AuthUser, bool, error) {
-	return types.AuthUser{}, false, fmt.Errorf("no authenticator provider is specified for this project")
+func (na noopAuthenticator) Authenticate(req *http.Request) (jelly.AuthUser, bool, error) {
+	return jelly.AuthUser{}, false, fmt.Errorf("no authenticator provider is specified for this project")
 }
 
 func (na noopAuthenticator) UnauthDelay() time.Duration {
@@ -139,38 +139,38 @@ func (na noopAuthenticator) UnauthDelay() time.Duration {
 	return d
 }
 
-func (na noopAuthenticator) Service() types.UserLoginService {
+func (na noopAuthenticator) Service() jelly.UserLoginService {
 	return noopLoginService{}
 }
 
 type noopLoginService struct{}
 
-func (noop noopLoginService) Login(ctx context.Context, username string, password string) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("Login called on noop")
+func (noop noopLoginService) Login(ctx context.Context, username string, password string) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("Login called on noop")
 }
-func (noop noopLoginService) Logout(ctx context.Context, who uuid.UUID) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("Logout called on noop")
+func (noop noopLoginService) Logout(ctx context.Context, who uuid.UUID) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("Logout called on noop")
 }
-func (noop noopLoginService) GetAllUsers(ctx context.Context) ([]types.AuthUser, error) {
+func (noop noopLoginService) GetAllUsers(ctx context.Context) ([]jelly.AuthUser, error) {
 	return nil, fmt.Errorf("GetAllUsers called on noop")
 }
-func (noop noopLoginService) GetUser(ctx context.Context, id string) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("GetUser called on noop")
+func (noop noopLoginService) GetUser(ctx context.Context, id string) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("GetUser called on noop")
 }
-func (noop noopLoginService) GetUserByUsername(ctx context.Context, username string) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("GetUserByUsername called on noop")
+func (noop noopLoginService) GetUserByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("GetUserByUsername called on noop")
 }
-func (noop noopLoginService) CreateUser(ctx context.Context, username, password, email string, role types.Role) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("CreateUser called on noop")
+func (noop noopLoginService) CreateUser(ctx context.Context, username, password, email string, role jelly.Role) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("CreateUser called on noop")
 }
-func (noop noopLoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role types.Role) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("UpdateUser called on noop")
+func (noop noopLoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role jelly.Role) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("UpdateUser called on noop")
 }
-func (noop noopLoginService) UpdatePassword(ctx context.Context, id, password string) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("UpdatePassword called on noop")
+func (noop noopLoginService) UpdatePassword(ctx context.Context, id, password string) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("UpdatePassword called on noop")
 }
-func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (types.AuthUser, error) {
-	return types.AuthUser{}, fmt.Errorf("DeleteUser called on noop")
+func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (jelly.AuthUser, error) {
+	return jelly.AuthUser{}, fmt.Errorf("DeleteUser called on noop")
 }
 
 // AuthHandler is middleware that will accept a request, extract the token used
@@ -183,10 +183,10 @@ func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (types.A
 // optional logins; for non-optional, not being logged in will result in an
 // HTTP error being returned before the request is passed to the next handler).
 type AuthHandler struct {
-	provider types.Authenticator
+	provider jelly.Authenticator
 	required bool
 	next     http.Handler
-	resp     types.ResponseGenerator
+	resp     jelly.ResponseGenerator
 }
 
 func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -220,10 +220,10 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // RequiredAuth returns middleware that requires that auth be used. The
 // authenticators, if provided, must give the names of preferred providers that
-// were registered as an types.Authenticator with this package, in priority order. If
+// were registered as an jelly.Authenticator with this package, in priority order. If
 // none of the given authenticators exist, this function panics. If no
 // authenticator is specified, the one set as main for the project is used.
-func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...string) types.Middleware {
+func (p Provider) RequiredAuth(resp jelly.ResponseGenerator, authenticators ...string) jelly.Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
@@ -238,11 +238,11 @@ func (p Provider) RequiredAuth(resp types.ResponseGenerator, authenticators ...s
 
 // OptionalAuth returns middleware that allows auth be used to retrieved the
 // logged-in user. The authenticators, if provided, must give the names of
-// preferred providers that were registered as an types.Authenticator with this
+// preferred providers that were registered as an jelly.Authenticator with this
 // package, in priority order. If none of the given authenticators exist, this
 // function panics. If no authenticator is specified, the one set as main for
 // the project is used.
-func (p Provider) OptionalAuth(resp types.ResponseGenerator, authenticators ...string) types.Middleware {
+func (p Provider) OptionalAuth(resp jelly.ResponseGenerator, authenticators ...string) jelly.Middleware {
 	prov := p.SelectAuthenticator(authenticators...)
 
 	return func(next http.Handler) http.Handler {
@@ -258,7 +258,7 @@ func (p Provider) OptionalAuth(resp types.ResponseGenerator, authenticators ...s
 // DontPanic returns a Middleware that performs a panic check as it exits. If
 // the function is panicking, it will write out an HTTP response with a generic
 // message to the client and add it to the log.
-func (p Provider) DontPanic(resp types.ResponseGenerator) types.Middleware {
+func (p Provider) DontPanic(resp jelly.ResponseGenerator) jelly.Middleware {
 	return func(next http.Handler) http.Handler {
 		return mwFunc(func(w http.ResponseWriter, req *http.Request) {
 			defer func() {

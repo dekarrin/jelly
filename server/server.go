@@ -10,7 +10,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/internal/logging"
-	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -26,10 +25,10 @@ type restServer struct {
 	apis        map[string]jelly.API
 	apiBases    map[string]string
 	basesToAPIs map[string]string // used for tracking that APIs do not eat each other
-	dbs         map[string]types.Store
-	cfg         types.Config // config that it was started with.
+	dbs         map[string]jelly.Store
+	cfg         jelly.Config // config that it was started with.
 
-	log types.Logger // used for logging. if logging disabled, this will be set to a no-op logger
+	log jelly.Logger // used for logging. if logging disabled, this will be set to a no-op logger
 
 	env *Environment // ptr back to the environment that this server was created in.
 }
@@ -39,14 +38,14 @@ type restServer struct {
 // is retained for future operations. Any registered auto-APIs are automatically
 // added via Add as per the configuration; this includes both built-in and
 // user-supplied APIs.
-func (env *Environment) NewServer(cfg *types.Config) (jelly.RESTServer, error) {
+func (env *Environment) NewServer(cfg *jelly.Config) (jelly.RESTServer, error) {
 	env.initDefaults()
 
 	// check config
 	if cfg == nil {
-		cfg = &types.Config{}
+		cfg = &jelly.Config{}
 	} else {
-		copy := new(types.Config)
+		copy := new(jelly.Config)
 		*copy = *cfg
 		cfg = copy
 	}
@@ -55,7 +54,7 @@ func (env *Environment) NewServer(cfg *types.Config) (jelly.RESTServer, error) {
 		return nil, fmt.Errorf("config: %w", err)
 	}
 
-	var logger types.Logger = logging.NoOpLogger{}
+	var logger jelly.Logger = logging.NoOpLogger{}
 	// config is loaded, make the first thing we start be our logger
 	if cfg.Log.Enabled {
 		var err error
@@ -67,7 +66,7 @@ func (env *Environment) NewServer(cfg *types.Config) (jelly.RESTServer, error) {
 	}
 
 	// connect DBs
-	dbs := map[string]types.Store{}
+	dbs := map[string]jelly.Store{}
 	for name, db := range cfg.DBs {
 		db, err := env.connectors.Connect(db)
 		if err != nil {
@@ -111,7 +110,7 @@ func (env *Environment) NewServer(cfg *types.Config) (jelly.RESTServer, error) {
 
 // Config returns the conifguration that the server used during creation.
 // Modifying the returned config will have no effect on the server.
-func (rs restServer) Config() types.Config {
+func (rs restServer) Config() jelly.Config {
 	return rs.cfg.FillDefaults()
 }
 
@@ -276,12 +275,12 @@ func (rs *restServer) Add(name string, api jelly.API) error {
 
 // will return default "common bundle" with only the name set if the named API
 // is not in the configured APIs.
-func (rs *restServer) getAPIConfigBundle(name string) types.Bundle {
+func (rs *restServer) getAPIConfigBundle(name string) jelly.CBundle {
 	conf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
-		return types.NewBundle((&types.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals)
+		return jelly.NewCBundle((&jelly.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals)
 	}
-	return types.NewBundle(conf, rs.cfg.Globals)
+	return jelly.NewCBundle(conf, rs.cfg.Globals)
 }
 
 func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
@@ -293,7 +292,7 @@ func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
 	apiConf := rs.getAPIConfigBundle(name)
 
 	// find the actual dbs it uses
-	usedDBs := map[string]types.Store{}
+	usedDBs := map[string]jelly.Store{}
 	usedDBNames := apiConf.UsesDBs()
 
 	for _, dbName := range usedDBNames {

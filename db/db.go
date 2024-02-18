@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
 
@@ -75,7 +74,7 @@ func (em Email) Value() (driver.Value, error) {
 func (em *Email) Scan(value interface{}) error {
 	s, ok := value.(string)
 	if !ok {
-		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), types.DBErrDecodingFailure)
+		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.DBErrDecodingFailure)
 	}
 	if s == "" {
 		em.V = nil
@@ -84,7 +83,7 @@ func (em *Email) Scan(value interface{}) error {
 
 	email, err := mail.ParseAddress(s)
 	if err != nil {
-		return jelly.NewError("", err, types.DBErrDecodingFailure)
+		return jelly.NewError("", err, jelly.DBErrDecodingFailure)
 	}
 
 	em.V = email
@@ -97,7 +96,7 @@ type User struct {
 	Username   string     // UNIQUE, NOT NULL
 	Password   string     // NOT NULL
 	Email      Email      // NOT NULL
-	Role       types.Role // NOT NULL
+	Role       jelly.Role // NOT NULL
 	Created    Timestamp  // NOT NULL
 	Modified   Timestamp  // NOT NULL
 	LastLogout Timestamp  // NOT NULL DEFAULT NOW()
@@ -108,8 +107,8 @@ func (u User) ModelID() uuid.UUID {
 	return u.ID
 }
 
-func (u User) AuthUser() types.AuthUser {
-	return types.AuthUser{
+func (u User) AuthUser() jelly.AuthUser {
+	return jelly.AuthUser{
 		ID:         u.ID,
 		Username:   u.Username,
 		Password:   u.Password,
@@ -122,7 +121,7 @@ func (u User) AuthUser() types.AuthUser {
 	}
 }
 
-func NewUserFromAuthUser(au types.AuthUser) User {
+func NewUserFromAuthUser(au jelly.AuthUser) User {
 	u := User{
 		ID:         au.ID,
 		Username:   au.Username,

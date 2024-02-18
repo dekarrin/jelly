@@ -7,19 +7,19 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jellog"
-	"github.com/dekarrin/jelly/types"
+	"github.com/dekarrin/jelly"
 )
 
 // New creates a new logger of the given provider. If filename is blank, it will
 // not log to disk, only stderr, and the stderr logger will be configured at
 // trace level instead of info level.
-func New(p types.LogProvider, filename string) (types.Logger, error) {
+func New(p jelly.LogProvider, filename string) (jelly.Logger, error) {
 	var err error
 
 	switch p {
-	case types.NoLog:
+	case jelly.NoLog:
 		return nil, errors.New("log provider cannot be NoLog")
-	case types.Jellog:
+	case jelly.Jellog:
 		var logOut *jellog.FileHandler
 		if filename != "" {
 			logOut, err = jellog.OpenFile(filename, nil)
@@ -60,7 +60,7 @@ func (log NoOpLogger) InfoBreak()                                  {}
 func (log NoOpLogger) WarnBreak()                                  {}
 func (log NoOpLogger) TraceBreak()                                 {}
 func (log NoOpLogger) DebugBreak()                                 {}
-func (log NoOpLogger) LogResult(req *http.Request, r types.Result) {}
+func (log NoOpLogger) LogResult(req *http.Request, r jelly.Result) {}
 
 type jellogLogger struct {
 	j jellog.Logger[string]
@@ -126,7 +126,7 @@ func (log jellogLogger) DebugBreak() {
 	log.j.InsertBreak(jellog.LvDebug)
 }
 
-func (log jellogLogger) LogResult(req *http.Request, r types.Result) {
+func (log jellogLogger) LogResult(req *http.Request, r jelly.Result) {
 	if r.IsErr {
 		log.logHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
 	} else {
