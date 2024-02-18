@@ -1,4 +1,3 @@
-// Package inmem provides an in-memory database for use with model types.
 package inmem
 
 import (

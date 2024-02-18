@@ -26,7 +26,7 @@ func New(cfg types.DatabaseConfig) (types.Store, error) {
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, jelly.WrapSqliteError(err)
+		return nil, jelly.WrapSQLiteError(err)
 	}
 
 	ds := dao.Datastore{

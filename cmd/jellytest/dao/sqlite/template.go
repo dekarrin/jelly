@@ -30,7 +30,7 @@ func NewTemplates(db *sql.DB, table string) (dao.Templates, error) {
 			creator TEXT NOT NULL
 		);`)
 	if err != nil {
-		return nil, jelly.WrapSqliteError(err)
+		return nil, jelly.WrapSQLiteError(err)
 	}
 
 	return ts, nil
@@ -49,7 +49,7 @@ func (store *templateStore) Create(ctx context.Context, t dao.Template) (dao.Tem
 		VALUES (?, ?, ?)
 	`)
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 
 	_, err = stmt.ExecContext(
@@ -59,7 +59,7 @@ func (store *templateStore) Create(ctx context.Context, t dao.Template) (dao.Tem
 		t.Creator,
 	)
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 
 	return store.Get(ctx, newUUID)
@@ -80,7 +80,7 @@ func (store *templateStore) Get(ctx context.Context, id uuid.UUID) (dao.Template
 	)
 
 	if err != nil {
-		return t, jelly.WrapSqliteError(err)
+		return t, jelly.WrapSQLiteError(err)
 	}
 
 	return t, nil
@@ -92,7 +92,7 @@ func (store *templateStore) GetAll(ctx context.Context) ([]dao.Template, error) 
 		FROM `+store.table+`;
 	`)
 	if err != nil {
-		return nil, jelly.WrapSqliteError(err)
+		return nil, jelly.WrapSQLiteError(err)
 	}
 	defer rows.Close()
 
@@ -107,14 +107,14 @@ func (store *templateStore) GetAll(ctx context.Context) ([]dao.Template, error) 
 		)
 
 		if err != nil {
-			return nil, jelly.WrapSqliteError(err)
+			return nil, jelly.WrapSQLiteError(err)
 		}
 
 		all = append(all, t)
 	}
 
 	if err := rows.Err(); err != nil {
-		return all, jelly.WrapSqliteError(err)
+		return all, jelly.WrapSQLiteError(err)
 	}
 
 	return all, nil
@@ -131,11 +131,11 @@ func (store *templateStore) Update(ctx context.Context, id uuid.UUID, t dao.Temp
 		id,
 	)
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 	if rowsAff < 1 {
 		return dao.Template{}, types.DBErrNotFound
@@ -155,11 +155,11 @@ func (store *templateStore) Delete(ctx context.Context, id uuid.UUID) (dao.Templ
 		WHERE id = ?
 	`, id)
 	if err != nil {
-		return curVal, jelly.WrapSqliteError(err)
+		return curVal, jelly.WrapSQLiteError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return curVal, jelly.WrapSqliteError(err)
+		return curVal, jelly.WrapSQLiteError(err)
 	}
 	if rowsAff < 1 {
 		return curVal, types.DBErrNotFound
@@ -171,7 +171,7 @@ func (store *templateStore) Delete(ctx context.Context, id uuid.UUID) (dao.Templ
 func (store *templateStore) GetRandom(ctx context.Context) (dao.Template, error) {
 	tx, err := store.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 	defer tx.Rollback() // read-only, don't prop changes
 
@@ -182,7 +182,7 @@ func (store *templateStore) GetRandom(ctx context.Context) (dao.Template, error)
 		&count,
 	)
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 
 	if count == 0 {
@@ -196,7 +196,7 @@ func (store *templateStore) GetRandom(ctx context.Context) (dao.Template, error)
 	var t dao.Template
 	stmt, err := tx.PrepareContext(ctx, `SELECT id, content, creator FROM `+store.table+` ORDER BY id LIMIT 1 OFFSET ?`)
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 	row = stmt.QueryRowContext(ctx, selected)
 	err = row.Scan(
@@ -205,7 +205,7 @@ func (store *templateStore) GetRandom(ctx context.Context) (dao.Template, error)
 		&t.Creator,
 	)
 	if err != nil {
-		return dao.Template{}, jelly.WrapSqliteError(err)
+		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 
 	return t, nil

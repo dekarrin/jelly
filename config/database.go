@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dekarrin/jelly/db/inmem"
 	"github.com/dekarrin/jelly/db/owdb"
-	"github.com/dekarrin/jelly/db/sqlite"
+	"github.com/dekarrin/jelly/internal/authuserdao/inmem"
+	"github.com/dekarrin/jelly/internal/authuserdao/sqlite"
 	"github.com/dekarrin/jelly/types"
 )
 

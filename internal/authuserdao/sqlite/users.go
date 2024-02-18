@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly/db"
-
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
+
+	"github.com/dekarrin/jelly/db/sqlite"
 )
 
 type AuthUsersDB struct {
@@ -29,7 +30,7 @@ func (repo *AuthUsersDB) init() error {
 		last_login_time INTEGER NOT NULL
 	);`)
 	if err != nil {
-		return WrapDBError(err)
+		return sqlite.WrapDBError(err)
 	}
 
 	return nil
@@ -43,7 +44,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u types.AuthUser) (types.Au
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return types.AuthUser{}, WrapDBError(err)
+		return types.AuthUser{}, sqlite.WrapDBError(err)
 	}
 
 	now := db.Timestamp(time.Now())
@@ -61,7 +62,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u types.AuthUser) (types.Au
 		db.Timestamp{},
 	)
 	if err != nil {
-		return types.AuthUser{}, WrapDBError(err)
+		return types.AuthUser{}, sqlite.WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
@@ -70,7 +71,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u types.AuthUser) (types.Au
 func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]types.AuthUser, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
-		return nil, WrapDBError(err)
+		return nil, sqlite.WrapDBError(err)
 	}
 	defer rows.Close()
 
@@ -91,14 +92,14 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]types.AuthUser, error) {
 		)
 
 		if err != nil {
-			return nil, WrapDBError(err)
+			return nil, sqlite.WrapDBError(err)
 		}
 
 		all = append(all, user.AuthUser())
 	}
 
 	if err := rows.Err(); err != nil {
-		return all, WrapDBError(err)
+		return all, sqlite.WrapDBError(err)
 	}
 
 	return all, nil
@@ -118,11 +119,11 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user types.Au
 		id,
 	)
 	if err != nil {
-		return types.AuthUser{}, WrapDBError(err)
+		return types.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return types.AuthUser{}, WrapDBError(err)
+		return types.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
 		return types.AuthUser{}, types.DBErrNotFound
@@ -151,7 +152,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (ty
 	)
 
 	if err != nil {
-		return user.AuthUser(), WrapDBError(err)
+		return user.AuthUser(), sqlite.WrapDBError(err)
 	}
 
 	return user.AuthUser(), nil
@@ -177,7 +178,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (types.AuthUser,
 	)
 
 	if err != nil {
-		return user.AuthUser(), WrapDBError(err)
+		return user.AuthUser(), sqlite.WrapDBError(err)
 	}
 
 	return user.AuthUser(), nil
@@ -191,11 +192,11 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (types.AuthUs
 
 	res, err := repo.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
-		return curVal, WrapDBError(err)
+		return curVal, sqlite.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return curVal, WrapDBError(err)
+		return curVal, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
 		return curVal, types.DBErrNotFound
