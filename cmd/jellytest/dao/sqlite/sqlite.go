@@ -8,11 +8,10 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/config"
 	"github.com/dekarrin/jelly/types"
 )
 
-func New(cfg config.Database) (types.Store, error) {
+func New(cfg types.DatabaseConfig) (types.Store, error) {
 	err := os.MkdirAll(cfg.DataDir, 0770)
 	if err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)

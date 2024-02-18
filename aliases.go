@@ -12,10 +12,6 @@ func WrapSqliteError(dbErr error) error {
 
 // config aliases
 
-type (
-	DatabaseConfig = config.Database
-)
-
 func TypedSlice[E any](key string, value interface{}) ([]E, error) {
 	return config.TypedSlice[E](key, value)
 }

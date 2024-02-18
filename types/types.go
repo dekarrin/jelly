@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -871,6 +872,314 @@ func (g Globals) Validate() error {
 	if err := validateBaseURI(g.URIBase); err != nil {
 		return fmt.Errorf("base: %w", err)
 	}
+
+	return nil
+}
+
+// Database contains configuration settings for connecting to a persistence
+// layer.
+type DatabaseConfig struct {
+	// Type is the type of database the config refers to, primarily for data
+	// validation purposes. It also determines which of its other fields are
+	// valid.
+	Type DBType
+
+	// Connector is the name of the registered connector function that should be
+	// used. The function name must be registered for DBs of the given type.
+	Connector string
+
+	// DataDir is the path on disk to a directory to use to store data in. This
+	// is only applicable for certain DB types: SQLite, OWDB.
+	DataDir string
+
+	// DataFile is the name of the DB file to use for an OrbweaverDB (OWDB)
+	// persistence store. By default, it is "db.owv". This is only applicable
+	// for certain DB types: OWDB.
+	DataFile string
+}
+
+// FillDefaults returns a new Database identical to db but with unset values
+// set to their defaults. In this case, if the type is not set, it is changed to
+// types.DatabaseInMemory. If OWDB File is not set, it is changed to "db.owv".
+func (db DatabaseConfig) FillDefaults() DatabaseConfig {
+	newDB := db
+
+	if newDB.Type == DatabaseNone {
+		newDB = DatabaseConfig{Type: DatabaseInMemory}
+	}
+	if newDB.Type == DatabaseOWDB && newDB.DataFile == "" {
+		newDB.DataFile = "db.owv"
+	}
+	if newDB.Connector == "" {
+		newDB.Connector = "*"
+	}
+
+	return newDB
+}
+
+// Validate returns an error if the Database does not have the correct fields
+// set. Its type will be checked to ensure that it is a valid type to use and
+// any fields necessary for connecting to that type of DB are also checked.
+func (db DatabaseConfig) Validate() error {
+	switch db.Type {
+	case DatabaseInMemory:
+		// nothing else to check
+		return nil
+	case DatabaseSQLite:
+		if db.DataDir == "" {
+			return fmt.Errorf("DataDir not set to path")
+		}
+		return nil
+	case DatabaseOWDB:
+		if db.DataDir == "" {
+			return fmt.Errorf("DataDir not set to path")
+		}
+		return nil
+	case DatabaseNone:
+		return fmt.Errorf("'none' DB is not valid")
+	default:
+		return fmt.Errorf("unknown database type: %q", db.Type.String())
+	}
+}
+
+// ParseDBConnString parses a database connection string of the form
+// "engine:params" (or just "engine" if no other params are required) into a
+// valid Database config object.
+//
+// Supported database types and a sample string containing valid configurations
+// for each are shown below. Placeholder values are between angle brackets,
+// optional parts are between square brackets. Ordering of parameters does not
+// matter.
+//
+// * In-memory database: "inmem"
+// * SQLite3 DB file: "sqlite:</path/to/db/dir>""
+// * OrbweaverDB: "owdb:dir=<path/to/db/dir>[,file=<new-db-file-name.owv>]"
+func ParseDBConnString(s string) (DatabaseConfig, error) {
+	var paramStr string
+	dbParts := strings.SplitN(s, ":", 2)
+
+	if len(dbParts) == 2 {
+		paramStr = strings.TrimSpace(dbParts[1])
+	}
+
+	// parse the first section into a type, from there we can determine if
+	// further params are required.
+	dbEng, err := ParseDBType(strings.TrimSpace(dbParts[0]))
+	if err != nil {
+		return DatabaseConfig{}, fmt.Errorf("unsupported DB engine: %w", err)
+	}
+
+	switch dbEng {
+	case DatabaseInMemory:
+		// there cannot be any other options
+		if paramStr != "" {
+			return DatabaseConfig{}, fmt.Errorf("unsupported param(s) for in-memory DB engine: %s", paramStr)
+		}
+
+		return DatabaseConfig{Type: DatabaseInMemory}, nil
+	case DatabaseSQLite:
+		// there must be options
+		if paramStr == "" {
+			return DatabaseConfig{}, fmt.Errorf("sqlite DB engine requires path to data directory after ':'")
+		}
+
+		// the only option is the DB path, as long as the param str isn't
+		// literally blank, it can be used.
+
+		// convert slashes to correct type
+		dd := filepath.FromSlash(paramStr)
+		return DatabaseConfig{Type: DatabaseSQLite, DataDir: dd}, nil
+	case DatabaseOWDB:
+		// there must be options
+		if paramStr == "" {
+			return DatabaseConfig{}, fmt.Errorf("owdb DB engine requires qualified path to data directory after ':'")
+		}
+
+		// split the arguments, simply go through and ignore unescaped
+		params, err := parseParamsMap(paramStr)
+		if err != nil {
+			return DatabaseConfig{}, err
+		}
+
+		db := DatabaseConfig{Type: DatabaseOWDB}
+
+		if val, ok := params["dir"]; ok {
+			db.DataDir = filepath.FromSlash(val)
+		} else {
+			return DatabaseConfig{}, fmt.Errorf("owdb DB engine params missing qualified path to data directory in key 'dir'")
+		}
+
+		if val, ok := params["file"]; ok {
+			db.DataFile = val
+		} else {
+			db.DataFile = "db.owv"
+		}
+		return db, nil
+	case DatabaseNone:
+		// not allowed
+		return DatabaseConfig{}, fmt.Errorf("cannot specify DB engine 'none' (perhaps you wanted 'inmem'?)")
+	default:
+		// unknown
+		return DatabaseConfig{}, fmt.Errorf("unknown DB engine: %q", dbEng.String())
+	}
+}
+
+func parseParamsMap(paramStr string) (map[string]string, error) {
+	seqs := splitWithEscaped(paramStr, ",")
+	if len(seqs) < 1 {
+		return nil, fmt.Errorf("not a map format string: %q", paramStr)
+	}
+
+	params := map[string]string{}
+	for idx, kv := range seqs {
+		parsed := splitWithEscaped(kv, "=")
+		if len(parsed) != 2 {
+			return nil, fmt.Errorf("param %d: not a kv-pair: %q", idx, kv)
+		}
+		k := parsed[0]
+		v := parsed[1]
+		params[strings.ToLower(k)] = v
+	}
+
+	return params, nil
+}
+
+// if sep contains a backslash, nil is returned.
+func splitWithEscaped(s, sep string) []string {
+	if strings.Contains(s, "\\") {
+		return nil
+	}
+	var split []string
+	var cur strings.Builder
+	sepr := []rune(sep)
+	sr := []rune(s)
+	var seprPos int
+	for i := 0; i < len(sr); i++ {
+		ch := sr[i]
+
+		if ch == sepr[seprPos] {
+			if seprPos+1 >= len(sepr) {
+				split = append(split, cur.String())
+				cur.Reset()
+				seprPos = 0
+			} else {
+				seprPos++
+			}
+		} else {
+			seprPos = 0
+		}
+
+		if ch == '\\' {
+			cur.WriteRune(ch)
+			cur.WriteRune(sr[i+1])
+			i++
+		}
+	}
+
+	var preSepStr string
+	if seprPos > 0 {
+		preSepStr = string(sepr[0:seprPos])
+	}
+	if cur.Len() > 0 {
+		split = append(split, preSepStr+cur.String())
+	}
+
+	return split
+}
+
+// Config is a complete configuration for a server. It contains all parameters
+// that can be used to configure its operation.
+type Config struct {
+
+	// Globals is all variables shared with initialization of all APIs.
+	Globals Globals
+
+	// DBs is the configurations to use for connecting to databases and other
+	// persistence layers. If not provided, it will be set to a configuration
+	// for using an in-memory persistence layer.
+	DBs map[string]DatabaseConfig
+
+	// APIs is the configuration for each API that will be included in a
+	// configured jelly framework server. Each APIConfig must return a
+	// CommonConfig whose Name is either set to blank or to the key that maps to
+	// it.
+	APIs map[string]APIConfig
+
+	// Log is used to configure the built-in logging system. It can be left
+	// blank to disable logging entirely.
+	Log LogConfig
+
+	// origFormat is the format of config, as a string, used in Dump.
+	origFormat string
+}
+
+// FillDefaults returns a new Config identical to cfg but with unset values
+// set to their defaults.
+func (cfg Config) FillDefaults() Config {
+	newCFG := cfg
+
+	for name, db := range newCFG.DBs {
+		newCFG.DBs[name] = db.FillDefaults()
+	}
+	newCFG.Globals = newCFG.Globals.FillDefaults()
+	for name, api := range newCFG.APIs {
+		if Get[string](api, types.ConfigKeyAPIName) == "" {
+			if err := api.Set(types.ConfigKeyAPIName, name); err != nil {
+				panic(fmt.Sprintf("setting a config global failed; should never happen: %v", err))
+			}
+		}
+		api = api.FillDefaults()
+		newCFG.APIs[name] = api
+	}
+	newCFG.Log = newCFG.Log.FillDefaults()
+
+	// if the user has enabled the jellyauth API, set defaults now.
+	if authConf, ok := newCFG.APIs["jellyauth"]; ok {
+		// make shore the first DB exists
+		if Get[bool](authConf, types.ConfigKeyAPIEnabled) {
+			dbs := Get[[]string](authConf, types.ConfigKeyAPIUsesDBs)
+			if len(dbs) > 0 {
+				// make shore this DB exists
+				if _, ok := newCFG.DBs[dbs[0]]; !ok {
+					newCFG.DBs[dbs[0]] = types.DatabaseConfig{Type: types.DatabaseInMemory, Connector: "authuser"}.FillDefaults()
+				}
+			}
+			if newCFG.Globals.MainAuthProvider == "" {
+				newCFG.Globals.MainAuthProvider = "jellyauth.jwt"
+			}
+		}
+	}
+
+	return newCFG
+}
+
+// Validate returns an error if the Config has invalid field values set. Empty
+// and unset values are considered invalid; if defaults are intended to be used,
+// call Validate on the return value of FillDefaults.
+func (cfg Config) Validate() error {
+	if err := cfg.Globals.Validate(); err != nil {
+		return err
+	}
+	if err := cfg.Log.Validate(); err != nil {
+		return fmt.Errorf("logging: %w", err)
+	}
+	for name, db := range cfg.DBs {
+		if err := db.Validate(); err != nil {
+			return fmt.Errorf("dbs: %s: %w", name, err)
+		}
+	}
+	for name, api := range cfg.APIs {
+		com := cfg.APIs[name].Common()
+
+		if name != com.Name && com.Name != "" {
+			return fmt.Errorf("%s: name mismatch; API.Name is set to %q", name, com.Name)
+		}
+		if err := api.Validate(); err != nil {
+			return fmt.Errorf("%s: %w", name, err)
+		}
+	}
+
+	// all possible values for UnauthDelayMS are valid, so no need to check it
 
 	return nil
 }

@@ -398,10 +398,10 @@ func (cfg *Config) unmarshal(env *Environment, m marshaledConfig) error {
 	if err := unmarshalGlobals(&cfg.Globals, m); err != nil {
 		return err
 	}
-	cfg.DBs = map[string]Database{}
+	cfg.DBs = map[string]types.DatabaseConfig{}
 	for n, marshaledDB := range m.DBs {
-		var db Database
-		err := db.unmarshal(marshaledDB)
+		var db types.DatabaseConfig
+		err := unmarshalDatabase(&db, marshaledDB)
 		if err != nil {
 			return fmt.Errorf("dbs: %s: %w", n, err)
 		}
@@ -433,7 +433,7 @@ func (cfg Config) marshal() marshaledConfig {
 
 	marshalGlobalsToConfig(cfg.Globals, &mc)
 	for n, db := range cfg.DBs {
-		mDB := db.marshal()
+		mDB := marshalDatabase(db)
 		mc.DBs[n] = mDB
 	}
 	for n, api := range cfg.APIs {
@@ -448,7 +448,7 @@ func (cfg Config) marshal() marshaledConfig {
 // values in the marshaledDatabase.
 //
 // does no validation except that which is required for parsing.
-func (db *Database) unmarshal(m marshaledDatabase) error {
+func unmarshalDatabase(db *types.DatabaseConfig, m marshaledDatabase) error {
 	var err error
 
 	db.Type, err = types.ParseDBType(m.Type)
@@ -465,7 +465,7 @@ func (db *Database) unmarshal(m marshaledDatabase) error {
 
 // marshal converts db to the marshaledDatabase that would recreate it if
 // passed to unmarshal.
-func (db Database) marshal() marshaledDatabase {
+func marshalDatabase(db types.DatabaseConfig) marshaledDatabase {
 	return marshaledDatabase{
 		Type:      db.Type.String(),
 		Dir:       db.DataDir,
