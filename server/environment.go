@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/config"
+	"github.com/dekarrin/jelly/internal/config"
 	"github.com/dekarrin/jelly/internal/middle"
 	"github.com/dekarrin/jelly/types"
 )
