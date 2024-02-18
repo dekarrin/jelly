@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 )
 
@@ -84,7 +83,7 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 				api.log.Debugf("updated user %s's role to admin due to set-admin config", username)
 			}
 		} else {
-			if !errors.Is(err, serr.ErrNotFound) {
+			if !errors.Is(err, jelly.ErrNotFound) {
 				return fmt.Errorf("retrieve user for admin promotion: %w", err)
 			}
 
@@ -160,8 +159,8 @@ func (api LoginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
 
 		user, err := api.Service.Login(req.Context(), loginData.Username, loginData.Password)
 		if err != nil {
-			if errors.Is(err, serr.ErrBadCredentials) {
-				return em.Unauthorized(serr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
+			if errors.Is(err, jelly.ErrBadCredentials) {
+				return em.Unauthorized(jelly.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
 			} else {
 				return em.InternalServerError(err.Error())
 			}
@@ -201,7 +200,7 @@ func (api LoginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
 			otherUser, err := api.Service.GetUser(req.Context(), id.String())
 			// if there was another user, find out now
 			if err != nil {
-				if !errors.Is(err, serr.ErrNotFound) {
+				if !errors.Is(err, jelly.ErrNotFound) {
 					return em.InternalServerError("retrieve user for perm checking: %s", err.Error())
 				}
 				otherUserStr = id.String()
@@ -214,7 +213,7 @@ func (api LoginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
 
 		loggedOutUser, err := api.Service.Logout(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, serr.ErrNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return em.NotFound()
 			}
 			return em.InternalServerError("could not log out user: " + err.Error())
@@ -329,9 +328,9 @@ func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 
 		newUser, err := api.Service.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 		if err != nil {
-			if errors.Is(err, serr.ErrAlreadyExists) {
+			if errors.Is(err, jelly.ErrAlreadyExists) {
 				return em.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-			} else if errors.Is(err, serr.ErrBadArgument) {
+			} else if errors.Is(err, jelly.ErrBadArgument) {
 				return em.BadRequest(err.Error(), err.Error())
 			} else {
 				return em.InternalServerError(err.Error())
@@ -384,9 +383,9 @@ func (api LoginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
 
 		userInfo, err := api.Service.GetUser(req.Context(), id.String())
 		if err != nil {
-			if errors.Is(err, serr.ErrBadArgument) {
+			if errors.Is(err, jelly.ErrBadArgument) {
 				return em.BadRequest(err.Error(), err.Error())
-			} else if errors.Is(err, serr.ErrNotFound) {
+			} else if errors.Is(err, jelly.ErrNotFound) {
 				return em.NotFound()
 			}
 			return em.InternalServerError("could not get user: " + err.Error())
@@ -450,7 +449,7 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 		var updateReq UserUpdateRequest
 		err := jelly.ParseJSONRequest(req, &updateReq)
 		if err != nil {
-			if errors.Is(err, serr.ErrBodyUnmarshal) {
+			if errors.Is(err, jelly.ErrBodyUnmarshal) {
 				// did they send a normal user?
 				var normalUser UserModel
 				err2 := jelly.ParseJSONRequest(req, &normalUser)
@@ -474,7 +473,7 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 
 		existing, err := api.Service.GetUser(req.Context(), id.String())
 		if err != nil {
-			if errors.Is(err, serr.ErrNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return em.NotFound()
 			}
 			return em.InternalServerError(err.Error())
@@ -504,16 +503,16 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 		// transactions on jeldb.
 		updated, err := api.Service.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
 		if err != nil {
-			if errors.Is(err, serr.ErrAlreadyExists) {
+			if errors.Is(err, jelly.ErrAlreadyExists) {
 				return em.Conflict(err.Error(), err.Error())
-			} else if errors.Is(err, serr.ErrNotFound) {
+			} else if errors.Is(err, jelly.ErrNotFound) {
 				return em.NotFound()
 			}
 			return em.InternalServerError(err.Error())
 		}
 		if updateReq.Password.Update {
 			updated, err = api.Service.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
-			if errors.Is(err, serr.ErrNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return em.NotFound()
 			}
 			return em.InternalServerError(err.Error())
@@ -580,9 +579,9 @@ func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 
 		newUser, err := api.Service.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 		if err != nil {
-			if errors.Is(err, serr.ErrAlreadyExists) {
+			if errors.Is(err, jelly.ErrAlreadyExists) {
 				return em.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-			} else if errors.Is(err, serr.ErrBadArgument) {
+			} else if errors.Is(err, jelly.ErrBadArgument) {
 				return em.BadRequest(err.Error(), err.Error())
 			}
 			return em.InternalServerError(err.Error())
@@ -591,9 +590,9 @@ func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 		// but also update it immediately to set its user ID
 		newUser, err = api.Service.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email, newUser.Role)
 		if err != nil {
-			if errors.Is(err, serr.ErrAlreadyExists) {
+			if errors.Is(err, jelly.ErrAlreadyExists) {
 				return em.Conflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-			} else if errors.Is(err, serr.ErrBadArgument) {
+			} else if errors.Is(err, jelly.ErrBadArgument) {
 				return em.BadRequest(err.Error(), err.Error())
 			}
 			return em.InternalServerError(err.Error())
@@ -642,8 +641,8 @@ func (api LoginAPI) httpDeleteUser(em jelly.ServiceProvider) http.HandlerFunc {
 		}
 
 		deletedUser, err := api.Service.DeleteUser(req.Context(), id.String())
-		if err != nil && !errors.Is(err, serr.ErrNotFound) {
-			if errors.Is(err, serr.ErrBadArgument) {
+		if err != nil && !errors.Is(err, jelly.ErrNotFound) {
+			if errors.Is(err, jelly.ErrBadArgument) {
 				return em.BadRequest(err.Error(), err.Error())
 			}
 			return em.InternalServerError("could not delete user: " + err.Error())

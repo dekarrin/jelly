@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -111,7 +110,7 @@ func ParseJSONRequest(req *http.Request, v interface{}) error {
 
 	err = json.Unmarshal(bodyData, v)
 	if err != nil {
-		return serr.New("malformed JSON in request", err, serr.ErrBodyUnmarshal)
+		return NewError("malformed JSON in request", err, ErrBodyUnmarshal)
 	}
 
 	return nil
@@ -137,7 +136,7 @@ func GetURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 
 	val, err = parse(valStr)
 	if err != nil {
-		return val, serr.New("", serr.ErrBadArgument)
+		return val, NewError("", ErrBadArgument)
 	}
 	return val, nil
 }

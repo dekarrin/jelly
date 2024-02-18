@@ -14,7 +14,7 @@ import (
 	"net/mail"
 	"time"
 
-	"github.com/dekarrin/jelly/serr"
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 )
@@ -75,7 +75,7 @@ func (em Email) Value() (driver.Value, error) {
 func (em *Email) Scan(value interface{}) error {
 	s, ok := value.(string)
 	if !ok {
-		return serr.New(fmt.Sprintf("not an integer value: %v", value), types.DBErrDecodingFailure)
+		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), types.DBErrDecodingFailure)
 	}
 	if s == "" {
 		em.V = nil
@@ -84,7 +84,7 @@ func (em *Email) Scan(value interface{}) error {
 
 	email, err := mail.ParseAddress(s)
 	if err != nil {
-		return serr.New("", err, types.DBErrDecodingFailure)
+		return jelly.NewError("", err, types.DBErrDecodingFailure)
 	}
 
 	em.V = email

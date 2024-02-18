@@ -7,7 +7,7 @@ import (
 	"net/mail"
 	"time"
 
-	"github.com/dekarrin/jelly/serr"
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/types"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -30,14 +30,14 @@ type LoginService struct {
 // errors.Is depending on what caused the error. If the credentials do not match
 // a user or if the password is incorrect, it will match ErrBadCredentials. If
 // the error occured due to an unexpected problem with the DB, it will match
-// serr.ErrDB.
+// jelly.ErrDB.
 func (svc LoginService) Login(ctx context.Context, username string, password string) (types.AuthUser, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.ErrBadCredentials
+			return types.AuthUser{}, jelly.ErrBadCredentials
 		}
-		return types.AuthUser{}, serr.WrapDB("", err)
+		return types.AuthUser{}, jelly.WrapDBErr("", err)
 	}
 
 	// verify password
@@ -49,16 +49,16 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 	err = bcrypt.CompareHashAndPassword(bcryptHash, []byte(password))
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return types.AuthUser{}, serr.ErrBadCredentials
+			return types.AuthUser{}, jelly.ErrBadCredentials
 		}
-		return types.AuthUser{}, serr.WrapDB("", err)
+		return types.AuthUser{}, jelly.WrapDBErr("", err)
 	}
 
 	// successful login; update the DB
 	user.LastLogin = time.Now()
 	user, err = svc.Provider.AuthUsers().Update(ctx, user.ID, user)
 	if err != nil {
-		return types.AuthUser{}, serr.WrapDB("cannot update user login time", err)
+		return types.AuthUser{}, jelly.WrapDBErr("cannot update user login time", err)
 	}
 
 	return user, nil
@@ -69,22 +69,22 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If the user doesn't exist, it
-// will match serr.ErrNotFound. If the error occured due to an unexpected
-// problem with the DB, it will match serr.ErrDB.
+// will match jelly.ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match jelly.ErrDB.
 func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (types.AuthUser, error) {
 	existing, err := svc.Provider.AuthUsers().Get(ctx, who)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.ErrNotFound
+			return types.AuthUser{}, jelly.ErrNotFound
 		}
-		return types.AuthUser{}, serr.WrapDB("could not retrieve user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not retrieve user", err)
 	}
 
 	existing.LastLogout = time.Now()
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, existing.ID, existing)
 	if err != nil {
-		return types.AuthUser{}, serr.WrapDB("could not update user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not update user", err)
 	}
 
 	return updated, nil
@@ -94,7 +94,7 @@ func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (types.AuthUs
 func (svc LoginService) GetAllUsers(ctx context.Context) ([]types.AuthUser, error) {
 	users, err := svc.Provider.AuthUsers().GetAll(ctx)
 	if err != nil {
-		return nil, serr.WrapDB("", err)
+		return nil, jelly.WrapDBErr("", err)
 	}
 
 	return users, nil
@@ -104,21 +104,21 @@ func (svc LoginService) GetAllUsers(ctx context.Context) ([]types.AuthUser, erro
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with that ID exists,
-// it will match serr.ErrNotFound. If the error occured due to an unexpected
-// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
-// with one of the arguments, it will match serr.ErrBadArgument.
+// it will match jelly.ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match jelly.ErrDB. Finally, if there is an issue
+// with one of the arguments, it will match jelly.ErrBadArgument.
 func (svc LoginService) GetUser(ctx context.Context, id string) (types.AuthUser, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return types.AuthUser{}, serr.New("ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("ID is not valid", jelly.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.ErrNotFound
+			return types.AuthUser{}, jelly.ErrNotFound
 		}
-		return types.AuthUser{}, serr.WrapDB("could not get user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not get user", err)
 	}
 
 	return user, nil
@@ -128,16 +128,16 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (types.AuthUser,
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with that ID exists,
-// it will match serr.ErrNotFound. If the error occured due to an unexpected
-// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
-// with one of the arguments, it will match serr.ErrBadArgument.
+// it will match jelly.ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match jelly.ErrDB. Finally, if there is an issue
+// with one of the arguments, it will match jelly.ErrBadArgument.
 func (svc LoginService) GetUserByUsername(ctx context.Context, username string) (types.AuthUser, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.ErrNotFound
+			return types.AuthUser{}, jelly.ErrNotFound
 		}
-		return types.AuthUser{}, serr.WrapDB("could not get user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not get user", err)
 	}
 
 	return user, nil
@@ -147,9 +147,9 @@ func hashUserPass(password string) (string, error) {
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return "", serr.New("password is too long", err, serr.ErrBadArgument)
+			return "", jelly.NewError("password is too long", err, jelly.ErrBadArgument)
 		} else {
-			return "", serr.New("password could not be encrypted", err)
+			return "", jelly.NewError("password could not be encrypted", err)
 		}
 	}
 
@@ -161,30 +161,30 @@ func hashUserPass(password string) (string, error) {
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If a user with that username is
-// already present, it will match serr.ErrAlreadyExists. If the error occured
-// due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
-// if one of the arguments is invalid, it will match serr.ErrBadArgument.
+// already present, it will match jelly.ErrAlreadyExists. If the error occured
+// due to an unexpected problem with the DB, it will match jelly.ErrDB. Finally,
+// if one of the arguments is invalid, it will match jelly.ErrBadArgument.
 func (svc LoginService) CreateUser(ctx context.Context, username, password, email string, role types.Role) (types.AuthUser, error) {
 	var err error
 	if username == "" {
-		return types.AuthUser{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("username cannot be blank", err, jelly.ErrBadArgument)
 	}
 	if password == "" {
-		return types.AuthUser{}, serr.New("password cannot be blank", err, serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("password cannot be blank", err, jelly.ErrBadArgument)
 	}
 
 	if email != "" {
 		_, err = mail.ParseAddress(email)
 		if err != nil {
-			return types.AuthUser{}, serr.New("email is not valid", err, serr.ErrBadArgument)
+			return types.AuthUser{}, jelly.NewError("email is not valid", err, jelly.ErrBadArgument)
 		}
 	}
 
 	_, err = svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err == nil {
-		return types.AuthUser{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+		return types.AuthUser{}, jelly.NewError("a user with that username already exists", jelly.ErrAlreadyExists)
 	} else if !errors.Is(err, types.DBErrNotFound) {
-		return types.AuthUser{}, serr.WrapDB("", err)
+		return types.AuthUser{}, jelly.WrapDBErr("", err)
 	}
 
 	storedPass, err := hashUserPass(password)
@@ -202,9 +202,9 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 	user, err := svc.Provider.AuthUsers().Create(ctx, newUser)
 	if err != nil {
 		if errors.Is(err, types.DBErrConstraintViolation) {
-			return types.AuthUser{}, serr.ErrAlreadyExists
+			return types.AuthUser{}, jelly.ErrAlreadyExists
 		}
-		return types.AuthUser{}, serr.WrapDB("could not create user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not create user", err)
 	}
 
 	return user, nil
@@ -220,54 +220,54 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If a user with that username or
 // ID (if they are changing) is already present, it will match
-// serr.ErrAlreadyExists. If no user with the given ID exists, it will match
-// serr.ErrNotFound. If the error occured due to an unexpected problem with the
-// DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
-// will match serr.ErrBadArgument.
+// jelly.ErrAlreadyExists. If no user with the given ID exists, it will match
+// jelly.ErrNotFound. If the error occured due to an unexpected problem with the
+// DB, it will match jelly.ErrDB. Finally, if one of the arguments is invalid, it
+// will match jelly.ErrBadArgument.
 func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, email string, role types.Role) (types.AuthUser, error) {
 	var err error
 
 	if username == "" {
-		return types.AuthUser{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("username cannot be blank", err, jelly.ErrBadArgument)
 	}
 
 	if email != "" {
 		_, err = mail.ParseAddress(email)
 		if err != nil {
-			return types.AuthUser{}, serr.New("email is not valid", err, serr.ErrBadArgument)
+			return types.AuthUser{}, jelly.NewError("email is not valid", err, jelly.ErrBadArgument)
 		}
 	}
 
 	uuidCurID, err := uuid.Parse(curID)
 	if err != nil {
-		return types.AuthUser{}, serr.New("current ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("current ID is not valid", jelly.ErrBadArgument)
 	}
 	uuidNewID, err := uuid.Parse(newID)
 	if err != nil {
-		return types.AuthUser{}, serr.New("new ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("new ID is not valid", jelly.ErrBadArgument)
 	}
 
 	daoUser, err := svc.Provider.AuthUsers().Get(ctx, uuidCurID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.New("user not found", serr.ErrNotFound)
+			return types.AuthUser{}, jelly.NewError("user not found", jelly.ErrNotFound)
 		}
 	}
 
 	if curID != newID {
 		_, err := svc.Provider.AuthUsers().Get(ctx, uuidNewID)
 		if err == nil {
-			return types.AuthUser{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+			return types.AuthUser{}, jelly.NewError("a user with that username already exists", jelly.ErrAlreadyExists)
 		} else if !errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.WrapDB("", err)
+			return types.AuthUser{}, jelly.WrapDBErr("", err)
 		}
 	}
 	if daoUser.Username != username {
 		_, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 		if err == nil {
-			return types.AuthUser{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+			return types.AuthUser{}, jelly.NewError("a user with that username already exists", jelly.ErrAlreadyExists)
 		} else if !errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.WrapDB("", err)
+			return types.AuthUser{}, jelly.WrapDBErr("", err)
 		}
 	}
 
@@ -279,11 +279,11 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 	updatedUser, err := svc.Provider.AuthUsers().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
 		if errors.Is(err, types.DBErrConstraintViolation) {
-			return types.AuthUser{}, serr.New("a user with that ID/username already exists", serr.ErrAlreadyExists)
+			return types.AuthUser{}, jelly.NewError("a user with that ID/username already exists", jelly.ErrAlreadyExists)
 		} else if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.New("user not found", serr.ErrNotFound)
+			return types.AuthUser{}, jelly.NewError("user not found", jelly.ErrNotFound)
 		}
-		return types.AuthUser{}, serr.WrapDB("", err)
+		return types.AuthUser{}, jelly.WrapDBErr("", err)
 	}
 
 	return updatedUser, nil
@@ -294,32 +294,32 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with the given ID
-// exists, it will match serr.ErrNotFound. If the error occured due to an
-// unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
-// the arguments is invalid, it will match serr.ErrBadArgument.
+// exists, it will match jelly.ErrNotFound. If the error occured due to an
+// unexpected problem with the DB, it will match jelly.ErrDB. Finally, if one of
+// the arguments is invalid, it will match jelly.ErrBadArgument.
 func (svc LoginService) UpdatePassword(ctx context.Context, id, password string) (types.AuthUser, error) {
 	if password == "" {
-		return types.AuthUser{}, serr.New("password cannot be empty", serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("password cannot be empty", jelly.ErrBadArgument)
 	}
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return types.AuthUser{}, serr.New("ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("ID is not valid", jelly.ErrBadArgument)
 	}
 
 	existing, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.New("no user with that ID exists", serr.ErrNotFound)
+			return types.AuthUser{}, jelly.NewError("no user with that ID exists", jelly.ErrNotFound)
 		}
-		return types.AuthUser{}, serr.WrapDB("", err)
+		return types.AuthUser{}, jelly.WrapDBErr("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return types.AuthUser{}, serr.New("password is too long", err, serr.ErrBadArgument)
+			return types.AuthUser{}, jelly.NewError("password is too long", err, jelly.ErrBadArgument)
 		} else {
-			return types.AuthUser{}, serr.New("password could not be encrypted", err)
+			return types.AuthUser{}, jelly.NewError("password could not be encrypted", err)
 		}
 	}
 
@@ -330,9 +330,9 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 	updated, err := svc.Provider.AuthUsers().Update(ctx, uuidID, existing)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.New("no user with that ID exists", serr.ErrNotFound)
+			return types.AuthUser{}, jelly.NewError("no user with that ID exists", jelly.ErrNotFound)
 		}
-		return types.AuthUser{}, serr.WrapDB("could not update user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not update user", err)
 	}
 
 	return updated, nil
@@ -343,21 +343,21 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with that username
-// exists, it will match serr.ErrNotFound. If the error occured due to an
-// unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
-// is an issue with one of the arguments, it will match serr.ErrBadArgument.
+// exists, it will match jelly.ErrNotFound. If the error occured due to an
+// unexpected problem with the DB, it will match jelly.ErrDB. Finally, if there
+// is an issue with one of the arguments, it will match jelly.ErrBadArgument.
 func (svc LoginService) DeleteUser(ctx context.Context, id string) (types.AuthUser, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return types.AuthUser{}, serr.New("ID is not valid", serr.ErrBadArgument)
+		return types.AuthUser{}, jelly.NewError("ID is not valid", jelly.ErrBadArgument)
 	}
 
 	user, err := svc.Provider.AuthUsers().Delete(ctx, uuidID)
 	if err != nil {
 		if errors.Is(err, types.DBErrNotFound) {
-			return types.AuthUser{}, serr.ErrNotFound
+			return types.AuthUser{}, jelly.ErrNotFound
 		}
-		return types.AuthUser{}, serr.WrapDB("could not delete user", err)
+		return types.AuthUser{}, jelly.WrapDBErr("could not delete user", err)
 	}
 
 	return user, nil

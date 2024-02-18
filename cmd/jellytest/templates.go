@@ -9,7 +9,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/types"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -239,7 +238,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 				otherUser, err := authService.GetUser(req.Context(), id.String())
 				// if there was another user, find out now
 				if err != nil {
-					if !errors.Is(err, serr.ErrNotFound) {
+					if !errors.Is(err, jelly.ErrNotFound) {
 						return ep.em.InternalServerError("retrieve other %s template's user: %s", ep.name, err.Error())
 					}
 					creatorStr = id.String()
@@ -323,7 +322,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 				otherUser, err := authService.GetUser(req.Context(), id.String())
 				// if there was another user, find out now
 				if err != nil {
-					if !errors.Is(err, serr.ErrNotFound) {
+					if !errors.Is(err, jelly.ErrNotFound) {
 						return ep.em.InternalServerError("retrieve other %s template's user: %s", ep.name, err.Error())
 					}
 					creatorStr = id.String()
@@ -352,7 +351,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 		if daoSubmitted.Creator != t.Creator {
 			_, err := authService.GetUser(req.Context(), submitted.Creator)
 			if err != nil {
-				if errors.Is(err, serr.ErrNotFound) {
+				if errors.Is(err, jelly.ErrNotFound) {
 					return ep.em.BadRequest("no user with ID %s exists", submitted.Creator)
 				}
 				return ep.em.InternalServerError("get %s updated creator to confirm user exists: ", ep.name, err.Error())

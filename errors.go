@@ -1,11 +1,4 @@
-// Package serr holds common server error objects used across the jelly
-// framework. Notably, it contains the Error type, which can be created with one
-// or more 'cause' errors. Calling errors.Is() on this Error type with an
-// argument consisting of any of the errors it has as a cause will return true.
-//
-// This package also holds several global error constants created via
-// errors.New().
-package serr
+package jelly
 
 import "errors"
 
@@ -113,20 +106,20 @@ func (e Error) Is(target error) bool {
 	return false
 }
 
-// WrapDB creates a new Error that wraps the given error as a cause and
+// WrapDBErr creates a new Error that wraps the given error as a cause and
 // automatically adds ErrDB as another cause. A user-set message may be provided
 // if desired with msg, but it may be left as "".
-func WrapDB(msg string, err error) Error {
+func WrapDBErr(msg string, err error) Error {
 	return Error{
 		cause: []error{err, ErrDB},
 	}
 }
 
-// New creates a new Error with the given message, along with any errors it
+// NewError creates a new Error with the given message, along with any errors it
 // should wrap as its causes. Providing cause errors is not required, but will
 // cause it to return true when it is checked against that error via a call to
 // errors.Is.
-func New(msg string, causes ...error) Error {
+func NewError(msg string, causes ...error) Error {
 	err := Error{msg: msg}
 	if len(causes) > 0 {
 		err.cause = make([]error, len(causes))
