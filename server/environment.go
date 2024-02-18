@@ -6,7 +6,7 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/middle"
+	"github.com/dekarrin/jelly/internal/middle"
 	"github.com/dekarrin/jelly/types"
 )
 

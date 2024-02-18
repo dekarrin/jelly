@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/middle"
 	"github.com/dekarrin/jelly/serr"
 	"github.com/dekarrin/jelly/token"
 	"github.com/dekarrin/jelly/types"
@@ -241,7 +240,7 @@ func (api LoginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
 // the logged-in user of the client making the request.
 func (api LoginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
-		user := req.Context().Value(middle.AuthUser).(types.AuthUser)
+		user, _ := em.GetLoggedInUser(req)
 
 		tok, err := token.Generate(api.Secret, user)
 		if err != nil {
