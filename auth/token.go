@@ -1,6 +1,4 @@
-// Package token provides JWT functionality for use with the built-in user
-// authentication methods in jelly.
-package token
+package auth
 
 import (
 	"context"
@@ -19,7 +17,7 @@ var (
 	Issuer = "jelly"
 )
 
-func Validate(ctx context.Context, tok string, secret []byte, userDB types.AuthUserRepo) (types.AuthUser, error) {
+func validateToken(ctx context.Context, tok string, secret []byte, userDB types.AuthUserRepo) (types.AuthUser, error) {
 	var user types.AuthUser
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
@@ -58,7 +56,7 @@ func Validate(ctx context.Context, tok string, secret []byte, userDB types.AuthU
 }
 
 // Get gets the token from the Authorization header as a bearer token.
-func Get(req *http.Request) (string, error) {
+func getToken(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 
 	if authHeader == "" {
@@ -80,7 +78,7 @@ func Get(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func Generate(secret []byte, u types.AuthUser) (string, error) {
+func generateToken(secret []byte, u types.AuthUser) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        Issuer,
 		"exp":        time.Now().Add(time.Hour).Unix(),

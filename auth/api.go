@@ -9,7 +9,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/serr"
-	"github.com/dekarrin/jelly/token"
 	"github.com/dekarrin/jelly/types"
 )
 
@@ -170,7 +169,7 @@ func (api LoginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
 
 		// build the token
 		// password is valid, generate token for user and return it.
-		tok, err := token.Generate(api.Secret, user)
+		tok, err := generateToken(api.Secret, user)
 		if err != nil {
 			return em.InternalServerError("could not generate JWT: " + err.Error())
 		}
@@ -242,7 +241,7 @@ func (api LoginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) types.Result {
 		user, _ := em.GetLoggedInUser(req)
 
-		tok, err := token.Generate(api.Secret, user)
+		tok, err := generateToken(api.Secret, user)
 		if err != nil {
 			return em.InternalServerError("could not generate JWT: " + err.Error())
 		}

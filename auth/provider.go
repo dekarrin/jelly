@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dekarrin/jelly/token"
 	"github.com/dekarrin/jelly/types"
 )
 
@@ -16,7 +15,7 @@ type JWTAuthProvider struct {
 }
 
 func (ap JWTAuthProvider) Authenticate(req *http.Request) (types.AuthUser, bool, error) {
-	tok, err := token.Get(req)
+	tok, err := getToken(req)
 	if err != nil {
 		// might not actually be a problem, let the auth engine decide if so but
 		// there is no user to retrieve here
@@ -27,7 +26,7 @@ func (ap JWTAuthProvider) Authenticate(req *http.Request) (types.AuthUser, bool,
 	}
 
 	// validate the token
-	lookupUser, err := token.Validate(req.Context(), tok, ap.secret, ap.db)
+	lookupUser, err := validateToken(req.Context(), tok, ap.secret, ap.db)
 	if err != nil {
 		return types.AuthUser{}, false, err
 	}
