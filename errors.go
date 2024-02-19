@@ -17,6 +17,7 @@ var (
 	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
 	ErrBodyUnmarshal  = errors.New("malformed data in request")
 
+	// TODO: merge the two types of errors.
 	ErrDBConstraintViolation = errors.New("a uniqueness constraint was violated")
 	ErrDBNotFound            = errors.New("the requested resource was not found")
 	ErrDBDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")

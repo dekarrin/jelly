@@ -7,6 +7,26 @@ import (
 	"strings"
 )
 
+const (
+	ConfigKeyAPIName    = "name"
+	ConfigKeyAPIBase    = "base"
+	ConfigKeyAPIEnabled = "enabled"
+	ConfigKeyAPIUsesDBs = "uses"
+)
+
+const (
+	DatabaseNone     DBType = "none"
+	DatabaseSQLite   DBType = "sqlite"
+	DatabaseOWDB     DBType = "owdb"
+	DatabaseInMemory DBType = "inmem"
+)
+
+const (
+	NoFormat Format = iota
+	JSON
+	YAML
+)
+
 // TypedSlice takes a value that is passed to Set that is expected to be a slice
 // of the given type and performs the required conversions. If a non-nil error
 // is returned it will contain the key name automatically in its error string.
@@ -33,12 +53,6 @@ func TypedSlice[E any](key string, value interface{}) ([]E, error) {
 }
 
 type Format int
-
-const (
-	NoFormat Format = iota
-	JSON
-	YAML
-)
 
 func (f Format) String() string {
 	switch f {
@@ -70,13 +84,6 @@ type DBType string
 func (dbt DBType) String() string {
 	return string(dbt)
 }
-
-const (
-	DatabaseNone     DBType = "none"
-	DatabaseSQLite   DBType = "sqlite"
-	DatabaseOWDB     DBType = "owdb"
-	DatabaseInMemory DBType = "inmem"
-)
 
 // ParseDBType parses a string found in a connection string into a DBType.
 func ParseDBType(s string) (DBType, error) {
@@ -159,13 +166,6 @@ type APIConfig interface {
 	// the common keys as well as those that they provide.
 	Validate() error
 }
-
-const (
-	ConfigKeyAPIName    = "name"
-	ConfigKeyAPIBase    = "base"
-	ConfigKeyAPIEnabled = "enabled"
-	ConfigKeyAPIUsesDBs = "uses"
-)
 
 // CommonConfig holds configuration options common to all APIs.
 type CommonConfig struct {
