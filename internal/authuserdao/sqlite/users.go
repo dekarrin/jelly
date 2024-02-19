@@ -105,7 +105,9 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 	return all, nil
 }
 
-func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user jelly.AuthUser) (jelly.AuthUser, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
+	user := db.NewUserFromAuthUser(u)
+
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		user.ID,
