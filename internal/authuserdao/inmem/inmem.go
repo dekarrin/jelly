@@ -1,10 +1,9 @@
-// Package inmem provides an in-memory database for use with model types.
 package inmem
 
 import (
 	"fmt"
 
-	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly"
 )
 
 // AuthUserStore is an in-memory database that is compatible with built-in jelly
@@ -24,7 +23,7 @@ func NewAuthUserStore() *AuthUserStore {
 	return st
 }
 
-func (aus *AuthUserStore) AuthUsers() db.AuthUserRepo {
+func (aus *AuthUserStore) AuthUsers() jelly.AuthUserRepo {
 	return aus.users
 }
 

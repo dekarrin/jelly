@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
 	"github.com/google/uuid"
+
+	"github.com/dekarrin/jelly/db/sqlite"
 )
 
 type AuthUsersDB struct {
@@ -27,24 +30,25 @@ func (repo *AuthUsersDB) init() error {
 		last_login_time INTEGER NOT NULL
 	);`)
 	if err != nil {
-		return WrapDBError(err)
+		return sqlite.WrapDBError(err)
 	}
 
 	return nil
 }
 
-func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, error) {
+func (repo *AuthUsersDB) Create(ctx context.Context, u jelly.AuthUser) (jelly.AuthUser, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return db.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return jelly.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 
 	now := db.Timestamp(time.Now())
+	user := db.NewUserFromAuthUser(u)
 	_, err = stmt.ExecContext(
 		ctx,
 		newUUID,
@@ -58,20 +62,20 @@ func (repo *AuthUsersDB) Create(ctx context.Context, user db.User) (db.User, err
 		db.Timestamp{},
 	)
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
 }
 
-func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
+func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
-		return nil, WrapDBError(err)
+		return nil, sqlite.WrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []db.User
+	var all []jelly.AuthUser
 
 	for rows.Next() {
 		var user db.User
@@ -88,20 +92,22 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]db.User, error) {
 		)
 
 		if err != nil {
-			return nil, WrapDBError(err)
+			return nil, sqlite.WrapDBError(err)
 		}
 
-		all = append(all, user)
+		all = append(all, user.AuthUser())
 	}
 
 	if err := rows.Err(); err != nil {
-		return all, WrapDBError(err)
+		return all, sqlite.WrapDBError(err)
 	}
 
 	return all, nil
 }
 
-func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User) (db.User, error) {
+func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
+	user := db.NewUserFromAuthUser(u)
+
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		user.ID,
@@ -115,20 +121,20 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, user db.User)
 		id,
 	)
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return db.User{}, WrapDBError(err)
+		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return db.User{}, db.ErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
 }
 
-func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db.User, error) {
+func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
 	user := db.User{
 		Username: username,
 	}
@@ -148,13 +154,13 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (db
 	)
 
 	if err != nil {
-		return user, WrapDBError(err)
+		return user.AuthUser(), sqlite.WrapDBError(err)
 	}
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user := db.User{
 		ID: id,
 	}
@@ -174,13 +180,13 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (db.User, error)
 	)
 
 	if err != nil {
-		return user, WrapDBError(err)
+		return user.AuthUser(), sqlite.WrapDBError(err)
 	}
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	curVal, err := repo.Get(ctx, id)
 	if err != nil {
 		return curVal, err
@@ -188,14 +194,14 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (db.User, err
 
 	res, err := repo.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
-		return curVal, WrapDBError(err)
+		return curVal, sqlite.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return curVal, WrapDBError(err)
+		return curVal, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, db.ErrNotFound
+		return curVal, jelly.ErrDBNotFound
 	}
 
 	return curVal, nil

@@ -1,15 +1,14 @@
-// Package token provides JWT functionality for use with the built-in user
-// authentication methods in jelly.
-package token
+package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -18,8 +17,8 @@ var (
 	Issuer = "jelly"
 )
 
-func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUserRepo) (db.User, error) {
-	var user db.User
+func validateToken(ctx context.Context, tok string, secret []byte, userDB jelly.AuthUserRepo) (jelly.AuthUser, error) {
+	var user jelly.AuthUser
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
@@ -35,7 +34,7 @@ func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUser
 
 		user, err = userDB.Get(ctx, id)
 		if err != nil {
-			if err == db.ErrNotFound {
+			if errors.Is(err, jelly.ErrDBNotFound) {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")
@@ -45,19 +44,19 @@ func Validate(ctx context.Context, tok string, secret []byte, userDB db.AuthUser
 		var signKey []byte
 		signKey = append(signKey, secret...)
 		signKey = append(signKey, []byte(user.Password)...)
-		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogout.Time().Unix()))...)
+		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogout.Unix()))...)
 		return signKey, nil
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer(Issuer), jwt.WithLeeway(time.Minute))
 
 	if err != nil {
-		return db.User{}, err
+		return jelly.AuthUser{}, err
 	}
 
 	return user, nil
 }
 
 // Get gets the token from the Authorization header as a bearer token.
-func Get(req *http.Request) (string, error) {
+func getToken(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 
 	if authHeader == "" {
@@ -79,7 +78,7 @@ func Get(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func Generate(secret []byte, u db.User) (string, error) {
+func generateToken(secret []byte, u jelly.AuthUser) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        Issuer,
 		"exp":        time.Now().Add(time.Hour).Unix(),
@@ -91,7 +90,7 @@ func Generate(secret []byte, u db.User) (string, error) {
 	var signKey []byte
 	signKey = append(signKey, secret...)
 	signKey = append(signKey, []byte(u.Password)...)
-	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogout.Time().Unix()))...)
+	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogout.Unix()))...)
 
 	tokStr, err := tok.SignedString(signKey)
 	if err != nil {

@@ -8,11 +8,6 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/logging"
-	"github.com/dekarrin/jelly/middle"
-	"github.com/dekarrin/jelly/response"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -22,14 +17,14 @@ const (
 )
 
 type EchoConfig struct {
-	CommonConf config.Common
+	CommonConf jelly.CommonConfig
 
 	Messages []string
 }
 
 // FillDefaults returns a new *EchoConfig identical to cfg but with unset values
 // set to their defaults and values normalized.
-func (cfg *EchoConfig) FillDefaults() config.APIConfig {
+func (cfg *EchoConfig) FillDefaults() jelly.APIConfig {
 	newCFG := new(EchoConfig)
 	*newCFG = *cfg
 
@@ -61,7 +56,7 @@ func (cfg *EchoConfig) Validate() error {
 	return nil
 }
 
-func (cfg *EchoConfig) Common() config.Common {
+func (cfg *EchoConfig) Common() jelly.CommonConfig {
 	return cfg.CommonConf
 }
 
@@ -83,7 +78,7 @@ func (cfg *EchoConfig) Get(key string) interface{} {
 func (cfg *EchoConfig) Set(key string, value interface{}) error {
 	switch strings.ToLower(key) {
 	case ConfigKeyMessages:
-		valueStr, err := config.TypedSlice[string](ConfigKeyMessages, value)
+		valueStr, err := jelly.TypedSlice[string](ConfigKeyMessages, value)
 		if err == nil {
 			cfg.Messages = valueStr
 		}
@@ -108,7 +103,7 @@ func (cfg *EchoConfig) SetFromString(key string, value string) error {
 
 type EchoAPI struct {
 	store   dao.Datastore
-	log     logging.Logger
+	log     jelly.Logger
 	uriBase string
 }
 
@@ -133,7 +128,7 @@ func (echo *EchoAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (echo *EchoAPI) Authenticators() map[string]middle.Authenticator {
+func (echo *EchoAPI) Authenticators() map[string]jelly.Authenticator {
 	return nil
 }
 
@@ -143,7 +138,7 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *EchoAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpaths bool) {
+func (api *EchoAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
 	templateEndpoints := templateEndpoints{
 		em:                em,
 		templates:         api.store.EchoTemplates,
@@ -162,40 +157,23 @@ func (api *EchoAPI) Routes(em jelly.EndpointCreator) (router chi.Router, subpath
 	return r, true
 }
 
-func (ep templateEndpoints) routes() (router chi.Router) {
-	r := chi.NewRouter()
-
-	r.Use(ep.em.RequiredAuth())
-
-	r.Get("/", ep.httpGetAllTemplates())
-	r.Post("/", ep.httpCreateTemplate())
-
-	r.Route("/"+jelly.PathParam("id:uuid"), func(r chi.Router) {
-		r.Get("/", ep.httpGetTemplate())
-		r.Put("/", ep.httpUpdateTemplate())
-		r.Delete("/", ep.httpDeleteTemplate())
-	})
-
-	return r
-}
-
 type echoRequestBody struct {
 	Message string `json:"message"`
 }
 
 // httpGetEcho returns a HandlerFunc that echoes the user message.
-func (api EchoAPI) httpGetEcho(em jelly.EndpointCreator) http.HandlerFunc {
-	return em.Endpoint(func(req *http.Request) response.Result {
+func (api EchoAPI) httpGetEcho(em jelly.ServiceProvider) http.HandlerFunc {
+	return em.Endpoint(func(req *http.Request) jelly.Result {
 		var echoData echoRequestBody
 
 		err := jelly.ParseJSONRequest(req, &echoData)
 		if err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return em.BadRequest(err.Error(), err.Error())
 		}
 
 		t, err := api.store.EchoTemplates.GetRandom(req.Context())
 		if err != nil {
-			return response.InternalServerError("could not get echo template: %v", err)
+			return em.InternalServerError("could not get echo template: %v", err)
 		}
 
 		resp := messageResponseBody{
@@ -203,13 +181,12 @@ func (api EchoAPI) httpGetEcho(em jelly.EndpointCreator) http.HandlerFunc {
 		}
 
 		userStr := "unauthed client"
-		loggedIn := req.Context().Value(middle.AuthLoggedIn).(bool)
+		user, loggedIn := em.GetLoggedInUser(req)
 		if loggedIn {
-			user := req.Context().Value(middle.AuthUser).(db.User)
 			resp.Recipient = user.Username
 			userStr = "user '" + user.Username + "'"
 		}
 
-		return response.OK(resp, "%s requested echo (msg len=%d), got template %s", userStr, len(echoData.Message), t.ID)
+		return em.OK(resp, "%s requested echo (msg len=%d), got template %s", userStr, len(echoData.Message), t.ID)
 	})
 }

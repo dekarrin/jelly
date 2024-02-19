@@ -1,13 +1,12 @@
-// Package serr holds common server error objects used across the jelly
-// framework. Notably, it contains the Error type, which can be created with one
-// or more 'cause' errors. Calling errors.Is() on this Error type with an
-// argument consisting of any of the errors it has as a cause will return true.
-//
-// This package also holds several global error constants created via
-// errors.New().
-package serr
+package jelly
 
-import "errors"
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"modernc.org/sqlite"
+)
 
 var (
 	ErrBadCredentials = errors.New("the supplied username/password combination is incorrect")
@@ -17,6 +16,11 @@ var (
 	ErrDB             = errors.New("an error occured with the DB")
 	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
 	ErrBodyUnmarshal  = errors.New("malformed data in request")
+
+	// TODO: merge the two types of errors.
+	ErrDBConstraintViolation = errors.New("a uniqueness constraint was violated")
+	ErrDBNotFound            = errors.New("the requested resource was not found")
+	ErrDBDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
 
 // Error is a typed error returned by certain functions in the TunaScript server
@@ -113,20 +117,44 @@ func (e Error) Is(target error) bool {
 	return false
 }
 
-// WrapDB creates a new Error that wraps the given error as a cause and
+// WrapSQLiteError wraps an error from the SQLite engine into an error useable by
+// the rest of the jelly framework. It should be called on any error returned
+// from SQLite before a repo passes the error back to a caller.
+//
+// TODO: merge with WrapDBError
+func WrapSQLiteError(err error) error {
+	sqliteErr := &sqlite.Error{}
+	if errors.As(err, &sqliteErr) {
+		primaryCode := sqliteErr.Code() & 0xff
+		if primaryCode == 19 {
+			return fmt.Errorf("%w: %s", ErrDBConstraintViolation, err.Error())
+		}
+		if primaryCode == 1 {
+			// this is a generic error and thus the string is not descriptive,
+			// so preserve the original error instead
+			return err
+		}
+		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
+	} else if errors.Is(err, sql.ErrNoRows) {
+		return ErrDBNotFound
+	}
+	return err
+}
+
+// WrapDBErr creates a new Error that wraps the given error as a cause and
 // automatically adds ErrDB as another cause. A user-set message may be provided
 // if desired with msg, but it may be left as "".
-func WrapDB(msg string, err error) Error {
+func WrapDBErr(msg string, err error) Error {
 	return Error{
 		cause: []error{err, ErrDB},
 	}
 }
 
-// New creates a new Error with the given message, along with any errors it
+// NewError creates a new Error with the given message, along with any errors it
 // should wrap as its causes. Providing cause errors is not required, but will
 // cause it to return true when it is checked against that error via a call to
 // errors.Is.
-func New(msg string, causes ...error) Error {
+func NewError(msg string, causes ...error) Error {
 	err := Error{msg: msg}
 	if len(causes) > 0 {
 		err.cause = make([]error, len(causes))

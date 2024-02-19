@@ -8,11 +8,9 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/config"
-	"github.com/dekarrin/jelly/db"
 )
 
-func New(cfg config.Database) (db.Store, error) {
+func New(cfg jelly.DatabaseConfig) (jelly.Store, error) {
 	err := os.MkdirAll(cfg.DataDir, 0770)
 	if err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
@@ -27,7 +25,7 @@ func New(cfg config.Database) (db.Store, error) {
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, jelly.WrapSqliteError(err)
+		return nil, jelly.WrapSQLiteError(err)
 	}
 
 	ds := dao.Datastore{

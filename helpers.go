@@ -7,11 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/dekarrin/jelly/middle"
-	"github.com/dekarrin/jelly/response"
-	"github.com/dekarrin/jelly/serr"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -26,9 +22,9 @@ var (
 	}
 )
 
-type EndpointFunc func(req *http.Request) response.Result
+type EndpointFunc func(req *http.Request) Result
 
-func unpathParam(s string) string {
+func UnPathParam(s string) string {
 	for name, pat := range paramTypePats {
 		s = strings.ReplaceAll(s, ":"+pat+"}", ":"+name+"}")
 	}
@@ -83,11 +79,13 @@ func PathParam(nameType string) string {
 
 // RedirectNoTrailingSlash is an http.HandlerFunc that redirects to the same URL as the
 // request but with no trailing slash.
-func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
-	redirPath := strings.TrimRight(req.URL.Path, "/")
-	r := response.Redirection(redirPath)
-	r.WriteResponse(w)
-	r.Log(req)
+func RedirectNoTrailingSlash(sp ServiceProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		redirPath := strings.TrimRight(req.URL.Path, "/")
+		r := sp.Redirection(redirPath)
+		r.WriteResponse(w)
+		r.Log(req)
+	}
 }
 
 // v must be a pointer to a type. Will return error such that
@@ -111,7 +109,7 @@ func ParseJSONRequest(req *http.Request, v interface{}) error {
 
 	err = json.Unmarshal(bodyData, v)
 	if err != nil {
-		return serr.New("malformed JSON in request", err, serr.ErrBodyUnmarshal)
+		return NewError("malformed JSON in request", err, ErrBodyUnmarshal)
 	}
 
 	return nil
@@ -137,7 +135,7 @@ func GetURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 
 	val, err = parse(valStr)
 	if err != nil {
-		return val, serr.New("", serr.ErrBadArgument)
+		return val, NewError("", ErrBadArgument)
 	}
 	return val, nil
 }
@@ -151,7 +149,7 @@ type Override struct {
 	Authenticators []string
 }
 
-func combineOverrides(overs []Override) Override {
+func CombineOverrides(overs []Override) Override {
 	newOver := Override{}
 	for i := range overs {
 		newOver.Authenticators = append(newOver.Authenticators, overs[i].Authenticators...)
@@ -159,44 +157,15 @@ func combineOverrides(overs []Override) Override {
 	return newOver
 }
 
-// EndpointCreator is passed to an API's Routes method and is used to access
+// ServiceProvider is passed to an API's Routes method and is used to access
 // jelly middleware and standardized endpoint function wrapping to produce an
 // http.HandlerFunc from an EndpointFunc.
-type EndpointCreator struct {
-	mid *middle.Provider
-}
-
-func (em EndpointCreator) DontPanic() middle.Middleware {
-	return em.mid.DontPanic()
-}
-
-func (em EndpointCreator) OptionalAuth(authenticators ...string) middle.Middleware {
-	return em.mid.OptionalAuth(authenticators...)
-}
-
-func (em EndpointCreator) RequiredAuth(authenticators ...string) middle.Middleware {
-	return em.mid.RequiredAuth(authenticators...)
-}
-
-func (em EndpointCreator) SelectAuthenticator(authenticators ...string) middle.Authenticator {
-	return em.mid.SelectAuthenticator(authenticators...)
-}
-
-func (em EndpointCreator) Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc {
-	overs := combineOverrides(overrides)
-
-	return func(w http.ResponseWriter, req *http.Request) {
-		r := ep(req)
-
-		if r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden || r.Status == http.StatusInternalServerError {
-			// if it's one of these statuses, either the user is improperly
-			// logging in or tried to access a forbidden resource, both of which
-			// should force the wait time before responding.
-			auth := em.mid.SelectAuthenticator(overs.Authenticators...)
-			time.Sleep(auth.UnauthDelay())
-		}
-
-		r.WriteResponse(w)
-		r.Log(req)
-	}
+type ServiceProvider interface {
+	ResponseGenerator
+	DontPanic() Middleware
+	OptionalAuth(authenticators ...string) Middleware
+	RequiredAuth(authenticators ...string) Middleware
+	SelectAuthenticator(authenticators ...string) Authenticator
+	Endpoint(ep EndpointFunc, overrides ...Override) http.HandlerFunc
+	GetLoggedInUser(req *http.Request) (user AuthUser, loggedIn bool)
 }

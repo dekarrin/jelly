@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
 	"github.com/dekarrin/jelly/internal/jelsort"
 	"github.com/google/uuid"
@@ -26,17 +27,18 @@ func (aur *AuthUserRepo) Close() error {
 	return nil
 }
 
-func (aur *AuthUserRepo) Create(ctx context.Context, user db.User) (db.User, error) {
+func (aur *AuthUserRepo) Create(ctx context.Context, u jelly.AuthUser) (jelly.AuthUser, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return db.User{}, fmt.Errorf("could not generate ID: %w", err)
+		return jelly.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
+	user := db.NewUserFromAuthUser(u)
 	user.ID = newUUID
 
 	// make sure it's not already in the DB
 	if _, ok := aur.byUsernameIndex[user.Username]; ok {
-		return db.User{}, db.ErrConstraintViolation
+		return jelly.AuthUser{}, jelly.ErrDBConstraintViolation
 	}
 
 	now := db.Timestamp(time.Now())
@@ -47,42 +49,43 @@ func (aur *AuthUserRepo) Create(ctx context.Context, user db.User) (db.User, err
 	aur.users[user.ID] = user
 	aur.byUsernameIndex[user.Username] = user.ID
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]db.User, error) {
-	all := make([]db.User, len(aur.users))
+func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
+	all := make([]jelly.AuthUser, len(aur.users))
 
 	i := 0
 	for k := range aur.users {
-		all[i] = aur.users[k]
+		all[i] = aur.users[k].AuthUser()
 		i++
 	}
 
-	all = jelsort.By(all, func(l, r db.User) bool {
+	all = jelsort.By(all, func(l, r jelly.AuthUser) bool {
 		return l.ID.String() < r.ID.String()
 	})
 
 	return all, nil
 }
 
-func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User) (db.User, error) {
+func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
 	existing, ok := aur.users[id]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
+	user := db.NewUserFromAuthUser(u)
 
 	// check for conflicts on this table only
 	// (inmem does not support enforcement of foreign keys)
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := aur.byUsernameIndex[user.Username]; ok {
-			return db.User{}, db.ErrConstraintViolation
+			return jelly.AuthUser{}, jelly.ErrDBConstraintViolation
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
 		if _, ok := aur.users[user.ID]; ok {
-			return db.User{}, db.ErrConstraintViolation
+			return jelly.AuthUser{}, jelly.ErrDBConstraintViolation
 		}
 	}
 
@@ -93,35 +96,35 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, user db.User)
 		delete(aur.users, id)
 	}
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
-	return user, nil
+	return user.AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (db.User, error) {
+func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
 	userID, ok := aur.byUsernameIndex[username]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
-	return aur.users[userID], nil
+	return aur.users[userID].AuthUser(), nil
 }
 
-func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (db.User, error) {
+func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return db.User{}, db.ErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
 	delete(aur.byUsernameIndex, user.Username)
 	delete(aur.users, user.ID)
 
-	return user, nil
+	return user.AuthUser(), nil
 }

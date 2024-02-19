@@ -9,15 +9,11 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/cmd/jellytest/dao"
-	"github.com/dekarrin/jelly/db"
-	"github.com/dekarrin/jelly/logging"
-	"github.com/dekarrin/jelly/middle"
-	"github.com/dekarrin/jelly/response"
-	"github.com/dekarrin/jelly/serr"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-func initDBWithTemplates(ctx context.Context, log logging.Logger, repo dao.Templates, creator uuid.UUID, contents []string) error {
+func initDBWithTemplates(ctx context.Context, log jelly.Logger, repo dao.Templates, creator uuid.UUID, contents []string) error {
 	for _, m := range contents {
 		dbMsg := dao.Template{
 			Content: m,
@@ -25,7 +21,7 @@ func initDBWithTemplates(ctx context.Context, log logging.Logger, repo dao.Templ
 		}
 		created, err := repo.Create(ctx, dbMsg)
 		if err != nil {
-			if !errors.Is(err, jelly.DBErrConstraintViolation) {
+			if !errors.Is(err, jelly.ErrDBConstraintViolation) {
 				return fmt.Errorf("create initial messages: %w", err)
 			} else {
 				log.Tracef("Skipping adding message to DB via config; already exists: %q", m)
@@ -111,20 +107,37 @@ func daoToTemplate(t dao.Template, uriBase string) Template {
 
 type templateEndpoints struct {
 	templates         dao.Templates
-	em                jelly.EndpointCreator
+	em                jelly.ServiceProvider
 	uriBase           string
 	name              string
 	requireFormatVerb bool
 }
 
+func (ep templateEndpoints) routes() (router chi.Router) {
+	r := chi.NewRouter()
+
+	r.Use(ep.em.RequiredAuth())
+
+	r.Get("/", ep.httpGetAllTemplates())
+	r.Post("/", ep.httpCreateTemplate())
+
+	r.Route("/"+jelly.PathParam("id:uuid"), func(r chi.Router) {
+		r.Get("/", ep.httpGetTemplate())
+		r.Put("/", ep.httpUpdateTemplate())
+		r.Delete("/", ep.httpDeleteTemplate())
+	})
+
+	return r
+}
+
 func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
-	return ep.em.Endpoint(func(req *http.Request) response.Result {
-		user := req.Context().Value(middle.AuthUser).(db.User)
+	return ep.em.Endpoint(func(req *http.Request) jelly.Result {
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		all, err := ep.templates.GetAll(req.Context())
 		if err != nil {
-			if !errors.Is(err, jelly.DBErrNotFound) {
-				return response.InternalServerError("retrieve all %s templates: %v", ep.name, err)
+			if !errors.Is(err, jelly.ErrDBNotFound) {
+				return ep.em.InternalServerError("retrieve all %s templates: %v", ep.name, err)
 			}
 		}
 
@@ -135,85 +148,85 @@ func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
 		// logged-in users can retrieve any template, no need for a role check
 
 		resp := daoToTemplates(all, ep.uriBase)
-		return response.OK(resp, "user '%s' retrieved all %s templates", user.Username, ep.name)
+		return ep.em.OK(resp, "user '%s' retrieved all %s templates", user.Username, ep.name)
 	})
 }
 
 func (ep templateEndpoints) httpGetTemplate() http.HandlerFunc {
-	return ep.em.Endpoint(func(req *http.Request) response.Result {
+	return ep.em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
-		user := req.Context().Value(middle.AuthUser).(db.User)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		retrieved, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.DBErrNotFound) {
-				return response.NotFound()
+			if errors.Is(err, jelly.ErrDBNotFound) {
+				return ep.em.NotFound()
 			}
-			return response.InternalServerError("retrieve %s template: %v", ep.name, err)
+			return ep.em.InternalServerError("retrieve %s template: %v", ep.name, err)
 		}
 
 		// logged-in users can retrieve any template, no need for a role check
 
 		resp := daoToTemplate(retrieved, ep.uriBase)
-		return response.OK(resp, "user '%s' retrieved %s template %s", user.Username, ep.name, retrieved.ID)
+		return ep.em.OK(resp, "user '%s' retrieved %s template %s", user.Username, ep.name, retrieved.ID)
 	})
 }
 
 func (ep templateEndpoints) httpCreateTemplate() http.HandlerFunc {
-	return ep.em.Endpoint(func(req *http.Request) response.Result {
-		user := req.Context().Value(middle.AuthUser).(db.User)
+	return ep.em.Endpoint(func(req *http.Request) jelly.Result {
+		user, _ := ep.em.GetLoggedInUser(req)
 		userStr := "user '" + user.Username + "'"
 
 		var data Template
 
 		err := jelly.ParseJSONRequest(req, &data)
 		if err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return ep.em.BadRequest(err.Error(), err.Error())
 		}
 
 		if err := data.Validate(ep.requireFormatVerb); err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return ep.em.BadRequest(err.Error(), err.Error())
 		}
 
 		newMsg, err := data.DAO()
 		if err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return ep.em.BadRequest(err.Error(), err.Error())
 		}
 		newMsg.Creator = user.ID
 
 		created, err := ep.templates.Create(req.Context(), newMsg)
 		if err != nil {
-			if errors.Is(err, jelly.DBErrConstraintViolation) {
-				return response.Conflict("a template with that exact content already exists", err.Error())
+			if errors.Is(err, jelly.ErrDBConstraintViolation) {
+				return ep.em.Conflict("a template with that exact content already exists", err.Error())
 			}
-			return response.InternalServerError("could not create %s template: %v", ep.name, err)
+			return ep.em.InternalServerError("could not create %s template: %v", ep.name, err)
 		}
 
 		resp := daoToTemplate(created, ep.uriBase)
 
-		return response.Created(resp, "%s created new %s template %s - %q", userStr, ep.name, created.ID, created.Content)
+		return ep.em.Created(resp, "%s created new %s template %s - %q", userStr, ep.name, created.ID, created.Content)
 	})
 }
 
 func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 	authService := ep.em.SelectAuthenticator().Service()
 
-	return ep.em.Endpoint(func(req *http.Request) response.Result {
+	return ep.em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
-		user := req.Context().Value(middle.AuthUser).(db.User)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		// first, find the template owner
 		t, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.DBErrNotFound) {
-				return response.NotFound()
+			if errors.Is(err, jelly.ErrDBNotFound) {
+				return ep.em.NotFound()
 			}
-			return response.InternalServerError("retrieve %s template to delete: %v", ep.name, err)
+			return ep.em.InternalServerError("retrieve %s template to delete: %v", ep.name, err)
 		}
 
 		// is the user trying to delete someone else's template (or one added
 		// via config)? they'd betta be the admin if so!
-		if t.Creator != user.ID && user.Role != db.Admin {
+		if t.Creator != user.ID && user.Role != jelly.Admin {
 			var creatorStr string
 			var zeroUUID uuid.UUID
 			if t.Creator == zeroUUID {
@@ -224,8 +237,8 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 				otherUser, err := authService.GetUser(req.Context(), id.String())
 				// if there was another user, find out now
 				if err != nil {
-					if !errors.Is(err, serr.ErrNotFound) {
-						return response.InternalServerError("retrieve other %s template's user: %s", ep.name, err.Error())
+					if !errors.Is(err, jelly.ErrNotFound) {
+						return ep.em.InternalServerError("retrieve other %s template's user: %s", ep.name, err.Error())
 					}
 					creatorStr = id.String()
 				} else {
@@ -233,40 +246,40 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 				}
 			}
 
-			return response.Forbidden("user '%s' (role %s) deletion of %s template %s created by %s: forbidden", user.Username, user.Role, ep.name, t.ID, creatorStr)
+			return ep.em.Forbidden("user '%s' (role %s) deletion of %s template %s created by %s: forbidden", user.Username, user.Role, ep.name, t.ID, creatorStr)
 		}
 
 		deleted, err := ep.templates.Delete(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.DBErrNotFound) {
-				return response.NotFound()
+			if errors.Is(err, jelly.ErrDBNotFound) {
+				return ep.em.NotFound()
 			} else {
-				return response.InternalServerError("delete %s template from DB: %v", ep.name, err)
+				return ep.em.InternalServerError("delete %s template from DB: %v", ep.name, err)
 			}
 		}
 
 		resp := daoToTemplate(deleted, ep.uriBase)
 
-		return response.OK(resp, "user '%s' deleted %s template %s", user.Username, ep.name, deleted.ID)
+		return ep.em.OK(resp, "user '%s' deleted %s template %s", user.Username, ep.name, deleted.ID)
 	})
 }
 
 func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 	authService := ep.em.SelectAuthenticator().Service()
 
-	return ep.em.Endpoint(func(req *http.Request) response.Result {
+	return ep.em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
-		user := req.Context().Value(middle.AuthUser).(db.User)
+		user, _ := ep.em.GetLoggedInUser(req)
 
 		var submitted Template
 
 		err := jelly.ParseJSONRequest(req, &submitted)
 		if err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return ep.em.BadRequest(err.Error(), err.Error())
 		}
 
 		if err := submitted.Validate(ep.requireFormatVerb); err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return ep.em.BadRequest(err.Error(), err.Error())
 		}
 
 		updateCreator := true
@@ -276,17 +289,17 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 
 		daoSubmitted, err := submitted.DAO()
 		if err != nil {
-			return response.BadRequest(err.Error(), err.Error())
+			return ep.em.BadRequest(err.Error(), err.Error())
 		}
 		daoSubmitted.ID = id
 
 		// first, find the original to check perms
 		t, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.DBErrNotFound) {
-				return response.NotFound()
+			if errors.Is(err, jelly.ErrDBNotFound) {
+				return ep.em.NotFound()
 			}
-			return response.InternalServerError("retrieve %s template to update: %v", ep.name, err)
+			return ep.em.InternalServerError("retrieve %s template to update: %v", ep.name, err)
 		}
 
 		if !updateCreator {
@@ -297,7 +310,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 		// via config)? they'd betta be the admin if so!
 		//
 		// also applies if updating the user.Creator; only admin can do that!
-		if (t.Creator != user.ID || t.Creator != daoSubmitted.Creator) && user.Role != db.Admin {
+		if (t.Creator != user.ID || t.Creator != daoSubmitted.Creator) && user.Role != jelly.Admin {
 			var creatorStr string
 			var zeroUUID uuid.UUID
 			if t.Creator == zeroUUID {
@@ -308,8 +321,8 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 				otherUser, err := authService.GetUser(req.Context(), id.String())
 				// if there was another user, find out now
 				if err != nil {
-					if !errors.Is(err, serr.ErrNotFound) {
-						return response.InternalServerError("retrieve other %s template's user: %s", ep.name, err.Error())
+					if !errors.Is(err, jelly.ErrNotFound) {
+						return ep.em.InternalServerError("retrieve other %s template's user: %s", ep.name, err.Error())
 					}
 					creatorStr = id.String()
 				} else {
@@ -328,7 +341,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 				problem += fmt.Sprintf(" and setting new owner %s", daoSubmitted.Creator)
 			}
 
-			return response.Forbidden("user '%s' (role %s) update of %s %s: forbidden", user.Username, user.Role, ep.name, problem)
+			return ep.em.Forbidden("user '%s' (role %s) update of %s %s: forbidden", user.Username, user.Role, ep.name, problem)
 		}
 
 		// ensure the actual user it is being changed to exists
@@ -337,26 +350,26 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 		if daoSubmitted.Creator != t.Creator {
 			_, err := authService.GetUser(req.Context(), submitted.Creator)
 			if err != nil {
-				if errors.Is(err, serr.ErrNotFound) {
-					return response.BadRequest("no user with ID %s exists", submitted.Creator)
+				if errors.Is(err, jelly.ErrNotFound) {
+					return ep.em.BadRequest("no user with ID %s exists", submitted.Creator)
 				}
-				return response.InternalServerError("get %s updated creator to confirm user exists: ", ep.name, err.Error())
+				return ep.em.InternalServerError("get %s updated creator to confirm user exists: ", ep.name, err.Error())
 			}
 		}
 
 		updated, err := ep.templates.Update(req.Context(), id, daoSubmitted)
 		if err != nil {
-			if errors.Is(err, jelly.DBErrNotFound) {
-				return response.NotFound()
-			} else if errors.Is(err, jelly.DBErrConstraintViolation) {
-				return response.Conflict("a template with that exact content already exists", err.Error())
+			if errors.Is(err, jelly.ErrDBNotFound) {
+				return ep.em.NotFound()
+			} else if errors.Is(err, jelly.ErrDBConstraintViolation) {
+				return ep.em.Conflict("a template with that exact content already exists", err.Error())
 			} else {
-				return response.InternalServerError("update %s template: %v", ep.name, err)
+				return ep.em.InternalServerError("update %s template: %v", ep.name, err)
 			}
 		}
 
 		resp := daoToTemplate(updated, ep.uriBase)
 
-		return response.OK(resp, "user '%s' updated %s template %s", user.Username, ep.name, updated.ID)
+		return ep.em.OK(resp, "user '%s' updated %s template %s", user.Username, ep.name, updated.ID)
 	})
 }
