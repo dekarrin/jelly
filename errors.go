@@ -1,6 +1,12 @@
 package jelly
 
-import "errors"
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"modernc.org/sqlite"
+)
 
 var (
 	ErrBadCredentials = errors.New("the supplied username/password combination is incorrect")
@@ -11,9 +17,9 @@ var (
 	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
 	ErrBodyUnmarshal  = errors.New("malformed data in request")
 
-	DBErrConstraintViolation = errors.New("a uniqueness constraint was violated")
-	DBErrNotFound            = errors.New("the requested resource was not found")
-	DBErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
+	ErrDBConstraintViolation = errors.New("a uniqueness constraint was violated")
+	ErrDBNotFound            = errors.New("the requested resource was not found")
+	ErrDBDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
 
 // Error is a typed error returned by certain functions in the TunaScript server
@@ -108,6 +114,30 @@ func (e Error) Is(target error) bool {
 		}
 	}
 	return false
+}
+
+// WrapSQLiteError wraps an error from the SQLite engine into an error useable by
+// the rest of the jelly framework. It should be called on any error returned
+// from SQLite before a repo passes the error back to a caller.
+//
+// TODO: merge with WrapDBError
+func WrapSQLiteError(err error) error {
+	sqliteErr := &sqlite.Error{}
+	if errors.As(err, &sqliteErr) {
+		primaryCode := sqliteErr.Code() & 0xff
+		if primaryCode == 19 {
+			return fmt.Errorf("%w: %s", ErrDBConstraintViolation, err.Error())
+		}
+		if primaryCode == 1 {
+			// this is a generic error and thus the string is not descriptive,
+			// so preserve the original error instead
+			return err
+		}
+		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
+	} else if errors.Is(err, sql.ErrNoRows) {
+		return ErrDBNotFound
+	}
+	return err
 }
 
 // WrapDBErr creates a new Error that wraps the given error as a cause and

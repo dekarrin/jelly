@@ -33,7 +33,7 @@ type LoginService struct {
 func (svc LoginService) Login(ctx context.Context, username string, password string) (jelly.AuthUser, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.ErrBadCredentials
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("", err)
@@ -73,7 +73,7 @@ func (svc LoginService) Login(ctx context.Context, username string, password str
 func (svc LoginService) Logout(ctx context.Context, who uuid.UUID) (jelly.AuthUser, error) {
 	existing, err := svc.Provider.AuthUsers().Get(ctx, who)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.ErrNotFound
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("could not retrieve user", err)
@@ -114,7 +114,7 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (jelly.AuthUser,
 
 	user, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.ErrNotFound
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("could not get user", err)
@@ -133,7 +133,7 @@ func (svc LoginService) GetUser(ctx context.Context, id string) (jelly.AuthUser,
 func (svc LoginService) GetUserByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
 	user, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.ErrNotFound
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("could not get user", err)
@@ -182,7 +182,7 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 	_, err = svc.Provider.AuthUsers().GetByUsername(ctx, username)
 	if err == nil {
 		return jelly.AuthUser{}, jelly.NewError("a user with that username already exists", jelly.ErrAlreadyExists)
-	} else if !errors.Is(err, jelly.DBErrNotFound) {
+	} else if !errors.Is(err, jelly.ErrDBNotFound) {
 		return jelly.AuthUser{}, jelly.WrapDBErr("", err)
 	}
 
@@ -200,7 +200,7 @@ func (svc LoginService) CreateUser(ctx context.Context, username, password, emai
 
 	user, err := svc.Provider.AuthUsers().Create(ctx, newUser)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrConstraintViolation) {
+		if errors.Is(err, jelly.ErrDBConstraintViolation) {
 			return jelly.AuthUser{}, jelly.ErrAlreadyExists
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("could not create user", err)
@@ -248,7 +248,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 
 	daoUser, err := svc.Provider.AuthUsers().Get(ctx, uuidCurID)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.NewError("user not found", jelly.ErrNotFound)
 		}
 	}
@@ -257,7 +257,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 		_, err := svc.Provider.AuthUsers().Get(ctx, uuidNewID)
 		if err == nil {
 			return jelly.AuthUser{}, jelly.NewError("a user with that username already exists", jelly.ErrAlreadyExists)
-		} else if !errors.Is(err, jelly.DBErrNotFound) {
+		} else if !errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.WrapDBErr("", err)
 		}
 	}
@@ -265,7 +265,7 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 		_, err := svc.Provider.AuthUsers().GetByUsername(ctx, username)
 		if err == nil {
 			return jelly.AuthUser{}, jelly.NewError("a user with that username already exists", jelly.ErrAlreadyExists)
-		} else if !errors.Is(err, jelly.DBErrNotFound) {
+		} else if !errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.WrapDBErr("", err)
 		}
 	}
@@ -277,9 +277,9 @@ func (svc LoginService) UpdateUser(ctx context.Context, curID, newID, username, 
 
 	updatedUser, err := svc.Provider.AuthUsers().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrConstraintViolation) {
+		if errors.Is(err, jelly.ErrDBConstraintViolation) {
 			return jelly.AuthUser{}, jelly.NewError("a user with that ID/username already exists", jelly.ErrAlreadyExists)
-		} else if errors.Is(err, jelly.DBErrNotFound) {
+		} else if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.NewError("user not found", jelly.ErrNotFound)
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("", err)
@@ -307,7 +307,7 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 
 	existing, err := svc.Provider.AuthUsers().Get(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.NewError("no user with that ID exists", jelly.ErrNotFound)
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("", err)
@@ -328,7 +328,7 @@ func (svc LoginService) UpdatePassword(ctx context.Context, id, password string)
 
 	updated, err := svc.Provider.AuthUsers().Update(ctx, uuidID, existing)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.NewError("no user with that ID exists", jelly.ErrNotFound)
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("could not update user", err)
@@ -353,7 +353,7 @@ func (svc LoginService) DeleteUser(ctx context.Context, id string) (jelly.AuthUs
 
 	user, err := svc.Provider.AuthUsers().Delete(ctx, uuidID)
 	if err != nil {
-		if errors.Is(err, jelly.DBErrNotFound) {
+		if errors.Is(err, jelly.ErrDBNotFound) {
 			return jelly.AuthUser{}, jelly.ErrNotFound
 		}
 		return jelly.AuthUser{}, jelly.WrapDBErr("could not delete user", err)

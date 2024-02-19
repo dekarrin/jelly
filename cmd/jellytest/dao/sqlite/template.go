@@ -137,7 +137,7 @@ func (store *templateStore) Update(ctx context.Context, id uuid.UUID, t dao.Temp
 		return dao.Template{}, jelly.WrapSQLiteError(err)
 	}
 	if rowsAff < 1 {
-		return dao.Template{}, jelly.DBErrNotFound
+		return dao.Template{}, jelly.ErrDBNotFound
 	}
 
 	return store.Get(ctx, t.ID)
@@ -161,7 +161,7 @@ func (store *templateStore) Delete(ctx context.Context, id uuid.UUID) (dao.Templ
 		return curVal, jelly.WrapSQLiteError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, jelly.DBErrNotFound
+		return curVal, jelly.ErrDBNotFound
 	}
 
 	return curVal, nil
@@ -185,7 +185,7 @@ func (store *templateStore) GetRandom(ctx context.Context) (dao.Template, error)
 	}
 
 	if count == 0 {
-		return dao.Template{}, jelly.DBErrNotFound
+		return dao.Template{}, jelly.ErrDBNotFound
 	}
 
 	// select one

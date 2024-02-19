@@ -274,13 +274,13 @@ func (rs *restServer) Add(name string, api jelly.API) error {
 }
 
 // will return default "common bundle" with only the name set if the named API
-// is not in the configured APIs.
-func (rs *restServer) getAPIConfigBundle(name string) jelly.CBundle {
+// is not in the configured APIs. dbs will not be set.
+func (rs *restServer) getAPIConfigBundle(name string) jelly.Bundle {
 	conf, ok := rs.cfg.APIs[strings.ToLower(name)]
 	if !ok {
-		return jelly.NewCBundle((&jelly.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals)
+		return jelly.NewBundle((&jelly.CommonConfig{Name: name}).FillDefaults(), rs.cfg.Globals, rs.log, nil)
 	}
-	return jelly.NewCBundle(conf, rs.cfg.Globals)
+	return jelly.NewBundle(conf, rs.cfg.Globals, rs.log, nil)
 }
 
 func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
@@ -315,7 +315,7 @@ func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
 
 	// TODO: after jellog is patched, add in use of api's name to logger via use of sublogger
 
-	initBundle := jelly.NewBundle(apiConf, rs.log, usedDBs)
+	initBundle := apiConf.WithDBs(usedDBs)
 
 	if err := api.Init(initBundle); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)

@@ -19,7 +19,7 @@ func WrapDBError(err error) error {
 	if errors.As(err, &sqliteErr) {
 		primaryCode := sqliteErr.Code() & 0xff
 		if primaryCode == 19 {
-			return fmt.Errorf("%w: %s", jelly.DBErrConstraintViolation, err.Error())
+			return fmt.Errorf("%w: %s", jelly.ErrDBConstraintViolation, err.Error())
 		}
 		if primaryCode == 1 {
 			// this is a generic error and thus the string is not descriptive,
@@ -28,7 +28,7 @@ func WrapDBError(err error) error {
 		}
 		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
-		return jelly.DBErrNotFound
+		return jelly.ErrDBNotFound
 	}
 	return err
 }

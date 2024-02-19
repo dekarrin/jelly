@@ -74,7 +74,7 @@ func (em Email) Value() (driver.Value, error) {
 func (em *Email) Scan(value interface{}) error {
 	s, ok := value.(string)
 	if !ok {
-		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.DBErrDecodingFailure)
+		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.ErrDBDecodingFailure)
 	}
 	if s == "" {
 		em.V = nil
@@ -83,7 +83,7 @@ func (em *Email) Scan(value interface{}) error {
 
 	email, err := mail.ParseAddress(s)
 	if err != nil {
-		return jelly.NewError("", err, jelly.DBErrDecodingFailure)
+		return jelly.NewError("", err, jelly.ErrDBDecodingFailure)
 	}
 
 	em.V = email

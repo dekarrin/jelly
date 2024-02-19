@@ -128,7 +128,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 		return jelly.AuthUser{}, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return jelly.AuthUser{}, jelly.DBErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
 	return repo.Get(ctx, user.ID)
@@ -201,7 +201,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUs
 		return curVal, sqlite.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, jelly.DBErrNotFound
+		return curVal, jelly.ErrDBNotFound
 	}
 
 	return curVal, nil

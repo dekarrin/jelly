@@ -38,7 +38,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 
 	// make sure it's not already in the DB
 	if _, ok := aur.byUsernameIndex[user.Username]; ok {
-		return jelly.AuthUser{}, jelly.DBErrConstraintViolation
+		return jelly.AuthUser{}, jelly.ErrDBConstraintViolation
 	}
 
 	now := db.Timestamp(time.Now())
@@ -71,7 +71,7 @@ func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
 	existing, ok := aur.users[id]
 	if !ok {
-		return jelly.AuthUser{}, jelly.DBErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 	user := db.NewUserFromAuthUser(u)
 
@@ -80,12 +80,12 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := aur.byUsernameIndex[user.Username]; ok {
-			return jelly.AuthUser{}, jelly.DBErrConstraintViolation
+			return jelly.AuthUser{}, jelly.ErrDBConstraintViolation
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
 		if _, ok := aur.users[user.ID]; ok {
-			return jelly.AuthUser{}, jelly.DBErrConstraintViolation
+			return jelly.AuthUser{}, jelly.ErrDBConstraintViolation
 		}
 	}
 
@@ -102,7 +102,7 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return jelly.AuthUser{}, jelly.DBErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
 	return user.AuthUser(), nil
@@ -111,7 +111,7 @@ func (aur *AuthUserRepo) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser,
 func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
 	userID, ok := aur.byUsernameIndex[username]
 	if !ok {
-		return jelly.AuthUser{}, jelly.DBErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
 	return aur.users[userID].AuthUser(), nil
@@ -120,7 +120,7 @@ func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (je
 func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return jelly.AuthUser{}, jelly.DBErrNotFound
+		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
 
 	delete(aur.byUsernameIndex, user.Username)
