@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/dekarrin/jelly"
-	"github.com/dekarrin/jelly/db/sqlite"
 )
 
 // AuthUserStore is a SQLite database that is compatible with built-in jelly
@@ -32,7 +31,7 @@ func NewAuthUserStore(storageDir string) (*AuthUserStore, error) {
 	var err error
 	st.db, err = sql.Open("sqlite", fileName)
 	if err != nil {
-		return nil, sqlite.WrapDBError(err)
+		return nil, jelly.WrapDBError(err)
 	}
 
 	st.users = &AuthUsersDB{DB: st.db}

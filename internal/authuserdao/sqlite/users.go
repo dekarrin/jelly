@@ -9,8 +9,6 @@ import (
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
 	"github.com/google/uuid"
-
-	"github.com/dekarrin/jelly/db/sqlite"
 )
 
 type AuthUsersDB struct {
@@ -30,7 +28,7 @@ func (repo *AuthUsersDB) init() error {
 		last_login_time INTEGER NOT NULL
 	);`)
 	if err != nil {
-		return sqlite.WrapDBError(err)
+		return jelly.WrapDBError(err)
 	}
 
 	return nil
@@ -44,7 +42,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 
 	stmt, err := repo.DB.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return jelly.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, jelly.WrapDBError(err)
 	}
 
 	now := db.Timestamp(time.Now())
@@ -62,7 +60,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 		db.Timestamp{},
 	)
 	if err != nil {
-		return jelly.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, jelly.WrapDBError(err)
 	}
 
 	return repo.Get(ctx, newUUID)
@@ -71,7 +69,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 	rows, err := repo.DB.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
-		return nil, sqlite.WrapDBError(err)
+		return nil, jelly.WrapDBError(err)
 	}
 	defer rows.Close()
 
@@ -92,14 +90,14 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 		)
 
 		if err != nil {
-			return nil, sqlite.WrapDBError(err)
+			return nil, jelly.WrapDBError(err)
 		}
 
 		all = append(all, user.AuthUser())
 	}
 
 	if err := rows.Err(); err != nil {
-		return all, sqlite.WrapDBError(err)
+		return all, jelly.WrapDBError(err)
 	}
 
 	return all, nil
@@ -121,11 +119,11 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 		id,
 	)
 	if err != nil {
-		return jelly.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, jelly.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return jelly.AuthUser{}, sqlite.WrapDBError(err)
+		return jelly.AuthUser{}, jelly.WrapDBError(err)
 	}
 	if rowsAff < 1 {
 		return jelly.AuthUser{}, jelly.ErrDBNotFound
@@ -154,7 +152,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (je
 	)
 
 	if err != nil {
-		return user.AuthUser(), sqlite.WrapDBError(err)
+		return user.AuthUser(), jelly.WrapDBError(err)
 	}
 
 	return user.AuthUser(), nil
@@ -180,7 +178,7 @@ func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser,
 	)
 
 	if err != nil {
-		return user.AuthUser(), sqlite.WrapDBError(err)
+		return user.AuthUser(), jelly.WrapDBError(err)
 	}
 
 	return user.AuthUser(), nil
@@ -194,11 +192,11 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUs
 
 	res, err := repo.DB.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
 	if err != nil {
-		return curVal, sqlite.WrapDBError(err)
+		return curVal, jelly.WrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return curVal, sqlite.WrapDBError(err)
+		return curVal, jelly.WrapDBError(err)
 	}
 	if rowsAff < 1 {
 		return curVal, jelly.ErrDBNotFound
