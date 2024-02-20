@@ -18,12 +18,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Model[ID any] interface {
-	// ModelID returns a jeldao-usable ID that identifies the Model uniquely.
-	// For those fields which
-	ModelID() ID
-}
-
 func NowTimestamp() Timestamp {
 	return Timestamp(time.Now())
 }
