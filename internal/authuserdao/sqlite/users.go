@@ -8,6 +8,7 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly/internal/authuserdao"
 	"github.com/google/uuid"
 )
 
@@ -46,7 +47,7 @@ func (repo *AuthUsersDB) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 	}
 
 	now := db.Timestamp(time.Now())
-	user := db.NewUserFromAuthUser(u)
+	user := authuserdao.NewUserFromAuthUser(u)
 	_, err = stmt.ExecContext(
 		ctx,
 		newUUID,
@@ -76,7 +77,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 	var all []jelly.AuthUser
 
 	for rows.Next() {
-		var user db.User
+		var user authuserdao.User
 		err = rows.Scan(
 			&user.ID,
 			&user.Username,
@@ -104,7 +105,7 @@ func (repo *AuthUsersDB) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 }
 
 func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
-	user := db.NewUserFromAuthUser(u)
+	user := authuserdao.NewUserFromAuthUser(u)
 
 	// deliberately not updating created
 	res, err := repo.DB.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
@@ -133,7 +134,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 }
 
 func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (jelly.AuthUser, error) {
-	user := db.User{
+	user := authuserdao.User{
 		Username: username,
 	}
 
@@ -159,7 +160,7 @@ func (repo *AuthUsersDB) GetByUsername(ctx context.Context, username string) (je
 }
 
 func (repo *AuthUsersDB) Get(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
-	user := db.User{
+	user := authuserdao.User{
 		ID: id,
 	}
 
