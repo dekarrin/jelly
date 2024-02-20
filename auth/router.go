@@ -12,7 +12,7 @@ func p(s string) (pathParam string) {
 	return jelly.PathParam(s)
 }
 
-func (api *LoginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
+func (api *loginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
 	r := chi.NewRouter()
 
 	login := api.routesForLogin(em)
@@ -44,7 +44,7 @@ func (api *LoginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 	return r, true
 }
 
-func (api LoginAPI) routesForLogin(em jelly.ServiceProvider) chi.Router {
+func (api loginAPI) routesForLogin(em jelly.ServiceProvider) chi.Router {
 	reqAuth := em.RequiredAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
@@ -56,7 +56,7 @@ func (api LoginAPI) routesForLogin(em jelly.ServiceProvider) chi.Router {
 	return r
 }
 
-func (api LoginAPI) routesForToken(em jelly.ServiceProvider) chi.Router {
+func (api loginAPI) routesForToken(em jelly.ServiceProvider) chi.Router {
 	reqAuth := em.RequiredAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
@@ -66,7 +66,7 @@ func (api LoginAPI) routesForToken(em jelly.ServiceProvider) chi.Router {
 	return r
 }
 
-func (api LoginAPI) routesForAuthUser(em jelly.ServiceProvider) chi.Router {
+func (api loginAPI) routesForAuthUser(em jelly.ServiceProvider) chi.Router {
 	reqAuth := em.RequiredAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()
@@ -86,7 +86,7 @@ func (api LoginAPI) routesForAuthUser(em jelly.ServiceProvider) chi.Router {
 	return r
 }
 
-func (api LoginAPI) routesForInfo(em jelly.ServiceProvider) chi.Router {
+func (api loginAPI) routesForInfo(em jelly.ServiceProvider) chi.Router {
 	optAuth := em.OptionalAuth(api.name + ".jwt")
 
 	r := chi.NewRouter()

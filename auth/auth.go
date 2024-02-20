@@ -25,7 +25,7 @@ func (ci ComponentInfo) Name() string {
 }
 
 func (ci ComponentInfo) API() jelly.API {
-	return &LoginAPI{}
+	return &loginAPI{}
 }
 
 func (ci ComponentInfo) Config() jelly.APIConfig {
@@ -38,17 +38,17 @@ var (
 	Component jelly.Component = ComponentInfo{}
 )
 
-type LoginResponse struct {
+type loginResponse struct {
 	Token  string `json:"token"`
 	UserID string `json:"user_id"`
 }
 
-type LoginRequest struct {
+type loginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-type UserModel struct {
+type userModel struct {
 	URI            string `json:"uri"`
 	ID             string `json:"id,omitempty"`
 	Username       string `json:"username,omitempty"`
@@ -61,20 +61,30 @@ type UserModel struct {
 	LastLoginTime  string `json:"last_login,omitempty"`
 }
 
-type UserUpdateRequest struct {
-	ID       UpdateString `json:"id,omitempty"`
-	Username UpdateString `json:"username,omitempty"`
-	Password UpdateString `json:"password,omitempty"`
-	Email    UpdateString `json:"email,"`
-	Role     UpdateString `json:"role,omitempty"`
+type userUpdateRequest struct {
+	ID struct {
+		Update bool   `json:"u,omitempty"`
+		Value  string `json:"v,omitempty"`
+	} `json:"id,omitempty"`
+	Username struct {
+		Update bool   `json:"u,omitempty"`
+		Value  string `json:"v,omitempty"`
+	} `json:"username,omitempty"`
+	Password struct {
+		Update bool   `json:"u,omitempty"`
+		Value  string `json:"v,omitempty"`
+	} `json:"password,omitempty"`
+	Email struct {
+		Update bool   `json:"u,omitempty"`
+		Value  string `json:"v,omitempty"`
+	} `json:"email,"`
+	Role struct {
+		Update bool   `json:"u,omitempty"`
+		Value  string `json:"v,omitempty"`
+	} `json:"role,omitempty"`
 }
 
-type UpdateString struct {
-	Update bool   `json:"u,omitempty"`
-	Value  string `json:"v,omitempty"`
-}
-
-type InfoModel struct {
+type infoModel struct {
 	Version struct {
 		Auth string `json:"auth"`
 	} `json:"version"`

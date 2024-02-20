@@ -7,14 +7,14 @@ import (
 	"github.com/dekarrin/jelly"
 )
 
-type JWTAuthProvider struct {
+type jwtAuthProvider struct {
 	db          jelly.AuthUserRepo
 	secret      []byte
 	unauthDelay time.Duration
-	srv         LoginService
+	srv         loginService
 }
 
-func (ap JWTAuthProvider) Authenticate(req *http.Request) (jelly.AuthUser, bool, error) {
+func (ap jwtAuthProvider) Authenticate(req *http.Request) (jelly.AuthUser, bool, error) {
 	tok, err := getToken(req)
 	if err != nil {
 		// might not actually be a problem, let the auth engine decide if so but
@@ -34,10 +34,10 @@ func (ap JWTAuthProvider) Authenticate(req *http.Request) (jelly.AuthUser, bool,
 	return lookupUser, true, nil
 }
 
-func (ap JWTAuthProvider) UnauthDelay() time.Duration {
+func (ap jwtAuthProvider) UnauthDelay() time.Duration {
 	return ap.unauthDelay
 }
 
-func (ap JWTAuthProvider) Service() jelly.UserLoginService {
+func (ap jwtAuthProvider) Service() jelly.UserLoginService {
 	return ap.srv
 }
