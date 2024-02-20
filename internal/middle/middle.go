@@ -19,13 +19,22 @@ func (sf mwFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	sf(w, req)
 }
 
-// AuthKey is a key in the context of a request populated by an AuthHandler.
-type AuthKey int64
+// ctxKey is a key in the context of a request populated by an AuthHandler.
+type ctxKey int64
 
 const (
-	AuthLoggedIn AuthKey = iota
-	AuthUser
+	ctxKeyAuthLoggedIn ctxKey = iota
+	ctxKeyAuthUser
 )
+
+func GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
+	loggedIn = req.Context().Value(ctxKeyAuthLoggedIn).(bool)
+	if loggedIn {
+		user = req.Context().Value(ctxKeyAuthUser).(jelly.AuthUser)
+	}
+
+	return user, loggedIn
+}
 
 // Provider is used to create middleware in a jelly framework project.
 // Generally for callers, it will be accessed via delegated methods on an
@@ -34,15 +43,6 @@ type Provider struct {
 	authenticators    map[string]jelly.Authenticator
 	mainAuthenticator string
 	DisableDefaults   bool
-}
-
-func GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
-	loggedIn = req.Context().Value(AuthLoggedIn).(bool)
-	if loggedIn {
-		user = req.Context().Value(AuthUser).(jelly.AuthUser)
-	}
-
-	return user, loggedIn
 }
 
 func (p *Provider) initDefaults() {
@@ -127,6 +127,65 @@ func (p *Provider) RegisterAuthenticator(name string, authen jelly.Authenticator
 	return nil
 }
 
+// RequiredAuth returns middleware that requires that auth be used. The
+// authenticators, if provided, must give the names of preferred providers that
+// were registered as an jelly.Authenticator with this package, in priority order. If
+// none of the given authenticators exist, this function panics. If no
+// authenticator is specified, the one set as main for the project is used.
+func (p Provider) RequiredAuth(resp jelly.ResponseGenerator, authenticators ...string) jelly.Middleware {
+	prov := p.SelectAuthenticator(authenticators...)
+
+	return func(next http.Handler) http.Handler {
+		return &authHandler{
+			provider: prov,
+			required: true,
+			next:     next,
+			resp:     resp,
+		}
+	}
+}
+
+// OptionalAuth returns middleware that allows auth be used to retrieved the
+// logged-in user. The authenticators, if provided, must give the names of
+// preferred providers that were registered as an jelly.Authenticator with this
+// package, in priority order. If none of the given authenticators exist, this
+// function panics. If no authenticator is specified, the one set as main for
+// the project is used.
+func (p Provider) OptionalAuth(resp jelly.ResponseGenerator, authenticators ...string) jelly.Middleware {
+	prov := p.SelectAuthenticator(authenticators...)
+
+	return func(next http.Handler) http.Handler {
+		return &authHandler{
+			provider: prov,
+			required: false,
+			next:     next,
+			resp:     resp,
+		}
+	}
+}
+
+// DontPanic returns a Middleware that performs a panic check as it exits. If
+// the function is panicking, it will write out an HTTP response with a generic
+// message to the client and add it to the log.
+func (p Provider) DontPanic(resp jelly.ResponseGenerator) jelly.Middleware {
+	return func(next http.Handler) http.Handler {
+		return mwFunc(func(w http.ResponseWriter, req *http.Request) {
+			defer func() {
+				if panicErr := recover(); panicErr != nil {
+					r := resp.TextErr(
+						http.StatusInternalServerError,
+						"An internal server error occurred",
+						fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
+					)
+					r.WriteResponse(w)
+					r.Log(req)
+				}
+			}()
+			next.ServeHTTP(w, req)
+		})
+	}
+}
+
 // noopAuthenticator is used as the active one when no others are specified.
 type noopAuthenticator struct{}
 
@@ -173,7 +232,7 @@ func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (jelly.A
 	return jelly.AuthUser{}, fmt.Errorf("DeleteUser called on noop")
 }
 
-// AuthHandler is middleware that will accept a request, extract the token used
+// authHandler is middleware that will accept a request, extract the token used
 // for authentication, and make calls to get a User entity that represents the
 // logged in user from the token.
 //
@@ -182,14 +241,14 @@ func (noop noopLoginService) DeleteUser(ctx context.Context, id string) (jelly.A
 // AuthLoggedIn will return whether the user is logged in (only applies for
 // optional logins; for non-optional, not being logged in will result in an
 // HTTP error being returned before the request is passed to the next handler).
-type AuthHandler struct {
+type authHandler struct {
 	provider jelly.Authenticator
 	required bool
 	next     http.Handler
 	resp     jelly.ResponseGenerator
 }
 
-func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (ah *authHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	user, loggedIn, err := ah.provider.Authenticate(req)
 
 	if ah.required {
@@ -212,67 +271,8 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := req.Context()
-	ctx = context.WithValue(ctx, AuthLoggedIn, loggedIn)
-	ctx = context.WithValue(ctx, AuthUser, user)
+	ctx = context.WithValue(ctx, ctxKeyAuthLoggedIn, loggedIn)
+	ctx = context.WithValue(ctx, ctxKeyAuthUser, user)
 	req = req.WithContext(ctx)
 	ah.next.ServeHTTP(w, req)
-}
-
-// RequiredAuth returns middleware that requires that auth be used. The
-// authenticators, if provided, must give the names of preferred providers that
-// were registered as an jelly.Authenticator with this package, in priority order. If
-// none of the given authenticators exist, this function panics. If no
-// authenticator is specified, the one set as main for the project is used.
-func (p Provider) RequiredAuth(resp jelly.ResponseGenerator, authenticators ...string) jelly.Middleware {
-	prov := p.SelectAuthenticator(authenticators...)
-
-	return func(next http.Handler) http.Handler {
-		return &AuthHandler{
-			provider: prov,
-			required: true,
-			next:     next,
-			resp:     resp,
-		}
-	}
-}
-
-// OptionalAuth returns middleware that allows auth be used to retrieved the
-// logged-in user. The authenticators, if provided, must give the names of
-// preferred providers that were registered as an jelly.Authenticator with this
-// package, in priority order. If none of the given authenticators exist, this
-// function panics. If no authenticator is specified, the one set as main for
-// the project is used.
-func (p Provider) OptionalAuth(resp jelly.ResponseGenerator, authenticators ...string) jelly.Middleware {
-	prov := p.SelectAuthenticator(authenticators...)
-
-	return func(next http.Handler) http.Handler {
-		return &AuthHandler{
-			provider: prov,
-			required: false,
-			next:     next,
-			resp:     resp,
-		}
-	}
-}
-
-// DontPanic returns a Middleware that performs a panic check as it exits. If
-// the function is panicking, it will write out an HTTP response with a generic
-// message to the client and add it to the log.
-func (p Provider) DontPanic(resp jelly.ResponseGenerator) jelly.Middleware {
-	return func(next http.Handler) http.Handler {
-		return mwFunc(func(w http.ResponseWriter, req *http.Request) {
-			defer func() {
-				if panicErr := recover(); panicErr != nil {
-					r := resp.TextErr(
-						http.StatusInternalServerError,
-						"An internal server error occurred",
-						fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
-					)
-					r.WriteResponse(w)
-					r.Log(req)
-				}
-			}()
-			next.ServeHTTP(w, req)
-		})
-	}
 }
