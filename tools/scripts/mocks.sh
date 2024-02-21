@@ -2,5 +2,7 @@
 
 cd "$(dirname $0)/../.."
 
+pwd
+
 mkdir -p tools/mocks/jelly
 mockgen -destination tools/mocks/jelly/mock_response.go github.com/dekarrin/jelly ResponseGenerator
