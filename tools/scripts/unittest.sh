@@ -7,7 +7,7 @@ set -e
 
 script_path="$(dirname "$0")"
 
-cd "$script_path"
+cd "$script_path/../.."
 
 if [ "$1" = '--all' ]; then
     go test ./...

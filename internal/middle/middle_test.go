@@ -28,8 +28,25 @@ func Test_GetLoggedInUser(t *testing.T) {
 		expectLoggedIn bool
 	}{
 		{
-			name:           "no user present",
+			name:           "bare request",
 			req:            &http.Request{},
+			expectUser:     jelly.AuthUser{},
+			expectLoggedIn: false,
+		},
+		{
+			name: "user is not logged in and user value not present",
+			req: reqWithContextValues(map[ctxKey]interface{}{
+				ctxKeyLoggedIn: false,
+			}),
+			expectUser:     jelly.AuthUser{},
+			expectLoggedIn: false,
+		},
+		{
+			name: "user is not logged in and user value is present",
+			req: reqWithContextValues(map[ctxKey]interface{}{
+				ctxKeyLoggedIn: false,
+				ctxKeyUser:     jelly.AuthUser{},
+			}),
 			expectUser:     jelly.AuthUser{},
 			expectLoggedIn: false,
 		},
