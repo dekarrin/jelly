@@ -1,6 +1,7 @@
 package middle
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -8,12 +9,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func reqWithContextKeys(keys map[string]interface{}) *http.Request {
-	
+func reqWithContextValues(values map[ctxKey]interface{}) *http.Request {
+	req := &http.Request{}
+	ctx := req.Context()
+
+	for k, v := range values {
+		ctx = context.WithValue(ctx, k, v)
+	}
+
+	return req.WithContext(ctx)
 }
 
 func Test_GetLoggedInUser(t *testing.T) {
-
 	testCases := []struct {
 		name           string
 		req            *http.Request
@@ -21,8 +28,19 @@ func Test_GetLoggedInUser(t *testing.T) {
 		expectLoggedIn bool
 	}{
 		{
-			name: "no user present",
-			req: &http.Request{}
+			name:           "no user present",
+			req:            &http.Request{},
+			expectUser:     jelly.AuthUser{},
+			expectLoggedIn: false,
+		},
+		{
+			name: "user is logged in",
+			req: reqWithContextValues(map[ctxKey]interface{}{
+				ctxKeyUser:     jelly.AuthUser{Username: "ghostlyTrickster"},
+				ctxKeyLoggedIn: true,
+			}),
+			expectUser:     jelly.AuthUser{Username: "ghostlyTrickster"},
+			expectLoggedIn: true,
 		},
 	}
 

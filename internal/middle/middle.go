@@ -23,14 +23,45 @@ func (sf mwFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 type ctxKey int64
 
 const (
-	ctxKeyAuthLoggedIn ctxKey = iota
-	ctxKeyAuthUser
+	ctxKeyLoggedIn ctxKey = iota
+	ctxKeyUser
 )
 
+func (ck ctxKey) String() string {
+	switch ck {
+	case ctxKeyLoggedIn:
+		return "loggedIn"
+	case ctxKeyUser:
+		return "user"
+	default:
+		return fmt.Sprintf("ctxKey(%d)", int64(ck))
+	}
+}
+
 func GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
-	loggedIn = req.Context().Value(ctxKeyAuthLoggedIn).(bool)
+	ctx := req.Context()
+	loggedInUntyped := ctx.Value(ctxKeyLoggedIn)
+
+	if loggedInUntyped == nil {
+		return jelly.AuthUser{}, false
+	}
+
+	var ok bool
+	loggedIn, ok = loggedInUntyped.(bool)
+	if !ok {
+		panic(fmt.Sprintf("bad type in request context; %s should have type bool but actually has type %T", ctxKeyLoggedIn, loggedInUntyped))
+	}
+
 	if loggedIn {
-		user = req.Context().Value(ctxKeyAuthUser).(jelly.AuthUser)
+		userUntyped := ctx.Value(ctxKeyUser)
+		if userUntyped == nil {
+			panic(fmt.Sprintf("request context has value for %s but none for %s", ctxKeyLoggedIn, ctxKeyUser))
+		}
+
+		user, ok = userUntyped.(jelly.AuthUser)
+		if !ok {
+			panic(fmt.Sprintf("bad type in request context; %s should have type jelly.AuthUser but actually has type %T", ctxKeyUser, userUntyped))
+		}
 	}
 
 	return user, loggedIn
@@ -271,8 +302,8 @@ func (ah *authHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	ctx := req.Context()
-	ctx = context.WithValue(ctx, ctxKeyAuthLoggedIn, loggedIn)
-	ctx = context.WithValue(ctx, ctxKeyAuthUser, user)
+	ctx = context.WithValue(ctx, ctxKeyLoggedIn, loggedIn)
+	ctx = context.WithValue(ctx, ctxKeyUser, user)
 	req = req.WithContext(ctx)
 	ah.next.ServeHTTP(w, req)
 }
