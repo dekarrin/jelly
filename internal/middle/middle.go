@@ -282,23 +282,23 @@ type authHandler struct {
 func (ah *authHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	user, loggedIn, err := ah.provider.Authenticate(req)
 
-	if ah.required {
-		if err != nil || (err == nil && !loggedIn) {
-			// there was a validation error or no error but not logged in.
-			// if logging in is required, that's not okay.
+	if ah.required && !loggedIn {
+		// there was a validation error or no error but not logged in.
+		// if logging in is required, that's not okay.
 
-			var msg string
-			if err != nil {
-				msg = err.Error()
-			} else {
-				msg = "authorization is required"
-			}
-			r := ah.resp.Unauthorized("", msg)
-			time.Sleep(ah.provider.UnauthDelay())
-			r.WriteResponse(w)
-			ah.resp.LogResponse(req, r)
-			return
+		var msg string
+		if err != nil {
+			msg = err.Error()
+		} else {
+			msg = "authorization is required"
 		}
+		r := ah.resp.Unauthorized("", msg)
+		time.Sleep(ah.provider.UnauthDelay())
+		r.WriteResponse(w)
+		ah.resp.LogResponse(req, r)
+		return
+	} else if !ah.required && err != nil {
+		ah.resp.Logger().Warnf("optional auth returned error: %v", err)
 	}
 
 	ctx := req.Context()

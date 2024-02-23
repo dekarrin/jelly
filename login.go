@@ -269,7 +269,8 @@ type Authenticator interface {
 	// not logged in but no error actually occured, a default user and logged-in
 	// = false are returned with a nil error. An error should only be returned
 	// if there is an issue authenticating the user, and a user not being logged
-	// in does not count as an issue.
+	// in does not count as an issue. If the user fails to validate due to bad
+	// credentials, that does count and should be returned as an error.
 	//
 	// If the user is logged-in, returns the logged-in user, true, and a nil
 	// error.

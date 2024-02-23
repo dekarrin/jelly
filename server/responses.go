@@ -7,6 +7,10 @@ import (
 	"github.com/dekarrin/jelly"
 )
 
+func (em endpointCreator) Logger() jelly.Logger {
+	return em.log
+}
+
 func (em endpointCreator) LogResponse(req *http.Request, r jelly.Result) {
 	em.log.LogResult(req, r)
 }

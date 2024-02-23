@@ -164,6 +164,20 @@ func (mr *MockResponseGeneratorMockRecorder) LogResponse(arg0, arg1 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogResponse", reflect.TypeOf((*MockResponseGenerator)(nil).LogResponse), arg0, arg1)
 }
 
+// Logger mocks base method.
+func (m *MockResponseGenerator) Logger() jelly.Logger {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Logger")
+	ret0, _ := ret[0].(jelly.Logger)
+	return ret0
+}
+
+// Logger indicates an expected call of Logger.
+func (mr *MockResponseGeneratorMockRecorder) Logger() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Logger", reflect.TypeOf((*MockResponseGenerator)(nil).Logger))
+}
+
 // MethodNotAllowed mocks base method.
 func (m *MockResponseGenerator) MethodNotAllowed(arg0 *http.Request, arg1 ...any) jelly.Result {
 	m.ctrl.T.Helper()

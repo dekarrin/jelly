@@ -19,9 +19,6 @@ func (ap jwtAuthProvider) Authenticate(req *http.Request) (jelly.AuthUser, bool,
 	if err != nil {
 		// might not actually be a problem, let the auth engine decide if so but
 		// there is no user to retrieve here
-		//
-		// TODO: when/if logging ever added, do that instead of just losing the
-		// error
 		return jelly.AuthUser{}, false, nil
 	}
 

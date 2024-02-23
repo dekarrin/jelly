@@ -126,4 +126,8 @@ type ResponseGenerator interface {
 	Err(status int, userMsg, internalMsg string, v ...interface{}) Result
 	TextErr(status int, userMsg, internalMsg string, v ...interface{}) Result
 	LogResponse(req *http.Request, r Result)
+
+	// Logger should not be called by external users of jelly; it is in a
+	// transitory state and is slated for removal in a future release.
+	Logger() Logger
 }
