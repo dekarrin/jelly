@@ -83,6 +83,127 @@ func Test_GetLoggedInUser(t *testing.T) {
 	}
 }
 
+func Test_Provider_SelectAuthenticator(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockAuthenticator1 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator1.EXPECT().UnauthDelay().Return(1 * time.Millisecond).AnyTimes()
+	mockAuthenticator2 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator2.EXPECT().UnauthDelay().Return(2 * time.Millisecond).AnyTimes()
+
+	testCases := []struct {
+		name                      string
+		p                         *Provider
+		from                      []string
+		expectAuthWithUnauthDelay time.Duration
+		expectPanic               bool
+	}{
+		{
+			name: "no preferred choices given - main auth not set - returns noop",
+			p:    &Provider{},
+			// noop's unauthDelay is always the zero value
+		},
+		{
+			name: "no preferred choices given - main auth set - returns main auth",
+			p: &Provider{
+				mainAuthenticator: "mock",
+				authenticators: map[string]jelly.Authenticator{
+					"mock": mockAuthenticator1,
+				},
+			},
+			expectAuthWithUnauthDelay: 1 * time.Millisecond,
+		},
+		{
+			name: "preferred choice is main auth",
+			p: &Provider{
+				mainAuthenticator: "mock",
+				authenticators: map[string]jelly.Authenticator{
+					"mock": mockAuthenticator1,
+				},
+			},
+			expectAuthWithUnauthDelay: 1 * time.Millisecond,
+		},
+		{
+			name: "preferred choice is main auth",
+			from: []string{"mock"},
+			p: &Provider{
+				mainAuthenticator: "mock",
+				authenticators: map[string]jelly.Authenticator{
+					"mock": mockAuthenticator1,
+				},
+			},
+			expectAuthWithUnauthDelay: 1 * time.Millisecond,
+		},
+		{
+			name: "preferred choice is not main auth",
+			from: []string{"auth2"},
+			p: &Provider{
+				mainAuthenticator: "auth1",
+				authenticators: map[string]jelly.Authenticator{
+					"auth1": mockAuthenticator1,
+					"auth2": mockAuthenticator2,
+				},
+			},
+			expectAuthWithUnauthDelay: 2 * time.Millisecond,
+		},
+		{
+			name: "2nd preferred choice is avail",
+			from: []string{"mock", "auth2"},
+			p: &Provider{
+				mainAuthenticator: "auth1",
+				authenticators: map[string]jelly.Authenticator{
+					"auth1": mockAuthenticator1,
+					"auth2": mockAuthenticator2,
+				},
+			},
+			expectAuthWithUnauthDelay: 2 * time.Millisecond,
+		},
+		{
+			name: "preferred choice is main auth but doesnt exist - panic",
+			from: []string{"mock"},
+			p: &Provider{
+				mainAuthenticator: "mock",
+			},
+			expectPanic: true,
+		},
+		{
+			name:        "preferred choice given but nothing set - panic",
+			from:        []string{"mock"},
+			p:           &Provider{},
+			expectPanic: true,
+		},
+		{
+			name: "multiple preferred choices given but none exist - panic",
+			from: []string{"mock", "default", "anything"},
+			p: &Provider{
+				mainAuthenticator: "auth1",
+				authenticators: map[string]jelly.Authenticator{
+					"auth1": mockAuthenticator1,
+					"auth2": mockAuthenticator2,
+				},
+			},
+			expectPanic: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			if tc.expectPanic {
+				assert.Panics(func() {
+					tc.p.SelectAuthenticator(tc.from...)
+				})
+			} else {
+				actual := tc.p.SelectAuthenticator(tc.from...)
+
+				// using unauthDelay as a 'uniqueish' identifier during testing;
+				// otherwise all the mock authenticators would equal each other.
+				assert.Equal(tc.expectAuthWithUnauthDelay, actual.UnauthDelay())
+			}
+		})
+	}
+}
+
 func Test_authHandler(t *testing.T) {
 	type aValues struct {
 		user     jelly.AuthUser
