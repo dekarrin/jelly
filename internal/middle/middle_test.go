@@ -100,51 +100,61 @@ func Test_authHandler(t *testing.T) {
 		expectLoggedIn          any
 		expectUser              any
 	}{
-		// {
-		// 	name:         "logged in user - optional auth",
-		// 	authRequired: false,
-		// 	authenticateReturns: aValues{
-		// 		user:     jelly.AuthUser{Username: "arachnidsGrip"},
-		// 		loggedIn: true,
-		// 	},
-		// 	expectLoggedIn: true,
-		// 	expectUser:     jelly.AuthUser{Username: "arachnidsGrip"},
-		// 	expectHandoff:  true,
-		// },
-		// {
-		// 	name:         "logged in user - required auth",
-		// 	authRequired: true,
-		// 	authenticateReturns: aValues{
-		// 		user:     jelly.AuthUser{Username: "arachnidsGrip"},
-		// 		loggedIn: true,
-		// 	},
-		// 	expectLoggedIn: true,
-		// 	expectUser:     jelly.AuthUser{Username: "arachnidsGrip"},
-		// 	expectHandoff:  true,
-		// },
-		// {
-		// 	name:         "no logged in user - optional auth",
-		// 	authRequired: false,
-		// 	authenticateReturns: aValues{
-		// 		loggedIn: false,
-		// 	},
-		// 	expectLoggedIn: false,
-		// 	expectUser:     jelly.AuthUser{},
-		// 	expectHandoff:  true,
-		// },
-		// {
-		// 	name:         "no logged in user - required auth",
-		// 	authRequired: true,
-		// 	authenticateReturns: aValues{
-		// 		loggedIn: false,
-		// 	},
-		// 	unauthDelayReturns:      ref(time.Millisecond),
-		// 	respUnauthorizedReturns: &jelly.Result{IsErr: true, Status: http.StatusUnauthorized},
-		// 	expectHandoff:           false,
-		// },
+		{
+			name:         "logged in user - optional auth",
+			authRequired: false,
+			authenticateReturns: aValues{
+				user:     jelly.AuthUser{Username: "arachnidsGrip"},
+				loggedIn: true,
+			},
+			expectLoggedIn: true,
+			expectUser:     jelly.AuthUser{Username: "arachnidsGrip"},
+			expectHandoff:  true,
+		},
+		{
+			name:         "logged in user - required auth",
+			authRequired: true,
+			authenticateReturns: aValues{
+				user:     jelly.AuthUser{Username: "arachnidsGrip"},
+				loggedIn: true,
+			},
+			expectLoggedIn: true,
+			expectUser:     jelly.AuthUser{Username: "arachnidsGrip"},
+			expectHandoff:  true,
+		},
+		{
+			name:         "no logged in user - optional auth",
+			authRequired: false,
+			authenticateReturns: aValues{
+				loggedIn: false,
+			},
+			expectLoggedIn: false,
+			expectUser:     jelly.AuthUser{},
+			expectHandoff:  true,
+		},
+		{
+			name:         "no logged in user - required auth",
+			authRequired: true,
+			authenticateReturns: aValues{
+				loggedIn: false,
+			},
+			unauthDelayReturns:      ref(time.Millisecond),
+			respUnauthorizedReturns: &jelly.Result{IsErr: true, Status: http.StatusUnauthorized},
+			expectHandoff:           false,
+		},
 		{
 			name:         "authenticate returns an error - optional auth",
 			authRequired: false,
+			authenticateReturns: aValues{
+				err: errors.New("an error occurred"),
+			},
+			expectHandoff:  true,
+			expectLoggedIn: false,
+			expectUser:     jelly.AuthUser{},
+		},
+		{
+			name:         "authenticate returns an error - required auth",
+			authRequired: true,
 			authenticateReturns: aValues{
 				err: errors.New("an error occurred"),
 			},
@@ -187,16 +197,13 @@ func Test_authHandler(t *testing.T) {
 					if avs.err != nil {
 						msg = avs.err.Error()
 					}
+					mockAuthenticator.EXPECT().UnauthDelay().Return(*tc.unauthDelayReturns)
 					mockResponseGenerator.EXPECT().Unauthorized(gomock.Any(), msg).Return(*tc.respUnauthorizedReturns)
 					mockResponseGenerator.EXPECT().LogResponse(gomock.Any(), *tc.respUnauthorizedReturns).Return()
 				}
 			} else if tc.authenticateReturns.err != nil {
 				mockResponseGenerator.EXPECT().Logger().Return(mockLogger)
 				mockLogger.EXPECT().Warnf("optional auth returned error: %v", tc.authenticateReturns.err)
-			}
-
-			if tc.unauthDelayReturns != nil {
-				mockAuthenticator.EXPECT().UnauthDelay().Return(*tc.unauthDelayReturns)
 			}
 
 			// execute
