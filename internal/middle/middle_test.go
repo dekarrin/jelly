@@ -204,6 +204,64 @@ func Test_Provider_SelectAuthenticator(t *testing.T) {
 	}
 }
 
+func Test_Provider_RegisterMainAuthenticator(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockAuthenticator1 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator1.EXPECT().UnauthDelay().Return(1 * time.Millisecond).AnyTimes()
+	mockAuthenticator2 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator2.EXPECT().UnauthDelay().Return(2 * time.Millisecond).AnyTimes()
+
+	testCases := []struct {
+		name      string
+		p         *Provider
+		authName  string
+		expectErr bool
+	}{
+		{
+			name: "register on non-empty, and exists - no error",
+			p: &Provider{
+				authenticators: map[string]jelly.Authenticator{
+					"mock1": mockAuthenticator1,
+					"mock2": mockAuthenticator2,
+				},
+			},
+			authName:  "mock1",
+			expectErr: false,
+		},
+		{
+			name:      "register on empty - error",
+			p:         &Provider{},
+			authName:  "test",
+			expectErr: true,
+		},
+		{
+			name: "register on non-empty, but doesn't exist - error",
+			p: &Provider{
+				authenticators: map[string]jelly.Authenticator{
+					"mock1": mockAuthenticator1,
+					"mock2": mockAuthenticator2,
+				},
+			},
+			authName:  "test",
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			actualErr := tc.p.RegisterMainAuthenticator(tc.authName)
+
+			if tc.expectErr {
+				assert.Error(actualErr)
+			} else {
+				assert.NoError(actualErr)
+			}
+		})
+	}
+}
+
 func Test_authHandler(t *testing.T) {
 	type aValues struct {
 		user     jelly.AuthUser
