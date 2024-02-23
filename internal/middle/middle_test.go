@@ -16,7 +16,7 @@ import (
 )
 
 func reqWithContextValues(values map[ctxKey]interface{}) *http.Request {
-	req := httptest.NewRequest("", "", nil)
+	req := httptest.NewRequest("", "/", nil)
 	ctx := req.Context()
 
 	for k, v := range values {
