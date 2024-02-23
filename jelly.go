@@ -540,6 +540,7 @@ type LogProvider int
 const (
 	NoLog LogProvider = iota
 	Jellog
+	StdLog
 )
 
 func (p LogProvider) String() string {
@@ -548,6 +549,8 @@ func (p LogProvider) String() string {
 		return "none"
 	case Jellog:
 		return "jellog"
+	case StdLog:
+		return "std"
 	default:
 		return fmt.Sprintf("LogProvider(%d)", int(p))
 	}
@@ -559,6 +562,8 @@ func ParseLogProvider(s string) (LogProvider, error) {
 		return NoLog, nil
 	case Jellog.String():
 		return Jellog, nil
+	case StdLog.String():
+		return StdLog, nil
 	default:
 		return NoLog, fmt.Errorf("unknown LogProvider %q", s)
 	}

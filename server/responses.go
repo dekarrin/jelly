@@ -7,6 +7,10 @@ import (
 	"github.com/dekarrin/jelly"
 )
 
+func (em endpointCreator) LogResponse(req *http.Request, r jelly.Result) {
+	em.log.LogResult(req, r)
+}
+
 // if status is http.StatusNoContent, respObj will not be read and may be nil.
 // Otherwise, respObj MUST NOT be nil. If additional values are provided they
 // are given to internalMsg as a format string.

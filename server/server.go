@@ -176,7 +176,7 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 		env.initDefaults()
 	}
 
-	sp := endpointCreator{mid: env.middleProv}
+	sp := endpointCreator{mid: env.middleProv, log: rs.log}
 
 	// Create root router
 	root := chi.NewRouter()

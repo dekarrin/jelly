@@ -3,7 +3,10 @@ package logging
 import (
 	"errors"
 	"fmt"
+	"io"
+	stdlog "log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/dekarrin/jellog"
@@ -37,6 +40,16 @@ func New(p jelly.LogProvider, filename string) (jelly.Logger, error) {
 		}
 
 		return jellogLogger{j: j}, nil
+	case jelly.StdLog:
+		var logWriter io.Writer = os.Stderr
+		if filename != "" {
+			fileWriter, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+			if err != nil {
+				return nil, fmt.Errorf("open logfile: %q: %w", filename, err)
+			}
+			logWriter = io.MultiWriter(os.Stderr, fileWriter)
+		}
+		return stdLogger{std: stdlog.New(logWriter, "", stdlog.Ldate|stdlog.Ltime|stdlog.LUTC)}, nil
 	default:
 		return nil, fmt.Errorf("unknown provider: %q", p.String())
 	}
@@ -61,6 +74,78 @@ func (log NoOpLogger) WarnBreak()                                  {}
 func (log NoOpLogger) TraceBreak()                                 {}
 func (log NoOpLogger) DebugBreak()                                 {}
 func (log NoOpLogger) LogResult(req *http.Request, r jelly.Result) {}
+
+type stdLogger struct {
+	std *stdlog.Logger
+}
+
+func (log stdLogger) Trace(msg string) {
+	log.std.Print("TRACE " + msg)
+}
+
+func (log stdLogger) Tracef(msg string, a ...interface{}) {
+	log.std.Printf("TRACE "+msg, a...)
+}
+
+func (log stdLogger) TraceBreak() {
+	log.std.Printf("")
+}
+
+func (log stdLogger) Debug(msg string) {
+	log.std.Print("DEBUG " + msg)
+}
+
+func (log stdLogger) Debugf(msg string, a ...interface{}) {
+	log.std.Printf("DEBUG "+msg, a...)
+}
+
+func (log stdLogger) DebugBreak() {
+	log.std.Printf("")
+}
+
+func (log stdLogger) Info(msg string) {
+	log.std.Print("INFO  " + msg)
+}
+
+func (log stdLogger) Infof(msg string, a ...interface{}) {
+	log.std.Printf("INFO  "+msg, a...)
+}
+
+func (log stdLogger) InfoBreak() {
+	log.std.Printf("")
+}
+
+func (log stdLogger) Warn(msg string) {
+	log.std.Print("WARN  " + msg)
+}
+
+func (log stdLogger) Warnf(msg string, a ...interface{}) {
+	log.std.Printf("WARN  "+msg, a...)
+}
+
+func (log stdLogger) WarnBreak() {
+	log.std.Printf("")
+}
+
+func (log stdLogger) Error(msg string) {
+	log.std.Print("ERROR " + msg)
+}
+
+func (log stdLogger) Errorf(msg string, a ...interface{}) {
+	log.std.Printf("DEBUG "+msg, a...)
+}
+
+func (log stdLogger) ErrorBreak() {
+	log.std.Printf("")
+}
+
+func (log stdLogger) LogResult(req *http.Request, r jelly.Result) {
+	if r.IsErr {
+		logHTTPResponse(log, "ERROR", req, r.Status, r.InternalMsg)
+	} else {
+		logHTTPResponse(log, "INFO", req, r.Status, r.InternalMsg)
+	}
+}
 
 type jellogLogger struct {
 	j jellog.Logger[string]
@@ -128,13 +213,13 @@ func (log jellogLogger) DebugBreak() {
 
 func (log jellogLogger) LogResult(req *http.Request, r jelly.Result) {
 	if r.IsErr {
-		log.logHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
+		logHTTPResponse(log, "ERROR", req, r.Status, r.InternalMsg)
 	} else {
-		log.logHTTPResponse("INFO", req, r.Status, r.InternalMsg)
+		logHTTPResponse(log, "INFO", req, r.Status, r.InternalMsg)
 	}
 }
 
-func (log jellogLogger) logHTTPResponse(level string, req *http.Request, respStatus int, msg string) {
+func logHTTPResponse(log jelly.Logger, level string, req *http.Request, respStatus int, msg string) {
 	// we don't really care about the ephemeral port from the client end
 	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
 	remoteIP := remoteAddrParts[0]

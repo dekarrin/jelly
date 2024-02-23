@@ -209,7 +209,7 @@ func (p Provider) DontPanic(resp jelly.ResponseGenerator) jelly.Middleware {
 						fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
 					)
 					r.WriteResponse(w)
-					r.Log(req)
+					resp.LogResponse(req, r)
 				}
 			}()
 			next.ServeHTTP(w, req)
@@ -296,7 +296,7 @@ func (ah *authHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			r := ah.resp.Unauthorized("", msg)
 			time.Sleep(ah.provider.UnauthDelay())
 			r.WriteResponse(w)
-			r.Log(req)
+			ah.resp.LogResponse(req, r)
 			return
 		}
 	}

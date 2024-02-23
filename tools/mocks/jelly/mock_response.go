@@ -152,6 +152,18 @@ func (mr *MockResponseGeneratorMockRecorder) InternalServerError(arg0 ...any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InternalServerError", reflect.TypeOf((*MockResponseGenerator)(nil).InternalServerError), arg0...)
 }
 
+// LogResponse mocks base method.
+func (m *MockResponseGenerator) LogResponse(arg0 *http.Request, arg1 jelly.Result) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "LogResponse", arg0, arg1)
+}
+
+// LogResponse indicates an expected call of LogResponse.
+func (mr *MockResponseGeneratorMockRecorder) LogResponse(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LogResponse", reflect.TypeOf((*MockResponseGenerator)(nil).LogResponse), arg0, arg1)
+}
+
 // MethodNotAllowed mocks base method.
 func (m *MockResponseGenerator) MethodNotAllowed(arg0 *http.Request, arg1 ...any) jelly.Result {
 	m.ctrl.T.Helper()

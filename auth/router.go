@@ -32,13 +32,13 @@ func (api *loginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
 		res := em.NotFound()
 		res.WriteResponse(w)
-		res.Log(req)
+		em.LogResponse(req, res)
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(api.UnauthDelay)
 		res := em.MethodNotAllowed(req)
 		res.WriteResponse(w)
-		res.Log(req)
+		em.LogResponse(req, res)
 	})
 
 	return r, true
