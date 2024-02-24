@@ -3,6 +3,10 @@
 Go server framework to run projects that need websites and to learn building
 servers with Go.
 
+It grew out of the TunaQuest server.
+
+This readme will be updated with future releases.
+
 ## Dev Dependencies
 
 In general, Jelly can be developed on with no tools beyond whatever environment
