@@ -341,6 +341,270 @@ func Test_Provider_RegisterAuthenticator(t *testing.T) {
 	}
 }
 
+func Test_Provider_RequireAuth(t *testing.T) {
+	t.Run("user exists", func(t *testing.T) {
+		storedAuthUser := jelly.AuthUser{Username: "gallowsCalibrator"}
+
+		mockCtrl := gomock.NewController(t)
+
+		mockAuthenticator := mock_jelly.NewMockAuthenticator(mockCtrl)
+		mockAuthenticator.EXPECT().
+			Authenticate(gomock.Any()).
+			Return(storedAuthUser, true, nil)
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+
+		assert := assert.New(t)
+
+		reqAfterMW := &http.Request{}
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			*reqAfterMW = *r
+		})
+
+		p := &Provider{
+			authenticators: map[string]jelly.Authenticator{
+				"auth": mockAuthenticator,
+			},
+			mainAuthenticator: "auth",
+		}
+
+		mw := p.RequiredAuth(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		reqCtx := reqAfterMW.Context()
+		loggedIn := reqCtx.Value(ctxKeyLoggedIn)
+		user := reqCtx.Value(ctxKeyUser)
+
+		assert.NotNil(loggedIn, "loggedIn key not set")
+		assert.NotNil(user, "user key not set")
+		assert.True(loggedIn.(bool), "loggedIn is not true")
+		assert.Equal(storedAuthUser.Username, user.(jelly.AuthUser).Username)
+	})
+
+	t.Run("user does not exist", func(t *testing.T) {
+		errorResult := jelly.Result{IsErr: true, Status: http.StatusUnauthorized}
+		mockCtrl := gomock.NewController(t)
+
+		mockAuthenticator := mock_jelly.NewMockAuthenticator(mockCtrl)
+		mockAuthenticator.EXPECT().
+			Authenticate(gomock.Any()).
+			Return(jelly.AuthUser{}, false, nil)
+		mockAuthenticator.EXPECT().
+			UnauthDelay().
+			Return(1 * time.Millisecond)
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+		mockResponseGenerator.EXPECT().
+			Unauthorized(gomock.Any(), "authorization is required").
+			Return(errorResult)
+		mockResponseGenerator.EXPECT().
+			LogResponse(gomock.Any(), errorResult).Return()
+
+		assert := assert.New(t)
+
+		mwHandoffOccurred := false
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			mwHandoffOccurred = true
+		})
+
+		p := &Provider{
+			authenticators: map[string]jelly.Authenticator{
+				"auth": mockAuthenticator,
+			},
+			mainAuthenticator: "auth",
+		}
+
+		mw := p.RequiredAuth(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		assert.False(mwHandoffOccurred)
+	})
+
+	t.Run("Authenticate returns an error", func(t *testing.T) {
+		err := errors.New("An error has occurred")
+		errorResult := jelly.Result{IsErr: true, Status: http.StatusUnauthorized}
+
+		mockCtrl := gomock.NewController(t)
+
+		mockAuthenticator := mock_jelly.NewMockAuthenticator(mockCtrl)
+		mockAuthenticator.EXPECT().
+			Authenticate(gomock.Any()).
+			Return(jelly.AuthUser{}, false, err)
+		mockAuthenticator.EXPECT().
+			UnauthDelay().
+			Return(1 * time.Millisecond)
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+		mockResponseGenerator.EXPECT().
+			Unauthorized(gomock.Any(), err.Error()).
+			Return(errorResult)
+		mockResponseGenerator.EXPECT().
+			LogResponse(gomock.Any(), errorResult).Return()
+
+		assert := assert.New(t)
+
+		mwHandoffOccurred := false
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			mwHandoffOccurred = true
+		})
+
+		p := &Provider{
+			authenticators: map[string]jelly.Authenticator{
+				"auth": mockAuthenticator,
+			},
+			mainAuthenticator: "auth",
+		}
+
+		mw := p.RequiredAuth(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		assert.False(mwHandoffOccurred)
+	})
+}
+
+func Test_Provider_OptionalAuth(t *testing.T) {
+	t.Run("user exists", func(t *testing.T) {
+		storedAuthUser := jelly.AuthUser{Username: "gallowsCalibrator"}
+
+		mockCtrl := gomock.NewController(t)
+
+		mockAuthenticator := mock_jelly.NewMockAuthenticator(mockCtrl)
+		mockAuthenticator.EXPECT().
+			Authenticate(gomock.Any()).
+			Return(storedAuthUser, true, nil)
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+
+		assert := assert.New(t)
+
+		reqAfterMW := &http.Request{}
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			*reqAfterMW = *r
+		})
+
+		p := &Provider{
+			authenticators: map[string]jelly.Authenticator{
+				"auth": mockAuthenticator,
+			},
+			mainAuthenticator: "auth",
+		}
+
+		mw := p.OptionalAuth(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		reqCtx := reqAfterMW.Context()
+		loggedIn := reqCtx.Value(ctxKeyLoggedIn)
+		user := reqCtx.Value(ctxKeyUser)
+
+		assert.NotNil(loggedIn, "loggedIn key not set")
+		assert.NotNil(user, "user key not set")
+		assert.True(loggedIn.(bool), "loggedIn is not true")
+		assert.Equal(storedAuthUser.Username, user.(jelly.AuthUser).Username)
+	})
+
+	t.Run("user does not exist", func(t *testing.T) {
+		mockCtrl := gomock.NewController(t)
+
+		mockAuthenticator := mock_jelly.NewMockAuthenticator(mockCtrl)
+		mockAuthenticator.EXPECT().
+			Authenticate(gomock.Any()).
+			Return(jelly.AuthUser{}, false, nil)
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+
+		assert := assert.New(t)
+
+		reqAfterMW := &http.Request{}
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			*reqAfterMW = *r
+		})
+
+		p := &Provider{
+			authenticators: map[string]jelly.Authenticator{
+				"auth": mockAuthenticator,
+			},
+			mainAuthenticator: "auth",
+		}
+
+		mw := p.OptionalAuth(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		reqCtx := reqAfterMW.Context()
+		loggedIn := reqCtx.Value(ctxKeyLoggedIn)
+		user := reqCtx.Value(ctxKeyUser)
+
+		assert.NotNil(loggedIn, "loggedIn key not set")
+		assert.NotNil(user, "user key not set")
+		assert.False(loggedIn.(bool), "loggedIn is not false")
+		assert.Empty(user.(jelly.AuthUser).Username, "user Username not empty")
+	})
+
+	t.Run("Authenticate returns an error - log and treat as not logged in", func(t *testing.T) {
+		err := errors.New("An error has occurred")
+
+		mockCtrl := gomock.NewController(t)
+
+		mockAuthenticator := mock_jelly.NewMockAuthenticator(mockCtrl)
+		mockAuthenticator.EXPECT().
+			Authenticate(gomock.Any()).
+			Return(jelly.AuthUser{}, false, err)
+
+		mockLogger := mock_jelly.NewMockLogger(mockCtrl)
+		mockLogger.EXPECT().
+			Warnf("optional auth returned error: %v", err).
+			Return()
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+		mockResponseGenerator.EXPECT().
+			Logger().
+			Return(mockLogger)
+
+		assert := assert.New(t)
+
+		reqAfterMW := new(http.Request)
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			*reqAfterMW = *r
+		})
+
+		p := &Provider{
+			authenticators: map[string]jelly.Authenticator{
+				"auth": mockAuthenticator,
+			},
+			mainAuthenticator: "auth",
+		}
+
+		mw := p.OptionalAuth(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		reqCtx := reqAfterMW.Context()
+		loggedIn := reqCtx.Value(ctxKeyLoggedIn)
+		user := reqCtx.Value(ctxKeyUser)
+
+		assert.NotNil(loggedIn, "loggedIn key not set")
+		assert.NotNil(user, "user key not set")
+		assert.False(loggedIn.(bool), "loggedIn is not false")
+		assert.Empty(user.(jelly.AuthUser).Username, "user Username not empty")
+	})
+}
+
 func Test_authHandler(t *testing.T) {
 	type aValues struct {
 		user     jelly.AuthUser
