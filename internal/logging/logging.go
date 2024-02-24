@@ -140,11 +140,7 @@ func (log stdLogger) ErrorBreak() {
 }
 
 func (log stdLogger) LogResult(req *http.Request, r jelly.Result) {
-	if r.IsErr {
-		logHTTPResponse(log, "ERROR", req, r.Status, r.InternalMsg)
-	} else {
-		logHTTPResponse(log, "INFO", req, r.Status, r.InternalMsg)
-	}
+	logHTTPResponse(log, req, r)
 }
 
 type jellogLogger struct {
@@ -212,24 +208,17 @@ func (log jellogLogger) DebugBreak() {
 }
 
 func (log jellogLogger) LogResult(req *http.Request, r jelly.Result) {
-	if r.IsErr {
-		logHTTPResponse(log, "ERROR", req, r.Status, r.InternalMsg)
-	} else {
-		logHTTPResponse(log, "INFO", req, r.Status, r.InternalMsg)
-	}
+	logHTTPResponse(log, req, r)
 }
 
-func logHTTPResponse(log jelly.Logger, level string, req *http.Request, respStatus int, msg string) {
+func logHTTPResponse(log jelly.Logger, req *http.Request, r jelly.Result) {
 	// we don't really care about the ephemeral port from the client end
 	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
 	remoteIP := remoteAddrParts[0]
 
-	if level == "ERROR" {
-		log.Errorf("%s %s %s: HTTP-%d %s", remoteIP, req.Method, req.URL.Path, respStatus, msg)
+	if r.IsErr {
+		log.Errorf("%s %s %s: HTTP-%d %s", remoteIP, req.Method, req.URL.Path, r.Status, r.InternalMsg)
 	} else {
-		log.Infof("%s %s %s: HTTP-%d %s", remoteIP, req.Method, req.URL.Path, respStatus, msg)
+		log.Infof("%s %s %s: HTTP-%d %s", remoteIP, req.Method, req.URL.Path, r.Status, r.InternalMsg)
 	}
-
-	// original "log" provider style.
-	// log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }
