@@ -1,5 +1,8 @@
 # jelly
 
+![Tests Status Badge](https://github.com/dekarrin/jelly/actions/workflows/tests.yml/badge.svg?branch=main&event=push)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dekarrin/jelly.svg)](https://pkg.go.dev/github.com/dekarrin/jelly)
+
 Go server framework to run projects that need websites and to learn building
 servers with Go.
 
