@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -257,6 +258,84 @@ func Test_Provider_RegisterMainAuthenticator(t *testing.T) {
 				assert.Error(actualErr)
 			} else {
 				assert.NoError(actualErr)
+				assert.Equal(tc.p.mainAuthenticator, tc.authName)
+			}
+		})
+	}
+}
+
+func Test_Provider_RegisterAuthenticator(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockAuthenticator1 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator1.EXPECT().UnauthDelay().Return(1 * time.Millisecond).AnyTimes()
+	mockAuthenticator2 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator2.EXPECT().UnauthDelay().Return(2 * time.Millisecond).AnyTimes()
+	mockAuthenticator3 := mock_jelly.NewMockAuthenticator(mockCtrl)
+	mockAuthenticator3.EXPECT().UnauthDelay().Return(3 * time.Millisecond).AnyTimes()
+
+	testCases := []struct {
+		name      string
+		p         *Provider
+		authName  string
+		auth      jelly.Authenticator
+		expectErr bool
+	}{
+		{
+			name:     "add regular authenticator - none existing",
+			p:        &Provider{},
+			authName: "bob",
+			auth:     mockAuthenticator1,
+		},
+		{
+			name: "add regular authenticator - some pre-existing",
+			p: &Provider{
+				authenticators: map[string]jelly.Authenticator{
+					"auth1": mockAuthenticator1,
+					"auth2": mockAuthenticator2,
+				},
+			},
+			authName: "auth3",
+			auth:     mockAuthenticator3,
+		},
+		{
+			name:      "nil authenticator - error",
+			p:         &Provider{},
+			authName:  "bob",
+			auth:      nil,
+			expectErr: true,
+		},
+		{
+			name:      "empty name - error",
+			p:         &Provider{},
+			authName:  "",
+			auth:      mockAuthenticator1,
+			expectErr: true,
+		},
+		{
+			name: "name already exists - error",
+			p: &Provider{
+				authenticators: map[string]jelly.Authenticator{
+					"bob":   mockAuthenticator1,
+					"alice": mockAuthenticator2,
+				},
+			},
+			authName:  "bob",
+			auth:      mockAuthenticator3,
+			expectErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			actualErr := tc.p.RegisterAuthenticator(tc.authName, tc.auth)
+
+			if tc.expectErr {
+				assert.Error(actualErr)
+			} else {
+				assert.NoError(actualErr)
+				assert.Contains(tc.p.authenticators, strings.ToLower(tc.authName))
 			}
 		})
 	}

@@ -141,6 +141,10 @@ func (p *Provider) RegisterMainAuthenticator(name string) error {
 func (p *Provider) RegisterAuthenticator(name string, authen jelly.Authenticator) error {
 	p.initDefaults()
 
+	if name == "" {
+		return fmt.Errorf("authenticator name cannot be empty")
+	}
+
 	normName := strings.ToLower(name)
 	if p.authenticators == nil {
 		p.authenticators = map[string]jelly.Authenticator{}
