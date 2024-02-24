@@ -10,6 +10,7 @@ import (
 
 type endpointCreator struct {
 	mid *middle.Provider
+	log jelly.Logger
 }
 
 func (em endpointCreator) DontPanic() jelly.Middleware {
@@ -47,6 +48,6 @@ func (em endpointCreator) Endpoint(ep jelly.EndpointFunc, overrides ...jelly.Ove
 		}
 
 		r.WriteResponse(w)
-		r.Log(req)
+		em.LogResponse(req, r)
 	}
 }

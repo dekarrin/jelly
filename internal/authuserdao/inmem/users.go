@@ -7,19 +7,20 @@ import (
 
 	"github.com/dekarrin/jelly"
 	"github.com/dekarrin/jelly/db"
+	"github.com/dekarrin/jelly/internal/authuserdao"
 	"github.com/dekarrin/jelly/internal/jelsort"
 	"github.com/google/uuid"
 )
 
 func NewAuthUserRepository() *AuthUserRepo {
 	return &AuthUserRepo{
-		users:           make(map[uuid.UUID]db.User),
+		users:           make(map[uuid.UUID]authuserdao.User),
 		byUsernameIndex: make(map[string]uuid.UUID),
 	}
 }
 
 type AuthUserRepo struct {
-	users           map[uuid.UUID]db.User
+	users           map[uuid.UUID]authuserdao.User
 	byUsernameIndex map[string]uuid.UUID
 }
 
@@ -33,7 +34,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 		return jelly.AuthUser{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
-	user := db.NewUserFromAuthUser(u)
+	user := authuserdao.NewUserFromAuthUser(u)
 	user.ID = newUUID
 
 	// make sure it's not already in the DB
@@ -73,7 +74,7 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 	if !ok {
 		return jelly.AuthUser{}, jelly.ErrDBNotFound
 	}
-	user := db.NewUserFromAuthUser(u)
+	user := authuserdao.NewUserFromAuthUser(u)
 
 	// check for conflicts on this table only
 	// (inmem does not support enforcement of foreign keys)

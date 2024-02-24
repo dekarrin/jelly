@@ -117,35 +117,68 @@ func (e Error) Is(target error) bool {
 	return false
 }
 
-// WrapSQLiteError wraps an error from the SQLite engine into an error useable by
-// the rest of the jelly framework. It should be called on any error returned
-// from SQLite before a repo passes the error back to a caller.
-//
-// TODO: merge with WrapDBError
-func WrapSQLiteError(err error) error {
+func convertDBError(err error) error {
 	sqliteErr := &sqlite.Error{}
 	if errors.As(err, &sqliteErr) {
 		primaryCode := sqliteErr.Code() & 0xff
 		if primaryCode == 19 {
-			return fmt.Errorf("%w: %s", ErrDBConstraintViolation, err.Error())
-		}
-		if primaryCode == 1 {
-			// this is a generic error and thus the string is not descriptive,
-			// so preserve the original error instead
+			// preserve the error message for constraints violations
+			return NewError(ErrDBConstraintViolation.Error(), err, ErrDBConstraintViolation)
+		} else if primaryCode == 1 {
+			// 1 is a generic error and thus the string is not descriptive, so
+			// do not use the error code string
 			return err
 		}
-		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
+
+		return NewError(sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
 		return ErrDBNotFound
 	}
+
 	return err
 }
 
-// WrapDBErr creates a new Error that wraps the given error as a cause and
+// WrapDBError creates a new Error that wraps the given error as a cause and
 // automatically adds ErrDB as another cause. A user-set message may be provided
 // if desired with msg, but it may be left as "".
-func WrapDBErr(msg string, err error) Error {
+//
+// The provided error being wrapped will itself be converted to an Error of the
+// approriate jelly type if possible; e.g. SQLite-specific errors indicating
+// that a record could not be found would be converted to an Error that returns
+// true for errors.Is(err, jelly.ErrNotFound).
+//
+// msg, if provided, is used to create the msg of the error by calling
+// fmt.Sprint. For format capability, use WrapDBErrorf.
+func WrapDBError(err error, msg ...any) Error {
+	err = convertDBError(err)
+
+	var errMsg string
+	if len(msg) > 0 {
+		errMsg = fmt.Sprint(msg...)
+	}
+
 	return Error{
+		msg:   errMsg,
+		cause: []error{err, ErrDB},
+	}
+}
+
+// WrapDBError creates a new Error that wraps the given error as a cause and
+// automatically adds ErrDB as another cause. A user-set message may be provided
+// if desired with format and arguments a.
+//
+// The provided error being wrapped will itself be converted to an Error of the
+// approriate jelly type if possible; e.g. SQLite-specific errors indicating
+// that a record could not be found would be converted to an Error that returns
+// true for errors.Is(err, jelly.ErrNotFound).
+//
+// msg, if provided, is used to create the msg of the error by calling
+// fmt.Sprintf.
+func WrapDBErrorf(err error, format string, a ...any) Error {
+	err = convertDBError(err)
+
+	return Error{
+		msg:   fmt.Sprintf(format, a...),
 		cause: []error{err, ErrDB},
 	}
 }

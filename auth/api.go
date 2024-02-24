@@ -12,11 +12,11 @@ import (
 
 var useJellyauthJWT = jelly.Override{Authenticators: []string{"jellyauth.jwt"}}
 
-// LoginAPI holds endpoint frontend for the login service.
-type LoginAPI struct {
+// loginAPI holds endpoint frontend for the login service.
+type loginAPI struct {
 	// Service is the service that the API calls to perform the requested
 	// actions.
-	Service LoginService
+	Service loginService
 
 	// UnauthDelay is the amount of time that a request will pause before
 	// responding with an HTTP-403, HTTP-401, or HTTP-500 to deprioritize such
@@ -35,7 +35,7 @@ type LoginAPI struct {
 	log jelly.Logger
 }
 
-func (api *LoginAPI) Init(cb jelly.Bundle) error {
+func (api *loginAPI) Init(cb jelly.Bundle) error {
 	api.name = cb.Name()
 	api.log = cb.Logger()
 	api.Secret = cb.GetByteSlice(ConfigKeySecret)
@@ -52,7 +52,7 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 	if !ok {
 		return fmt.Errorf("DB provided under 'auth' does not implement db.AuthUserStore")
 	}
-	api.Service = LoginService{
+	api.Service = loginService{
 		Provider: authStore,
 	}
 	api.pathPrefix = cb.Base()
@@ -98,12 +98,12 @@ func (api *LoginAPI) Init(cb jelly.Bundle) error {
 	return nil
 }
 
-func (api *LoginAPI) Authenticators() map[string]jelly.Authenticator {
+func (api *loginAPI) Authenticators() map[string]jelly.Authenticator {
 	// this provides one and only one authenticator, the jwt one.
 
 	// we will have had Init called, ergo secret and the service db will exist
 	return map[string]jelly.Authenticator{
-		"jwt": JWTAuthProvider{
+		"jwt": jwtAuthProvider{
 			secret:      api.Secret,
 			db:          api.Service.Provider.AuthUsers(),
 			unauthDelay: api.UnauthDelay,
@@ -114,7 +114,7 @@ func (api *LoginAPI) Authenticators() map[string]jelly.Authenticator {
 
 // Shutdown shuts down the login API. This is added to implement jelapi.API, and
 // has no effect on the login API but to return the error of the context.
-func (api *LoginAPI) Shutdown(ctx context.Context) error {
+func (api *loginAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
@@ -124,11 +124,11 @@ func (api *LoginAPI) Shutdown(ctx context.Context) error {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // a value denoting whether the client making the request is logged-in.
-func (api LoginAPI) httpGetInfo(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpGetInfo(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		user, loggedIn := em.GetLoggedInUser(req)
 
-		var resp InfoModel
+		var resp infoModel
 		resp.Version.Auth = Version
 
 		userStr := "unauthed client"
@@ -141,9 +141,9 @@ func (api LoginAPI) httpGetInfo(em jelly.ServiceProvider) http.HandlerFunc {
 
 // httpCreateLogin returns a HandlerFunc that uses the API to log in a user with
 // a username and password and return the auth token for that user.
-func (api LoginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
-		loginData := LoginRequest{}
+		loginData := loginRequest{}
 		err := jelly.ParseJSONRequest(req, &loginData)
 		if err != nil {
 			return em.BadRequest(err.Error(), err.Error())
@@ -172,7 +172,7 @@ func (api LoginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.InternalServerError("could not generate JWT: " + err.Error())
 		}
 
-		resp := LoginResponse{
+		resp := loginResponse{
 			Token:  tok,
 			UserID: user.ID.String(),
 		}
@@ -187,7 +187,7 @@ func (api LoginAPI) httpCreateLogin(em jelly.ServiceProvider) http.HandlerFunc {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user to log out and the logged-in user of the client making the
 // request.
-func (api LoginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
 		user, _ := em.GetLoggedInUser(req)
@@ -235,7 +235,7 @@ func (api LoginAPI) httpDeleteLogin(em jelly.ServiceProvider) http.HandlerFunc {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
-func (api LoginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		user, _ := em.GetLoggedInUser(req)
 
@@ -244,7 +244,7 @@ func (api LoginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.InternalServerError("could not generate JWT: " + err.Error())
 		}
 
-		resp := LoginResponse{
+		resp := loginResponse{
 			Token:  tok,
 			UserID: user.ID.String(),
 		}
@@ -258,7 +258,7 @@ func (api LoginAPI) httpCreateToken(em jelly.ServiceProvider) http.HandlerFunc {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
-func (api LoginAPI) httpGetAllUsers(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpGetAllUsers(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		user, _ := em.GetLoggedInUser(req)
 
@@ -271,10 +271,10 @@ func (api LoginAPI) httpGetAllUsers(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.InternalServerError(err.Error())
 		}
 
-		resp := make([]UserModel, len(users))
+		resp := make([]userModel, len(users))
 
 		for i := range users {
-			resp[i] = UserModel{
+			resp[i] = userModel{
 				URI:            api.pathPrefix + "/users/" + users[i].ID.String(),
 				ID:             users[i].ID.String(),
 				Username:       users[i].Username,
@@ -297,7 +297,7 @@ func (api LoginAPI) httpGetAllUsers(em jelly.ServiceProvider) http.HandlerFunc {
 // The handler has requirements for the request context it receives, and if the
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
-func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		user, _ := em.GetLoggedInUser(req)
 
@@ -305,7 +305,7 @@ func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 		}
 
-		var createUser UserModel
+		var createUser userModel
 		err := jelly.ParseJSONRequest(req, &createUser)
 		if err != nil {
 			return em.BadRequest(err.Error(), err.Error())
@@ -336,7 +336,7 @@ func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 			}
 		}
 
-		resp := UserModel{
+		resp := userModel{
 			URI:            api.pathPrefix + "/users/" + newUser.ID.String(),
 			ID:             newUser.ID.String(),
 			Username:       newUser.Username,
@@ -360,7 +360,7 @@ func (api LoginAPI) httpCreateUser(em jelly.ServiceProvider) http.HandlerFunc {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
-func (api LoginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
 		user, _ := em.GetLoggedInUser(req)
@@ -391,7 +391,7 @@ func (api LoginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
 		}
 
 		// put it into a model to return
-		resp := UserModel{
+		resp := userModel{
 			URI:            api.pathPrefix + "/users/" + userInfo.ID.String(),
 			ID:             userInfo.ID.String(),
 			Username:       userInfo.Username,
@@ -427,7 +427,7 @@ func (api LoginAPI) httpGetUser(em jelly.ServiceProvider) http.HandlerFunc {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
-func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
 		user, _ := em.GetLoggedInUser(req)
@@ -445,12 +445,12 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.Forbidden("user '%s' (role %s) update user %s: forbidden", user.Username, user.Role, otherUserStr)
 		}
 
-		var updateReq UserUpdateRequest
+		var updateReq userUpdateRequest
 		err := jelly.ParseJSONRequest(req, &updateReq)
 		if err != nil {
 			if errors.Is(err, jelly.ErrBodyUnmarshal) {
 				// did they send a normal user?
-				var normalUser UserModel
+				var normalUser userModel
 				err2 := jelly.ParseJSONRequest(req, &normalUser)
 				if err2 == nil {
 					return em.BadRequest("updated fields must be objects with keys {'u': true, 'v': NEW_VALUE}", "request is UserModel, not UserUpdateRequest")
@@ -517,7 +517,7 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.InternalServerError(err.Error())
 		}
 
-		resp := UserModel{
+		resp := userModel{
 			URI:            api.pathPrefix + "/users/" + updated.ID.String(),
 			ID:             updated.ID.String(),
 			Username:       updated.Username,
@@ -541,7 +541,7 @@ func (api LoginAPI) httpUpdateUser(em jelly.ServiceProvider) http.HandlerFunc {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being replaced and the logged-in user of the client making
 // the request.
-func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
 		user, _ := em.GetLoggedInUser(req)
@@ -550,7 +550,7 @@ func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.Forbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 		}
 
-		var createUser UserModel
+		var createUser userModel
 		err := jelly.ParseJSONRequest(req, &createUser)
 		if err != nil {
 			return em.BadRequest(err.Error(), err.Error())
@@ -597,7 +597,7 @@ func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 			return em.InternalServerError(err.Error())
 		}
 
-		resp := UserModel{
+		resp := userModel{
 			URI:            api.pathPrefix + "/users/" + newUser.ID.String(),
 			ID:             newUser.ID.String(),
 			Username:       newUser.Username,
@@ -620,7 +620,7 @@ func (api LoginAPI) httpReplaceUser(em jelly.ServiceProvider) http.HandlerFunc {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the ID of the user being deleted and the logged-in user of the client making
 // the request.
-func (api LoginAPI) httpDeleteUser(em jelly.ServiceProvider) http.HandlerFunc {
+func (api loginAPI) httpDeleteUser(em jelly.ServiceProvider) http.HandlerFunc {
 	return em.Endpoint(func(req *http.Request) jelly.Result {
 		id := jelly.RequireIDParam(req)
 		user, _ := em.GetLoggedInUser(req)

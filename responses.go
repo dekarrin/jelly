@@ -3,9 +3,7 @@ package jelly
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 )
 
 type ErrorResponse struct {
@@ -13,6 +11,7 @@ type ErrorResponse struct {
 	Status int    `json:"status"`
 }
 
+// should not be directly init'd probs because log will not be set
 type Result struct {
 	Status      int
 	IsErr       bool
@@ -23,6 +22,8 @@ type Result struct {
 	Redir string // only used for redirects
 
 	hdrs [][2]string
+
+	log Logger
 
 	// set by calling PrepareMarshaledResponse.
 	respJSONBytes []byte
@@ -36,6 +37,7 @@ func (r Result) WithHeader(name, val string) Result {
 		InternalMsg: r.InternalMsg,
 		Resp:        r.Resp,
 		hdrs:        r.hdrs,
+		log:         r.log,
 	}
 
 	erCopy.hdrs = append(erCopy.hdrs, [2]string{name, val})
@@ -108,31 +110,6 @@ func (r Result) WriteResponse(w http.ResponseWriter) {
 	}
 }
 
-// TODO: detangle this and make it use the actual log provider.
-func (r Result) Log(req *http.Request) {
-	if r.IsErr {
-		LogHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
-	} else {
-		LogHTTPResponse("INFO", req, r.Status, r.InternalMsg)
-	}
-}
-
-func LogHTTPResponse(level string, req *http.Request, respStatus int, msg string) {
-	if len(level) > 5 {
-		level = level[0:5]
-	}
-
-	for len(level) < 5 {
-		level += " "
-	}
-
-	// we don't really care about the ephemeral port from the client end
-	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
-	remoteIP := remoteAddrParts[0]
-
-	log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
-}
-
 type ResponseGenerator interface {
 	OK(respObj interface{}, internalMsg ...interface{}) Result
 	NoContent(internalMsg ...interface{}) Result
@@ -148,4 +125,9 @@ type ResponseGenerator interface {
 	Response(status int, respObj interface{}, internalMsg string, v ...interface{}) Result
 	Err(status int, userMsg, internalMsg string, v ...interface{}) Result
 	TextErr(status int, userMsg, internalMsg string, v ...interface{}) Result
+	LogResponse(req *http.Request, r Result)
+
+	// Logger should not be called by external users of jelly; it is in a
+	// transitory state and is slated for removal in a future release.
+	Logger() Logger
 }

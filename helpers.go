@@ -84,7 +84,7 @@ func RedirectNoTrailingSlash(sp ServiceProvider) http.HandlerFunc {
 		redirPath := strings.TrimRight(req.URL.Path, "/")
 		r := sp.Redirection(redirPath)
 		r.WriteResponse(w)
-		r.Log(req)
+		sp.LogResponse(req, r)
 	}
 }
 

@@ -15,14 +15,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
-	"github.com/google/uuid"
 )
-
-type Model[ID any] interface {
-	// ModelID returns a jeldao-usable ID that identifies the Model uniquely.
-	// For those fields which
-	ModelID() ID
-}
 
 func NowTimestamp() Timestamp {
 	return Timestamp(time.Now())
@@ -88,57 +81,4 @@ func (em *Email) Scan(value interface{}) error {
 
 	em.V = email
 	return nil
-}
-
-// User is a pre-rolled DB model version of a jelly.AuthUser.
-type User struct {
-	ID         uuid.UUID  // PK, NOT NULL
-	Username   string     // UNIQUE, NOT NULL
-	Password   string     // NOT NULL
-	Email      Email      // NOT NULL
-	Role       jelly.Role // NOT NULL
-	Created    Timestamp  // NOT NULL
-	Modified   Timestamp  // NOT NULL
-	LastLogout Timestamp  // NOT NULL DEFAULT NOW()
-	LastLogin  Timestamp  // NOT NULL
-}
-
-func (u User) ModelID() uuid.UUID {
-	return u.ID
-}
-
-func (u User) AuthUser() jelly.AuthUser {
-	return jelly.AuthUser{
-		ID:         u.ID,
-		Username:   u.Username,
-		Password:   u.Password,
-		Role:       u.Role,
-		Email:      u.Email.String(),
-		Created:    u.Created.Time(),
-		Modified:   u.Modified.Time(),
-		LastLogout: u.LastLogout.Time(),
-		LastLogin:  u.LastLogin.Time(),
-	}
-}
-
-func NewUserFromAuthUser(au jelly.AuthUser) User {
-	u := User{
-		ID:         au.ID,
-		Username:   au.Username,
-		Password:   au.Password,
-		Role:       au.Role,
-		Created:    Timestamp(au.Created),
-		Modified:   Timestamp(au.Modified),
-		LastLogout: Timestamp(au.LastLogout),
-		LastLogin:  Timestamp(au.LastLogin),
-	}
-
-	if au.Email != "" {
-		m, err := mail.ParseAddress(au.Email)
-		if err == nil {
-			u.Email.V = m
-		}
-	}
-
-	return u
 }
