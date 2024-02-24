@@ -3,8 +3,10 @@ package middle
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -602,6 +604,91 @@ func Test_Provider_OptionalAuth(t *testing.T) {
 		assert.NotNil(user, "user key not set")
 		assert.False(loggedIn.(bool), "loggedIn is not false")
 		assert.Empty(user.(jelly.AuthUser).Username, "user Username not empty")
+	})
+}
+
+func regex(reg string) regexMatcherM {
+	return regexMatcherM{
+		exp: regexp.MustCompile(reg),
+	}
+}
+
+type regexMatcherM struct {
+	exp *regexp.Regexp
+}
+
+func (m regexMatcherM) String() string {
+	return fmt.Sprintf("any string that matches regex %q", m.exp.String())
+}
+
+func (m regexMatcherM) Matches(x any) bool {
+	strX, ok := x.(string)
+	if !ok {
+		return false
+	}
+
+	return m.exp.MatchString(strX)
+}
+
+func Test_Provider_DontPanic(t *testing.T) {
+	t.Run("no panic occurs - no special calls", func(t *testing.T) {
+		mockCtrl := gomock.NewController(t)
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+
+		assert := assert.New(t)
+
+		mwHandoffOccurred := false
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			mwHandoffOccurred = true
+		})
+
+		p := &Provider{}
+		mw := p.DontPanic(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+		assert.True(mwHandoffOccurred)
+	})
+
+	t.Run("a panic is logged and results in a 500 response", func(t *testing.T) {
+		const panicMsg = "something is very wrong! glub"
+
+		mockCtrl := gomock.NewController(t)
+
+		errResult := jelly.Result{
+			IsJSON:      false,
+			IsErr:       true,
+			Status:      http.StatusInternalServerError,
+			InternalMsg: "An internal server error occurred",
+			Resp:        "Oh dear, a panic happened",
+		}
+
+		mockResponseGenerator := mock_jelly.NewMockResponseGenerator(mockCtrl)
+		mockResponseGenerator.EXPECT().
+			TextErr(http.StatusInternalServerError, "An internal server error occurred", regex("^panic: "+panicMsg)).
+			Return(errResult)
+		mockResponseGenerator.EXPECT().
+			LogResponse(gomock.Any(), errResult).
+			Return()
+
+		assert := assert.New(t)
+
+		receiver := mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			panic(panicMsg)
+		})
+
+		p := &Provider{}
+		mw := p.DontPanic(mockResponseGenerator)
+		handler := mw(receiver)
+
+		recorder := httptest.NewRecorder()
+		assert.NotPanics(func() {
+			handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+		})
+		assert.Equal(http.StatusInternalServerError, recorder.Result().StatusCode)
 	})
 }
 
