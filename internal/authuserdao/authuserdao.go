@@ -1,3 +1,5 @@
+// Package authuserdao provides common DAO objects for the pre-provided authuser
+// storage backends.
 package authuserdao
 
 import (
