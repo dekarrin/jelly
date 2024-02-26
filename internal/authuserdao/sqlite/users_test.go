@@ -7,6 +7,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/dekarrin/jelly"
+	jeldb "github.com/dekarrin/jelly/db"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,20 +40,33 @@ func Test_Create(t *testing.T) {
 		LastLogout: logoutTime,
 	}
 
-	mockRows := sqlmock.NewRows([]string{
+	insertedTime := time.Date(2024, 2, 2, 2, 3, 12, 0, time.UTC)
+
+	mockSelectRows := sqlmock.NewRows([]string{
 		"username", "password", "role", "email", "created", "modified", "last_logout_time", "last_login_time",
 	}).AddRow(
-		input.Username, input.Password, input.Role.String(), input.Email, input.Created
+		input.Username, input.Password, input.Role.String(), input.Email, insertedTime, insertedTime, insertedTime, 0,
 	)
 
 	dbMock.
 		ExpectPrepare("INSERT INTO users").
 		ExpectExec().
+		WithArgs(
+			jeldb.AnyTime{},
+			input.Username,
+			input.Password,
+			input.Role,
+			input.Email,
+			jeldb.AnyTime{After: &createdTime},
+			jeldb.AnyTime{After: &modifiedTime},
+			jeldb.AnyTime{After: &logoutTime},
+			jeldb.AnyTime{},
+		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	dbMock.
 		ExpectQuery("SELECT .* FROM users").
-		WillReturnRows()
+		WillReturnRows(mockSelectRows)
 
 	actual, err := db.Create(ctx, input)
 
