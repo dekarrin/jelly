@@ -37,7 +37,7 @@ func (ts Timestamp) Value() (driver.Value, error) {
 func (ts *Timestamp) Scan(value interface{}) error {
 	iVal, ok := value.(int64)
 	if !ok {
-		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.ErrDBDecodingFailure)
+		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.ErrDecodingFailure)
 	}
 
 	tVal := time.Unix(iVal, 0).In(time.UTC)
@@ -68,7 +68,7 @@ func (em Email) Value() (driver.Value, error) {
 func (em *Email) Scan(value interface{}) error {
 	s, ok := value.(string)
 	if !ok {
-		return jelly.NewError(fmt.Sprintf("not a string value: %v", value), jelly.ErrDBDecodingFailure)
+		return jelly.NewError(fmt.Sprintf("not a string value: %v", value), jelly.ErrDecodingFailure)
 	}
 	if s == "" {
 		em.V = nil
@@ -77,7 +77,7 @@ func (em *Email) Scan(value interface{}) error {
 
 	email, err := mail.ParseAddress(s)
 	if err != nil {
-		return jelly.NewError("", err, jelly.ErrDBDecodingFailure)
+		return jelly.NewError("", err, jelly.ErrDecodingFailure)
 	}
 
 	em.V = email

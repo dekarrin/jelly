@@ -34,7 +34,7 @@ func validateToken(ctx context.Context, tok string, secret []byte, userDB jelly.
 
 		user, err = userDB.Get(ctx, id)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")

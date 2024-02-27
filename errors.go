@@ -9,18 +9,15 @@ import (
 )
 
 var (
-	ErrBadCredentials = errors.New("the supplied username/password combination is incorrect")
-	ErrPermissions    = errors.New("you don't have permission to do that")
-	ErrNotFound       = errors.New("the requested entity could not be found")
-	ErrAlreadyExists  = errors.New("resource with same identifying information already exists")
-	ErrDB             = errors.New("an error occured with the DB")
-	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
-	ErrBodyUnmarshal  = errors.New("malformed data in request")
-
-	// TODO: merge the two types of errors.
-	ErrDBConstraintViolation = errors.New("a uniqueness constraint was violated")
-	ErrDBNotFound            = errors.New("the requested resource was not found")
-	ErrDBDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
+	ErrBadCredentials      = errors.New("the supplied username/password combination is incorrect")
+	ErrPermissions         = errors.New("you don't have permission to do that")
+	ErrNotFound            = errors.New("the requested entity could not be found")
+	ErrAlreadyExists       = errors.New("resource with same identifying information already exists")
+	ErrDB                  = errors.New("an error occured with the DB")
+	ErrBadArgument         = errors.New("one or more of the arguments is invalid")
+	ErrBodyUnmarshal       = errors.New("malformed data in request")
+	ErrConstraintViolation = errors.New("a uniqueness constraint was violated")
+	ErrDecodingFailure     = errors.New("field could not be decoded from storage format")
 )
 
 // Error is a typed error returned by certain functions in the TunaScript server
@@ -123,7 +120,7 @@ func convertDBError(err error) error {
 		primaryCode := sqliteErr.Code() & 0xff
 		if primaryCode == 19 {
 			// preserve the error message for constraints violations
-			return NewError(ErrDBConstraintViolation.Error(), err, ErrDBConstraintViolation)
+			return NewError(ErrConstraintViolation.Error(), err, ErrConstraintViolation)
 		} else if primaryCode == 1 {
 			// 1 is a generic error and thus the string is not descriptive, so
 			// do not use the error code string
@@ -132,7 +129,7 @@ func convertDBError(err error) error {
 
 		return NewError(sqlite.ErrorCodeString[sqliteErr.Code()])
 	} else if errors.Is(err, sql.ErrNoRows) {
-		return ErrDBNotFound
+		return ErrNotFound
 	}
 
 	return err

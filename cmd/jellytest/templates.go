@@ -21,7 +21,7 @@ func initDBWithTemplates(ctx context.Context, log jelly.Logger, repo dao.Templat
 		}
 		created, err := repo.Create(ctx, dbMsg)
 		if err != nil {
-			if !errors.Is(err, jelly.ErrDBConstraintViolation) {
+			if !errors.Is(err, jelly.ErrConstraintViolation) {
 				return fmt.Errorf("create initial messages: %w", err)
 			} else {
 				log.Tracef("Skipping adding message to DB via config; already exists: %q", m)
@@ -136,7 +136,7 @@ func (ep templateEndpoints) httpGetAllTemplates() http.HandlerFunc {
 
 		all, err := ep.templates.GetAll(req.Context())
 		if err != nil {
-			if !errors.Is(err, jelly.ErrDBNotFound) {
+			if !errors.Is(err, jelly.ErrNotFound) {
 				return ep.em.InternalServerError("retrieve all %s templates: %v", ep.name, err)
 			}
 		}
@@ -159,7 +159,7 @@ func (ep templateEndpoints) httpGetTemplate() http.HandlerFunc {
 
 		retrieved, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return ep.em.NotFound()
 			}
 			return ep.em.InternalServerError("retrieve %s template: %v", ep.name, err)
@@ -196,7 +196,7 @@ func (ep templateEndpoints) httpCreateTemplate() http.HandlerFunc {
 
 		created, err := ep.templates.Create(req.Context(), newMsg)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBConstraintViolation) {
+			if errors.Is(err, jelly.ErrConstraintViolation) {
 				return ep.em.Conflict("a template with that exact content already exists", err.Error())
 			}
 			return ep.em.InternalServerError("could not create %s template: %v", ep.name, err)
@@ -218,7 +218,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 		// first, find the template owner
 		t, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return ep.em.NotFound()
 			}
 			return ep.em.InternalServerError("retrieve %s template to delete: %v", ep.name, err)
@@ -251,7 +251,7 @@ func (ep templateEndpoints) httpDeleteTemplate() http.HandlerFunc {
 
 		deleted, err := ep.templates.Delete(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return ep.em.NotFound()
 			} else {
 				return ep.em.InternalServerError("delete %s template from DB: %v", ep.name, err)
@@ -296,7 +296,7 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 		// first, find the original to check perms
 		t, err := ep.templates.Get(req.Context(), id)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return ep.em.NotFound()
 			}
 			return ep.em.InternalServerError("retrieve %s template to update: %v", ep.name, err)
@@ -359,9 +359,9 @@ func (ep templateEndpoints) httpUpdateTemplate() http.HandlerFunc {
 
 		updated, err := ep.templates.Update(req.Context(), id, daoSubmitted)
 		if err != nil {
-			if errors.Is(err, jelly.ErrDBNotFound) {
+			if errors.Is(err, jelly.ErrNotFound) {
 				return ep.em.NotFound()
-			} else if errors.Is(err, jelly.ErrDBConstraintViolation) {
+			} else if errors.Is(err, jelly.ErrConstraintViolation) {
 				return ep.em.Conflict("a template with that exact content already exists", err.Error())
 			} else {
 				return ep.em.InternalServerError("update %s template: %v", ep.name, err)
