@@ -38,10 +38,15 @@ func (m AnyUUID) Match(v driver.Value) bool {
 // After is set, it will match any time that comes after the given one. If
 // Before is set, it will match any time that comes before the given one. These
 // may be combined; if multiple are given, their conditions are AND'd together.
+//
+// If EqualTo is given, it is also AND'd with the others, although note that it
+// will almost certainly cover fewer cases than the others and is intended to
+// be used on its own.
 type AnyTime struct {
-	Except *time.Time
-	After  *time.Time
-	Before *time.Time
+	Except  *time.Time
+	After   *time.Time
+	Before  *time.Time
+	EqualTo *time.Time
 }
 
 func (m AnyTime) Match(v driver.Value) bool {
@@ -84,6 +89,11 @@ func (m AnyTime) Match(v driver.Value) bool {
 	}
 	if m.Before != nil {
 		if !t.Before(*m.Before) {
+			return false
+		}
+	}
+	if m.EqualTo != nil {
+		if !t.Equal(*m.EqualTo) {
 			return false
 		}
 	}

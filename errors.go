@@ -149,6 +149,8 @@ func convertDBError(err error) error {
 //
 // msg, if provided, is used to create the msg of the error by calling
 // fmt.Sprint. For format capability, use WrapDBErrorf.
+//
+// TODO: this should be in DB package if at all possible.
 func WrapDBError(err error, msg ...any) Error {
 	err = convertDBError(err)
 

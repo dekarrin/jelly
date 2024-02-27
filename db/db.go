@@ -18,11 +18,12 @@ import (
 )
 
 func NowTimestamp() Timestamp {
-	return Timestamp(time.Now())
+	return Timestamp(time.Now().UTC())
 }
 
 // Timestamp is a time.Time variation that stores itself in the DB as the number
-// of seconds since the Unix epoch.
+// of seconds since the Unix epoch. All timestamps returned from Scan will have
+// timezone set to UTC.
 type Timestamp time.Time
 
 func (ts Timestamp) Format(layout string) string {
@@ -36,10 +37,10 @@ func (ts Timestamp) Value() (driver.Value, error) {
 func (ts *Timestamp) Scan(value interface{}) error {
 	iVal, ok := value.(int64)
 	if !ok {
-		return fmt.Errorf("not an integer value: %v", value)
+		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.ErrDBDecodingFailure)
 	}
 
-	tVal := time.Unix(iVal, 0)
+	tVal := time.Unix(iVal, 0).In(time.UTC)
 	*ts = Timestamp(tVal)
 	return nil
 }
@@ -67,7 +68,7 @@ func (em Email) Value() (driver.Value, error) {
 func (em *Email) Scan(value interface{}) error {
 	s, ok := value.(string)
 	if !ok {
-		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.ErrDBDecodingFailure)
+		return jelly.NewError(fmt.Sprintf("not a string value: %v", value), jelly.ErrDBDecodingFailure)
 	}
 	if s == "" {
 		em.V = nil
