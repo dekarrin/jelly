@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -12,6 +13,110 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
+
+func Test_Get(t *testing.T) {
+	testCases := []struct {
+		name              string
+		id                uuid.UUID
+		queryReturnsUser  jelly.AuthUser
+		queryReturnsError error
+		expectUser        jelly.AuthUser
+		expectErrToMatch  []error
+	}{
+		{
+			name: "happy path",
+			id:   uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+			queryReturnsUser: jelly.AuthUser{
+				ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+				Username: "turntechGodhead",
+				Email:    "dave@morethanpuppets.com",
+			},
+			expectUser: jelly.AuthUser{
+				ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+				Username: "turntechGodhead",
+				Email:    "dave@morethanpuppets.com",
+			},
+		},
+		{
+			name:              "not found error raised",
+			id:                uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+			queryReturnsError: sql.ErrNoRows,
+			expectErrToMatch: []error{
+				jelly.ErrDB,
+				jelly.ErrNotFound,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			driver, dbMock, err := sqlmock.New()
+			if !assert.NoError(err) {
+				return
+			}
+
+			db := AuthUsersDB{DB: driver}
+			ctx := context.Background()
+
+			if tc.queryReturnsError != nil {
+				dbMock.
+					ExpectQuery("SELECT .* FROM users").
+					WillReturnError(tc.queryReturnsError)
+			} else {
+				stored := tc.queryReturnsUser
+				dbMock.
+					ExpectQuery("SELECT .* FROM users").
+					WillReturnRows(sqlmock.NewRows([]string{
+						"username",
+						"password",
+						"role",
+						"email",
+						"created",
+						"modified",
+						"last_logout_time",
+						"last_login_time",
+					}).AddRow(
+						stored.Username,
+						stored.Password,
+						int64(stored.Role),
+						stored.Email,
+						stored.Created.Unix(),
+						stored.Modified.Unix(),
+						stored.LastLogout.Unix(),
+						stored.LastLogin.Unix(),
+					))
+			}
+
+			// execute
+
+			actual, err := db.Get(ctx, tc.id)
+
+			// assert
+
+			if tc.expectErrToMatch == nil {
+				if !assert.NoError(err) {
+					return
+				}
+				assert.Equal(tc.expectUser, actual)
+			} else {
+				if !assert.Error(err) {
+					return
+				}
+				if !assert.IsType(jelly.Error{}, err, "wrong type error") {
+					return
+				}
+
+				for _, expectMatch := range tc.expectErrToMatch {
+					assert.ErrorIs(err, expectMatch)
+				}
+			}
+
+			assert.NoError(dbMock.ExpectationsWereMet())
+		})
+	}
+}
 
 func Test_Create(t *testing.T) {
 	t.Run("successful creation - email set", func(t *testing.T) {
