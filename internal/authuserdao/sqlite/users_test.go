@@ -214,12 +214,13 @@ func Test_Create(t *testing.T) {
 
 		_, err = db.Create(ctx, input)
 
+		assert.IsType(jelly.Error{}, err, "err not of type jelly.Error{}")
 		assert.ErrorIs(err, jelly.ErrDB, "err not of type DB")
 		assert.ErrorContains(err, "prepare failed")
 		assert.NoError(dbMock.ExpectationsWereMet())
 	})
 
-	t.Run("generic error on insert query - is propagated and is ErrDB", func(t *testing.T) {
+	t.Run("error on insert query - is propagated and is ErrDB", func(t *testing.T) {
 		assert := assert.New(t)
 
 		createdTime := time.Date(2024, 2, 2, 2, 3, 12, 0, time.UTC)
@@ -254,11 +255,66 @@ func Test_Create(t *testing.T) {
 
 		_, err = db.Create(ctx, input)
 
+		assert.IsType(jelly.Error{}, err, "err not of type jelly.Error{}")
 		assert.ErrorIs(err, jelly.ErrDB, "err not of type DB")
 		assert.ErrorContains(err, "query failed")
 		assert.NoError(dbMock.ExpectationsWereMet())
 	})
 
-	// TODO: the rest of the error cases
+	t.Run("error on get query - is propagated and is correct types", func(t *testing.T) {
+		assert := assert.New(t)
+
+		createdTime := time.Date(2024, 2, 2, 2, 3, 12, 0, time.UTC)
+		modifiedTime := createdTime.Add(1 * time.Hour)
+		loginTime := createdTime.Add(4 * time.Hour)
+		logoutTime := createdTime.Add(5 * time.Hour)
+
+		input := jelly.AuthUser{
+			ID:         uuid.MustParse("284968fa-1ec3-4d69-9a89-a6bbe60d2883"),
+			Username:   "test",
+			Password:   "(encrypted)",
+			Email:      "",
+			Role:       jelly.Unverified,
+			Created:    createdTime,
+			Modified:   modifiedTime,
+			LastLogin:  loginTime,
+			LastLogout: logoutTime,
+		}
+
+		driver, dbMock, err := sqlmock.New()
+		if !assert.NoError(err) {
+			return
+		}
+
+		db := AuthUsersDB{DB: driver}
+		ctx := context.Background()
+
+		dbMock.
+			ExpectPrepare("INSERT INTO users").
+			ExpectExec().
+			WithArgs(
+				jeldb.AnyUUID{},
+				input.Username,
+				input.Password,
+				input.Role,
+				input.Email,
+				jeldb.AnyTime{After: &createdTime},
+				jeldb.AnyTime{After: &modifiedTime},
+				jeldb.AnyTime{After: &logoutTime},
+				jeldb.AnyTime{},
+			).
+			WillReturnResult(sqlmock.NewResult(1, 1))
+
+		dbMock.
+			ExpectQuery("SELECT .* FROM users").
+			WillReturnError(errors.New("get failed"))
+
+		_, err = db.Create(ctx, input)
+
+		assert.IsType(jelly.Error{}, err, "err not of type jelly.Error{}")
+		assert.ErrorIs(err, jelly.ErrDB, "err not of type DB")
+		assert.ErrorContains(err, "get failed")
+		assert.NoError(dbMock.ExpectationsWereMet())
+	})
 
 }
