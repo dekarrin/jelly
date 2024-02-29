@@ -131,6 +131,123 @@ func Test_Get(t *testing.T) {
 	}
 }
 
+func Test_GetByUsername(t *testing.T) {
+	testCases := []struct {
+		name              string
+		username          string
+		queryReturnsUser  jelly.AuthUser
+		queryReturnsError error
+		expectUser        jelly.AuthUser
+		expectErrToMatch  []error
+	}{
+		{
+			name:     "happy path",
+			username: "turntechGodhead",
+			queryReturnsUser: jelly.AuthUser{
+				ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+				Username: "turntechGodhead",
+				Email:    "dave@morethanpuppets.com",
+			},
+			expectUser: jelly.AuthUser{
+				ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+				Username: "turntechGodhead",
+				Email:    "dave@morethanpuppets.com",
+			},
+		},
+		{
+			name:              "not found error raised",
+			username:          "glub",
+			queryReturnsError: sql.ErrNoRows,
+			expectErrToMatch: []error{
+				jelly.ErrDB,
+				jelly.ErrNotFound,
+			},
+		},
+		{
+			name:     "decoding error raised",
+			username: "turntechGodhead",
+			queryReturnsUser: jelly.AuthUser{
+				ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+				Username: "turntechGodhead",
+				Email:    "invalid email",
+			},
+			expectErrToMatch: []error{
+				jelly.ErrDB,
+				jelly.ErrDecodingFailure,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			driver, dbMock, err := sqlmock.New()
+			if !assert.NoError(err) {
+				return
+			}
+
+			db := AuthUsersDB{DB: driver}
+			ctx := context.Background()
+
+			if tc.queryReturnsError != nil {
+				dbMock.
+					ExpectQuery("SELECT .* FROM users").
+					WillReturnError(tc.queryReturnsError)
+			} else {
+				stored := tc.queryReturnsUser
+				dbMock.
+					ExpectQuery("SELECT .* FROM users").
+					WillReturnRows(sqlmock.NewRows([]string{
+						"id",
+						"password",
+						"role",
+						"email",
+						"created",
+						"modified",
+						"last_logout_time",
+						"last_login_time",
+					}).AddRow(
+						stored.ID.String(),
+						stored.Password,
+						int64(stored.Role),
+						stored.Email,
+						stored.Created.Unix(),
+						stored.Modified.Unix(),
+						stored.LastLogout.Unix(),
+						stored.LastLogin.Unix(),
+					))
+			}
+
+			// execute
+
+			actual, err := db.GetByUsername(ctx, tc.username)
+
+			// assert
+
+			if tc.expectErrToMatch == nil {
+				if !assert.NoError(err) {
+					return
+				}
+				assert.Equal(tc.expectUser, actual)
+			} else {
+				if !assert.Error(err) {
+					return
+				}
+				if !assert.IsType(jelly.Error{}, err, "wrong type error") {
+					return
+				}
+
+				for _, expectMatch := range tc.expectErrToMatch {
+					assert.ErrorIs(err, expectMatch)
+				}
+			}
+
+			assert.NoError(dbMock.ExpectationsWereMet())
+		})
+	}
+}
+
 func Test_GetAll(t *testing.T) {
 	testCases := []struct {
 		name              string
