@@ -97,8 +97,9 @@ func (e Error) Is(target error) bool {
 	// TODO: from go docs re errors: "An Is method should only shallowly compare
 	// err and the target and not call Unwrap on either.". Okay. But the thing
 	// is, Go 1.19 does not support wrapping multiple errors so we have opted to
-	// do things this way. In future, let's use build tags and separate files to
-	// split based on go version and ensure that we have unit tests for each.
+	// do things this way, effectively unwrapping the causes ourself. In future,
+	// let's use build tags and separate files to split based on go version and
+	// ensure that we have unit tests for each.
 	for i := range e.cause {
 
 		// we must check if any are of type Error, because if they are, we need
@@ -109,6 +110,11 @@ func (e Error) Is(target error) bool {
 			}
 		} else if e.cause[i] == target {
 			return true
+		} else {
+			// if it's not a normal jelly error, delegate to the errors lib
+			if errors.Is(e.cause[i], target) {
+				return true
+			}
 		}
 	}
 	return false

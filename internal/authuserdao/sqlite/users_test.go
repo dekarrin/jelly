@@ -46,6 +46,19 @@ func Test_Get(t *testing.T) {
 				jelly.ErrNotFound,
 			},
 		},
+		{
+			name: "decoding error raised",
+			id:   uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+			queryReturnsUser: jelly.AuthUser{
+				ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+				Username: "turntechGodhead",
+				Email:    "invalid email",
+			},
+			expectErrToMatch: []error{
+				jelly.ErrDB,
+				jelly.ErrDecodingFailure,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -100,6 +113,162 @@ func Test_Get(t *testing.T) {
 					return
 				}
 				assert.Equal(tc.expectUser, actual)
+			} else {
+				if !assert.Error(err) {
+					return
+				}
+				if !assert.IsType(jelly.Error{}, err, "wrong type error") {
+					return
+				}
+
+				for _, expectMatch := range tc.expectErrToMatch {
+					assert.ErrorIs(err, expectMatch)
+				}
+			}
+
+			assert.NoError(dbMock.ExpectationsWereMet())
+		})
+	}
+}
+
+func Test_GetAll(t *testing.T) {
+	testCases := []struct {
+		name              string
+		queryReturnsUsers []jelly.AuthUser
+		queryReturnsError error
+		expectUsers       []jelly.AuthUser
+		expectErrToMatch  []error
+	}{
+		{
+			name: "happy path",
+			queryReturnsUsers: []jelly.AuthUser{
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+					Username: "turntechGodhead",
+					Email:    "dave@morethanpuppets.com",
+				},
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec02"),
+					Username: "tentacleTherapist",
+					Email:    "rose@skaialabs.net",
+				},
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec03"),
+					Username: "gardenGnostic",
+					Email:    "jade@ohnothanksiusepesterchum.com",
+				},
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec04"),
+					Username: "ectoBiologist",
+					Email:    "john@ghostbusters2.online",
+				},
+			},
+			expectUsers: []jelly.AuthUser{
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+					Username: "turntechGodhead",
+					Email:    "dave@morethanpuppets.com",
+				},
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec02"),
+					Username: "tentacleTherapist",
+					Email:    "rose@skaialabs.net",
+				},
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec03"),
+					Username: "gardenGnostic",
+					Email:    "jade@ohnothanksiusepesterchum.com",
+				},
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec04"),
+					Username: "ectoBiologist",
+					Email:    "john@ghostbusters2.online",
+				},
+			},
+		},
+		{
+			name:              "not found error raised",
+			queryReturnsError: sql.ErrNoRows,
+			expectErrToMatch: []error{
+				jelly.ErrDB,
+				jelly.ErrNotFound,
+			},
+		},
+		{
+			name: "decoding error raised",
+			queryReturnsUsers: []jelly.AuthUser{
+				{
+					ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
+					Username: "turntechGodhead",
+					Email:    "invalid email",
+				},
+			},
+			expectErrToMatch: []error{
+				jelly.ErrDB,
+				jelly.ErrDecodingFailure,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			driver, dbMock, err := sqlmock.New()
+			if !assert.NoError(err) {
+				return
+			}
+
+			db := AuthUsersDB{DB: driver}
+			ctx := context.Background()
+
+			if tc.queryReturnsError != nil {
+				dbMock.
+					ExpectQuery("SELECT .* FROM users").
+					WillReturnError(tc.queryReturnsError)
+			} else {
+				rows := sqlmock.NewRows([]string{
+					"id",
+					"username",
+					"password",
+					"role",
+					"email",
+					"created",
+					"modified",
+					"last_logout_time",
+					"last_login_time",
+				})
+
+				for _, stored := range tc.queryReturnsUsers {
+					rows.AddRow(
+						stored.ID.String(),
+						stored.Username,
+						stored.Password,
+						int64(stored.Role),
+						stored.Email,
+						stored.Created.Unix(),
+						stored.Modified.Unix(),
+						stored.LastLogout.Unix(),
+						stored.LastLogin.Unix(),
+					)
+				}
+
+				dbMock.
+					ExpectQuery("SELECT .* FROM users").
+					WillReturnRows(rows)
+			}
+
+			// execute
+
+			actual, err := db.GetAll(ctx)
+
+			// assert
+
+			if tc.expectErrToMatch == nil {
+				if !assert.NoError(err) {
+					return
+				}
+				assert.Equal(tc.expectUsers, actual)
 			} else {
 				if !assert.Error(err) {
 					return
