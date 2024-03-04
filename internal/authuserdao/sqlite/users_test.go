@@ -692,19 +692,49 @@ func Test_Update(t *testing.T) {
 		updateQueryReturnsRowsAffected int64
 		getQueryReturnsUser            jelly.AuthUser
 		getQueryReturnsError           error
+		getQueryIsSkipped              bool
 
 		expectUser       jelly.AuthUser
 		expectErrToMatch []error
 	}{
 		{
 			name:     "update normally",
-			updateID: uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec02"),
+			updateID: testUser_rose.ID,
 			toUser:   testUser_rose,
 
 			updateQueryReturnsRowsAffected: 1,
 			getQueryReturnsUser:            testUser_rose,
 
 			expectUser: testUser_rose,
+		},
+		{
+			name:     "update query returns an error",
+			updateID: testUser_rose.ID,
+			toUser:   testUser_rose,
+
+			updateQueryReturnsError: errors.New("failure"),
+
+			expectErrToMatch: []error{jelly.ErrDB},
+		},
+		{
+			name:     "update query returns not found",
+			updateID: testUser_rose.ID,
+			toUser:   testUser_rose,
+
+			updateQueryReturnsError: sql.ErrNoRows,
+			getQueryIsSkipped:       true,
+
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
+		},
+		{
+			name:     "update query does not error but no rows are updated",
+			updateID: testUser_rose.ID,
+			toUser:   testUser_rose,
+
+			updateQueryReturnsRowsAffected: 0,
+			getQueryIsSkipped:              true,
+
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
 		},
 	}
 
@@ -730,8 +760,8 @@ func Test_Update(t *testing.T) {
 						tc.toUser.Password,
 						tc.toUser.Role,
 						tc.toUser.Email,
-						tc.toUser.LastLogout,
-						tc.toUser.LastLogin,
+						tc.toUser.LastLogout.Unix(),
+						tc.toUser.LastLogin.Unix(),
 						jeldb.AnyTime{Except: &tc.toUser.Modified},
 						tc.updateID,
 					).
@@ -740,35 +770,35 @@ func Test_Update(t *testing.T) {
 				dbMock.
 					ExpectExec("UPDATE users").
 					WillReturnResult(sqlmock.NewResult(0, tc.updateQueryReturnsRowsAffected))
-			}
 
-			if tc.getQueryReturnsError != nil {
-				dbMock.
-					ExpectQuery("SELECT .* FROM users").
-					WillReturnError(tc.getQueryReturnsError)
-			} else {
-				stored := tc.getQueryReturnsUser
-				dbMock.
-					ExpectQuery("SELECT .* FROM users").
-					WillReturnRows(sqlmock.NewRows([]string{
-						"username",
-						"password",
-						"role",
-						"email",
-						"created",
-						"modified",
-						"last_logout_time",
-						"last_login_time",
-					}).AddRow(
-						stored.Username,
-						stored.Password,
-						int64(stored.Role),
-						stored.Email,
-						stored.Created.Unix(),
-						stored.Modified.Unix(),
-						stored.LastLogout.Unix(),
-						stored.LastLogin.Unix(),
-					))
+				if tc.getQueryReturnsError != nil {
+					dbMock.
+						ExpectQuery("SELECT .* FROM users").
+						WillReturnError(tc.getQueryReturnsError)
+				} else if !tc.getQueryIsSkipped {
+					stored := tc.getQueryReturnsUser
+					dbMock.
+						ExpectQuery("SELECT .* FROM users").
+						WillReturnRows(sqlmock.NewRows([]string{
+							"username",
+							"password",
+							"role",
+							"email",
+							"created",
+							"modified",
+							"last_logout_time",
+							"last_login_time",
+						}).AddRow(
+							stored.Username,
+							stored.Password,
+							int64(stored.Role),
+							stored.Email,
+							stored.Created.Unix(),
+							stored.Modified.Unix(),
+							stored.LastLogout.Unix(),
+							stored.LastLogin.Unix(),
+						))
+				}
 			}
 
 			// execute

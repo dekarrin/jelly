@@ -127,7 +127,7 @@ func (repo *AuthUsersDB) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 		return jelly.AuthUser{}, jelly.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return jelly.AuthUser{}, jelly.ErrNotFound
+		return jelly.AuthUser{}, jelly.NewError("", jelly.ErrNotFound, jelly.ErrDB)
 	}
 
 	return repo.Get(ctx, user.ID)
