@@ -200,7 +200,7 @@ func (repo *AuthUsersDB) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUs
 		return curVal, jelly.WrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return curVal, jelly.ErrNotFound
+		return curVal, jelly.NewError("", jelly.ErrNotFound, jelly.ErrDB)
 	}
 
 	return curVal, nil
