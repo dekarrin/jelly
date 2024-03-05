@@ -454,8 +454,8 @@ func Test_Create(t *testing.T) {
 		assert.NotEqual(input.ID, actual.ID, "ID was not automatically generated")
 		assert.NotEqual(input.Created, actual.Created, "created time was not automatically updated")
 		assert.NotEqual(input.Modified, actual.Modified, "modified time was not automatically updated")
-		assert.NotEqual(input.LastLogout, actual.LastLogout, "last logout times do not match")
-		assert.NotEqual(input.LastLogin, actual.LastLogin, "last login times do not match")
+		assert.NotEqual(input.LastLogout, actual.LastLogout, "last logout time was not automatically updated")
+		assert.NotEqual(input.LastLogin, actual.LastLogin, "last login time was not automatically updated")
 
 		assert.NoError(dbMock.ExpectationsWereMet())
 	})
@@ -537,8 +537,8 @@ func Test_Create(t *testing.T) {
 		assert.NotEqual(input.ID, actual.ID, "ID was not automatically generated")
 		assert.NotEqual(input.Created, actual.Created, "created time was not automatically updated")
 		assert.NotEqual(input.Modified, actual.Modified, "modified time was not automatically updated")
-		assert.NotEqual(input.LastLogout, actual.LastLogout, "last logout times do not match")
-		assert.NotEqual(input.LastLogin, actual.LastLogin, "last login times do not match")
+		assert.NotEqual(input.LastLogout, actual.LastLogout, "last logout time was not automatically updated")
+		assert.NotEqual(input.LastLogin, actual.LastLogin, "last login time was not automatically updated")
 
 		assert.NoError(dbMock.ExpectationsWereMet())
 	})

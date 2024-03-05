@@ -93,6 +93,9 @@ type AuthUserRepo interface {
 	// An implementor may provide an empty implementation with a function that
 	// always returns an error regardless of state and input. Consult the
 	// documentation of the implementor for info.
+	//
+	// LastLogin, LastLogout, Created, and Modified are all automatically set to
+	// the current timestamp regardless of their values in the given AuthUser.
 	Create(context.Context, AuthUser) (AuthUser, error)
 
 	// Get retrieves the model with the given ID. If no entity with that ID
@@ -110,6 +113,11 @@ type AuthUserRepo interface {
 	// An implementor may provide an empty implementation with a function that
 	// always returns an error regardless of state and input. Consult the
 	// documentation of the implementor for info.
+	//
+	// If there are no entries, the implementation should return an empty list
+	// and a nil error, even if the underlying driver returns a not-found error.
+	//
+	// TODO: audao/sqlite/users.go returns error and should not on GetAll.
 	GetAll(context.Context) ([]AuthUser, error)
 
 	// Update updates a particular entity in the store to match the provided
