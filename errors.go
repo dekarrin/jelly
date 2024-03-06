@@ -192,6 +192,8 @@ func WrapDBErrorf(err error, format string, a ...any) Error {
 // should wrap as its causes. Providing cause errors is not required, but will
 // cause it to return true when it is checked against that error via a call to
 // errors.Is.
+//
+// TODO: NewDBError my gog pls. It can even call WrapDBErrorf if desired.
 func NewError(msg string, causes ...error) Error {
 	err := Error{msg: msg}
 	if len(causes) > 0 {

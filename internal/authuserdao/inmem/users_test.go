@@ -47,16 +47,22 @@ var (
 	testDAOUser_john = authuserdao.NewUserFromAuthUser(testUser_john)
 )
 
-func userWithID(origUser jelly.AuthUser, id uuid.UUID) jelly.AuthUser {
-	newUser := origUser
-	newUser.ID = id
-	return newUser
-}
+func copyRepo(repo *AuthUserRepo) *AuthUserRepo {
+	copy := &AuthUserRepo{}
+	if repo.users != nil {
+		copy.users = make(map[uuid.UUID]authuserdao.User, len(repo.users))
+		for k := range repo.users {
+			copy.users[k] = repo.users[k]
+		}
+	}
+	if repo.byUsernameIndex != nil {
+		copy.byUsernameIndex = make(map[string]uuid.UUID, len(repo.byUsernameIndex))
+		for k := range repo.byUsernameIndex {
+			copy.byUsernameIndex[k] = repo.byUsernameIndex[k]
+		}
+	}
 
-func userWithUsername(origUser jelly.AuthUser, username string) jelly.AuthUser {
-	newUser := origUser
-	newUser.Username = username
-	return newUser
+	return repo
 }
 
 func repoWithIndexedUsers(users ...authuserdao.User) *AuthUserRepo {
@@ -295,7 +301,7 @@ func Test_Create(t *testing.T) {
 			name: "conflict via username is rejected",
 			db:   repoWithIndexedUsers(testDAOUser_dave),
 
-			user: userWithUsername(testUser_rose, testUser_dave.Username),
+			user: testUser_rose.WithUsername(testUser_dave.Username),
 
 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrConstraintViolation},
 		},
@@ -306,6 +312,8 @@ func Test_Create(t *testing.T) {
 			assert := assert.New(t)
 
 			ctx := context.Background()
+
+			originalDB := copyRepo(tc.db)
 
 			actual, err := tc.db.Create(ctx, tc.user)
 
@@ -329,6 +337,10 @@ func Test_Create(t *testing.T) {
 				assert.Less(tc.user.Modified, actual.Modified, "modified time was not automatically updated")
 				assert.Less(tc.user.LastLogout, actual.LastLogout, "last logout time was not automatically updated")
 				assert.Less(tc.user.LastLogin, actual.LastLogin, "last login time was not automatically updated")
+
+				// check that the DB now has the new one added:
+				assert.Contains(tc.db.byUsernameIndex, tc.user.Username)
+				assert.Contains(tc.db.users, tc.db.byUsernameIndex[tc.user.Username])
 			} else {
 				if !assert.Error(err) {
 					return
@@ -340,8 +352,132 @@ func Test_Create(t *testing.T) {
 				for _, expectMatch := range tc.expectErrToMatch {
 					assert.ErrorIs(err, expectMatch)
 				}
+
+				// check that the DB did not change:
+				assert.Equal(originalDB, tc.db, "error returned, but DB was still mutated")
 			}
 
+		})
+	}
+}
+
+func Test_Update(t *testing.T) {
+	testCases := []struct {
+		name string
+		db   *AuthUserRepo
+
+		id   uuid.UUID
+		user jelly.AuthUser
+
+		expectUser       jelly.AuthUser
+		expectErrToMatch []error
+	}{
+		{
+			name: "update normally - only email and role",
+			db:   repoWithIndexedUsers(testDAOUser_rose),
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithEmail("rose@lolar.com").
+				WithRole(jelly.Admin),
+
+			expectUser: testUser_rose.
+				WithEmail("rose@lolar.com").
+				WithRole(jelly.Admin),
+		},
+		{
+			name: "update normally - change ID",
+			db:   repoWithIndexedUsers(testDAOUser_rose),
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithID(uuid.MustParse("a42f0aa9-d87c-4a08-81cf-6b2db251d09b")),
+
+			expectUser: testUser_rose.
+				WithID(uuid.MustParse("a42f0aa9-d87c-4a08-81cf-6b2db251d09b")),
+		},
+		{
+			name: "update normally - change username",
+			db:   repoWithIndexedUsers(testDAOUser_rose),
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithUsername("grimdarkRose"),
+
+			expectUser: testUser_rose.
+				WithUsername("grimdarkRose"),
+		},
+		{
+			name: "update empty DB",
+			db:   &AuthUserRepo{},
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithUsername("grimdarkRose"),
+
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrConstraintViolation},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			ctx := context.Background()
+
+			originalDB := copyRepo(tc.db)
+
+			var changedCreated bool
+			if origUser, ok := tc.db.users[tc.id]; ok {
+				changedCreated = !origUser.Created.Time().Equal(tc.user.Created)
+			}
+
+			actual, err := tc.db.Update(ctx, tc.id, tc.user)
+
+			if tc.expectErrToMatch == nil {
+				if !assert.NoError(err) {
+					return
+				}
+
+				// some properties are under control of DAO and thus the
+				// inserted user must not be what the user set
+
+				// caller may set these properties on creation:
+				assert.Equal(tc.user.ID, actual.ID, "IDs do not match")
+				assert.Equal(tc.user.Username, actual.Username, "usernames do not match")
+				assert.Equal(tc.user.Password, actual.Password, "passwords do not match") // DAO does not currently handle encryption
+				assert.Equal(tc.user.Email, actual.Email, "emails do not match")
+				assert.Equal(tc.user.Role, actual.Role, "roles do not match")
+				assert.Equal(tc.user.LastLogout, actual.LastLogout, "last logout times do not match")
+				assert.Equal(tc.user.LastLogin, actual.LastLogin, "last login times do not match")
+
+				// caller may not set any of these on update; they are automatically set
+				assert.Less(tc.user.Modified, actual.Modified, "modified time was not automatically updated")
+
+				// caller may never update this
+				if changedCreated {
+					assert.NotEqual(tc.user.Created, actual.Created, "created time was unexpectedly updated")
+				}
+
+				// make sure the returned user the stored one:
+				assert.Contains(tc.db.byUsernameIndex, actual.Username)
+				assert.Contains(tc.db.users, actual.ID)
+				assert.Equal(authuserdao.NewUserFromAuthUser(actual), tc.db.users[actual.ID], "stored user is not returned one")
+			} else {
+				if !assert.Error(err) {
+					return
+				}
+				if !assert.IsType(jelly.Error{}, err, "wrong type error") {
+					return
+				}
+
+				for _, expectMatch := range tc.expectErrToMatch {
+					assert.ErrorIs(err, expectMatch)
+				}
+
+				// check that the DB did not change:
+				assert.Equal(originalDB, tc.db, "error returned, but DB was still mutated")
+			}
 		})
 	}
 }
@@ -494,153 +630,6 @@ func Test_Create(t *testing.T) {
 
 // 				assert.NoError(dbMock.ExpectationsWereMet())
 // 			}
-// 		})
-// 	}
-// }
-
-// func Test_Update(t *testing.T) {
-// 	testCases := []struct {
-// 		name     string
-// 		updateID uuid.UUID
-// 		toUser   jelly.AuthUser
-
-// 		updateQueryReturnsError        error
-// 		updateQueryReturnsRowsAffected int64
-// 		getQueryReturnsUser            jelly.AuthUser
-// 		getQueryReturnsError           error
-// 		getQueryIsSkipped              bool
-
-// 		expectUser       jelly.AuthUser
-// 		expectErrToMatch []error
-// 	}{
-// 		{
-// 			name:     "update normally",
-// 			updateID: testUser_rose.ID,
-// 			toUser:   testUser_rose,
-
-// 			updateQueryReturnsRowsAffected: 1,
-// 			getQueryReturnsUser:            testUser_rose,
-
-// 			expectUser: testUser_rose,
-// 		},
-// 		{
-// 			name:     "update query returns an error",
-// 			updateID: testUser_rose.ID,
-// 			toUser:   testUser_rose,
-
-// 			updateQueryReturnsError: errors.New("failure"),
-
-// 			expectErrToMatch: []error{jelly.ErrDB},
-// 		},
-// 		{
-// 			name:     "update query returns not found",
-// 			updateID: testUser_rose.ID,
-// 			toUser:   testUser_rose,
-
-// 			updateQueryReturnsError: sql.ErrNoRows,
-// 			getQueryIsSkipped:       true,
-
-// 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
-// 		},
-// 		{
-// 			name:     "update query does not error but no rows are updated",
-// 			updateID: testUser_rose.ID,
-// 			toUser:   testUser_rose,
-
-// 			updateQueryReturnsRowsAffected: 0,
-// 			getQueryIsSkipped:              true,
-
-// 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
-// 		},
-// 	}
-
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			assert := assert.New(t)
-
-// 			driver, dbMock, err := sqlmock.New()
-// 			if !assert.NoError(err) {
-// 				return
-// 			}
-
-// 			db := AuthUsersDB{DB: driver}
-// 			ctx := context.Background()
-
-// 			// mock setup
-// 			if tc.updateQueryReturnsError != nil {
-// 				dbMock.
-// 					ExpectExec("UPDATE users").
-// 					WillReturnError(tc.updateQueryReturnsError)
-// 			} else {
-// 				dbMock.
-// 					ExpectExec("UPDATE users").
-// 					WithArgs(
-// 						tc.toUser.ID,
-// 						tc.toUser.Username,
-// 						tc.toUser.Password,
-// 						tc.toUser.Role,
-// 						tc.toUser.Email,
-// 						tc.toUser.LastLogout.Unix(),
-// 						tc.toUser.LastLogin.Unix(),
-// 						jeldb.AnyTime{Except: &tc.toUser.Modified},
-// 						tc.updateID,
-// 					).
-// 					WillReturnResult(sqlmock.NewResult(0, tc.updateQueryReturnsRowsAffected))
-
-// 				if tc.getQueryReturnsError != nil {
-// 					dbMock.
-// 						ExpectQuery("SELECT .* FROM users").
-// 						WillReturnError(tc.getQueryReturnsError)
-// 				} else if !tc.getQueryIsSkipped {
-// 					stored := tc.getQueryReturnsUser
-// 					dbMock.
-// 						ExpectQuery("SELECT .* FROM users").
-// 						WillReturnRows(sqlmock.NewRows([]string{
-// 							"username",
-// 							"password",
-// 							"role",
-// 							"email",
-// 							"created",
-// 							"modified",
-// 							"last_logout_time",
-// 							"last_login_time",
-// 						}).AddRow(
-// 							stored.Username,
-// 							stored.Password,
-// 							int64(stored.Role),
-// 							stored.Email,
-// 							stored.Created.Unix(),
-// 							stored.Modified.Unix(),
-// 							stored.LastLogout.Unix(),
-// 							stored.LastLogin.Unix(),
-// 						))
-// 				}
-// 			}
-
-// 			// execute
-// 			actual, err := db.Update(ctx, tc.updateID, tc.toUser)
-
-// 			// assert
-
-// 			if tc.expectErrToMatch == nil {
-// 				if !assert.NoError(err) {
-// 					return
-// 				}
-// 				assert.Equal(tc.expectUser, actual)
-// 			} else {
-// 				if !assert.Error(err) {
-// 					return
-// 				}
-// 				if !assert.IsType(jelly.Error{}, err, "wrong type error") {
-// 					return
-// 				}
-
-// 				for _, expectMatch := range tc.expectErrToMatch {
-// 					assert.ErrorIs(err, expectMatch)
-// 				}
-// 			}
-
-// 			assert.NoError(dbMock.ExpectationsWereMet())
 // 		})
 // 	}
 // }

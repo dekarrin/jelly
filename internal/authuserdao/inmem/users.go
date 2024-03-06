@@ -89,12 +89,12 @@ func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthU
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := aur.byUsernameIndex[user.Username]; ok {
-			return jelly.AuthUser{}, jelly.ErrConstraintViolation
+			return jelly.AuthUser{}, jelly.NewError("", jelly.ErrDB, jelly.ErrConstraintViolation)
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
 		if _, ok := aur.users[user.ID]; ok {
-			return jelly.AuthUser{}, jelly.ErrConstraintViolation
+			return jelly.AuthUser{}, jelly.NewError("", jelly.ErrDB, jelly.ErrConstraintViolation)
 		}
 	}
 

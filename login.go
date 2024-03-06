@@ -81,6 +81,84 @@ type AuthUser struct {
 	LastLogin  time.Time // NOT NULL
 }
 
+// WithID returns a copy of user but with ID set to the given one. The original
+// is not modified.
+func (user AuthUser) WithID(id uuid.UUID) AuthUser {
+	newUser := user
+	newUser.ID = id
+	return newUser
+}
+
+// WithUsername returns a copy of user but with Username set to the given one.
+// The original is not modified.
+func (user AuthUser) WithUsername(username string) AuthUser {
+	newUser := user
+	newUser.Username = username
+	return newUser
+}
+
+// WithPassword returns a copy of user but with Password set to the given one.
+// The original is not modified.
+func (user AuthUser) WithPassword(password string) AuthUser {
+	newUser := user
+	newUser.Password = password
+	return newUser
+}
+
+// WithEmail returns a copy of user but with Email set to the given one. The
+// original is not modified.
+func (user AuthUser) WithEmail(email string) AuthUser {
+	newUser := user
+	newUser.Email = email
+	return newUser
+}
+
+// WithRole returns a copy of user but with Role set to the given one. The
+// original is not modified.
+func (user AuthUser) WithRole(role Role) AuthUser {
+	newUser := user
+	newUser.Role = role
+	return newUser
+}
+
+// WithCreated returns a copy of user but with Created set to the given time.
+// The original is not modified.
+//
+// Note that in pre-rolled AuthUser stores, the DAO will automatically set the
+// created time and ignores manual modification to that value after creation.
+func (user AuthUser) WithCreated(created time.Time) AuthUser {
+	newUser := user
+	newUser.Created = created
+	return newUser
+}
+
+// WithModified returns a copy of user but with Modified set to the given time.
+// The original is not modified.
+//
+// Note that in pre-rolled AuthUser stores, the DAO will automatically set the
+// modified time and ignores manual modifications to that value.
+func (user AuthUser) WithModified(modified time.Time) AuthUser {
+	newUser := user
+	newUser.Modified = modified
+	return newUser
+}
+
+// WithLastLogin returns a copy of user but with LastLogin set to the given
+// time. The original is not modified.
+func (user AuthUser) WithLastLogin(lastLogin time.Time) AuthUser {
+	newUser := user
+	newUser.LastLogin = lastLogin
+	return newUser
+}
+
+// WithLastLogout returns a copy of user but with LastLogout set to the given
+// time. The original is not modified.
+func (user AuthUser) WithLastLogout(lastLogout time.Time) AuthUser {
+	newUser := user
+	newUser.LastLogout = lastLogout
+	return newUser
+}
+
 type AuthUserRepo interface {
 	// Create creates a new model in the DB based on the provided one. Some
 	// attributes in the provided one might not be used; for instance, many
@@ -129,6 +207,8 @@ type AuthUserRepo interface {
 	// An implementor may provide an empty implementation with a function that
 	// always returns an error regardless of state and input. Consult the
 	// documentation of the implementor for info.
+	//
+	// Modified is updated automatically; Created is ignored entirely.
 	Update(context.Context, uuid.UUID, AuthUser) (AuthUser, error)
 
 	// Delete removes the given entity from the store.
