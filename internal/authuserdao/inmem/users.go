@@ -39,7 +39,7 @@ func (aur *AuthUserRepo) Create(ctx context.Context, u jelly.AuthUser) (jelly.Au
 
 	// make sure it's not already in the DB
 	if _, ok := aur.byUsernameIndex[user.Username]; ok {
-		return jelly.AuthUser{}, jelly.NewError("", jelly.ErrDB, jelly.ErrConstraintViolation)
+		return jelly.AuthUser{}, jelly.NewDBError("", jelly.ErrConstraintViolation)
 	}
 
 	now := db.Timestamp(time.Now())
@@ -80,7 +80,7 @@ func (aur *AuthUserRepo) GetAll(ctx context.Context) ([]jelly.AuthUser, error) {
 func (aur *AuthUserRepo) Update(ctx context.Context, id uuid.UUID, u jelly.AuthUser) (jelly.AuthUser, error) {
 	existing, ok := aur.users[id]
 	if !ok {
-		return jelly.AuthUser{}, jelly.ErrNotFound
+		return jelly.AuthUser{}, jelly.NewDBError("", jelly.ErrNotFound)
 	}
 	user := authuserdao.NewUserFromAuthUser(u)
 

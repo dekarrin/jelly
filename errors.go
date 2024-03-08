@@ -9,15 +9,15 @@ import (
 )
 
 var (
-	ErrBadCredentials      = errors.New("the supplied username/password combination is incorrect")
-	ErrPermissions         = errors.New("you don't have permission to do that")
-	ErrNotFound            = errors.New("the requested entity could not be found")
-	ErrAlreadyExists       = errors.New("resource with same identifying information already exists")
-	ErrDB                  = errors.New("an error occured with the DB")
-	ErrBadArgument         = errors.New("one or more of the arguments is invalid")
-	ErrBodyUnmarshal       = errors.New("malformed data in request")
-	ErrConstraintViolation = errors.New("a uniqueness constraint was violated")
-	ErrDecodingFailure     = errors.New("field could not be decoded from storage format")
+	ErrBadCredentials      = NewError("the supplied username/password combination is incorrect")
+	ErrPermissions         = NewError("you don't have permission to do that")
+	ErrNotFound            = NewError("the requested entity could not be found")
+	ErrAlreadyExists       = NewError("resource with same identifying information already exists")
+	ErrBadArgument         = NewError("one or more of the arguments is invalid")
+	ErrBodyUnmarshal       = NewError("malformed data in request")
+	ErrDB                  = NewError("an error occured with the DB")
+	ErrConstraintViolation = NewError("a constraint was violated")
+	ErrDecodingFailure     = NewError("field could not be decoded from storage format")
 )
 
 // Error is a typed error returned by certain functions in the TunaScript server
@@ -201,4 +201,12 @@ func NewError(msg string, causes ...error) Error {
 		copy(err.cause, causes)
 	}
 	return err
+}
+
+// NewDBError is the same as NewError but automatically includes DBErr as a
+// cause. Calling NewDBError(msg, causes...) is equivalent to calling
+// NewError(msg, append(causes, ErrDB)).
+func NewDBError(msg string, causes ...error) Error {
+	allCauses := append(causes, ErrDB)
+	return NewError(msg, allCauses...)
 }

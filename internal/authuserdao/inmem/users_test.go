@@ -415,6 +415,36 @@ func Test_Update(t *testing.T) {
 			user: testUser_rose.
 				WithUsername("grimdarkRose"),
 
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
+		},
+		{
+			name: "update user that does not exist in DB",
+			db:   repoWithIndexedUsers(testDAOUser_dave),
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithUsername("grimdarkRose"),
+
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
+		},
+		{
+			name: "update to conflicting username",
+			db:   repoWithIndexedUsers(testDAOUser_dave, testDAOUser_rose),
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithUsername(testUser_dave.Username),
+
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrConstraintViolation},
+		},
+		{
+			name: "update to conflicting ID",
+			db:   repoWithIndexedUsers(testDAOUser_dave, testDAOUser_rose),
+
+			id: testUser_rose.ID,
+			user: testUser_rose.
+				WithID(testUser_dave.ID),
+
 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrConstraintViolation},
 		},
 	}
