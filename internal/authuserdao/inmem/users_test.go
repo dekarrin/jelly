@@ -35,12 +35,6 @@ var (
 		Email:    "john@ghostbusters2.online",
 	}
 
-	testUser_dave_badEmail = jelly.AuthUser{
-		ID:       uuid.MustParse("82779fe7-d681-427d-a011-4954b6a7ec01"),
-		Username: "turntechGodhead",
-		Email:    "invalid email",
-	}
-
 	testDAOUser_dave = authuserdao.NewUserFromAuthUser(testUser_dave)
 	testDAOUser_jade = authuserdao.NewUserFromAuthUser(testUser_jade)
 	testDAOUser_rose = authuserdao.NewUserFromAuthUser(testUser_rose)
@@ -512,154 +506,65 @@ func Test_Update(t *testing.T) {
 	}
 }
 
-// func Test_Delete(t *testing.T) {
-// 	testCases := []struct {
-// 		name string
+func Test_Delete(t *testing.T) {
+	testCases := []struct {
+		name string
+		db   *AuthUserRepo
 
-// 		id uuid.UUID
+		id uuid.UUID
 
-// 		getQueryReturnsUser  jelly.AuthUser
-// 		getQueryReturnsError error
+		expectUser       jelly.AuthUser
+		expectErrToMatch []error
+	}{
+		{
+			name: "normal delete",
+			db:   repoWithIndexedUsers(testDAOUser_rose),
 
-// 		deleteQueryReturnsError        error
-// 		deleteQueryReturnsRowsAffected int64
-// 		deleteQueryIsSkipped           bool
+			id: testUser_rose.ID,
 
-// 		expectUser       jelly.AuthUser
-// 		expectErrToMatch []error
-// 	}{
-// 		{
-// 			name: "normal delete",
-// 			id:   testUser_rose.ID,
+			expectUser: testUser_rose,
+		},
+		{
+			name: "empty DB",
+			db:   &AuthUserRepo{},
+			id:   testUser_rose.ID,
 
-// 			getQueryReturnsUser:            testUser_rose,
-// 			deleteQueryReturnsRowsAffected: 1,
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
+		},
+		{
+			name: "user doesn't exist",
+			db:   repoWithIndexedUsers(testDAOUser_dave),
+			id:   testUser_rose.ID,
 
-// 			expectUser: testUser_rose,
-// 		},
-// 		{
-// 			name: "get query returns generic error",
-// 			id:   testUser_rose.ID,
+			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
+		},
+	}
 
-// 			getQueryReturnsError: errors.New("error"),
-// 			deleteQueryIsSkipped: true,
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
 
-// 			expectErrToMatch: []error{jelly.ErrDB},
-// 		},
-// 		{
-// 			name: "get query returns not-found",
-// 			id:   testUser_rose.ID,
+			ctx := context.Background()
 
-// 			getQueryReturnsError: sql.ErrNoRows,
-// 			deleteQueryIsSkipped: true,
+			actual, err := tc.db.Delete(ctx, tc.id)
 
-// 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
-// 		},
-// 		{
-// 			name: "delete query returns generic error",
-// 			id:   testUser_rose.ID,
+			if tc.expectErrToMatch == nil {
+				if !assert.NoError(err) {
+					return
+				}
+				assert.Equal(tc.expectUser, actual)
+			} else {
+				if !assert.Error(err) {
+					return
+				}
+				if !assert.IsType(jelly.Error{}, err, "wrong type error") {
+					return
+				}
 
-// 			getQueryReturnsUser:     testUser_rose,
-// 			deleteQueryReturnsError: errors.New("bad error"),
-
-// 			expectErrToMatch: []error{jelly.ErrDB},
-// 		},
-// 		{
-// 			name: "delete query returns not-found",
-// 			id:   testUser_rose.ID,
-
-// 			getQueryReturnsUser:     testUser_rose,
-// 			deleteQueryReturnsError: jelly.ErrNotFound,
-
-// 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
-// 		},
-// 		{
-// 			name: "delete query returns no rows affected",
-// 			id:   testUser_rose.ID,
-
-// 			getQueryReturnsUser:            testUser_rose,
-// 			deleteQueryReturnsRowsAffected: 0,
-
-// 			expectErrToMatch: []error{jelly.ErrDB, jelly.ErrNotFound},
-// 		},
-// 	}
-
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			assert := assert.New(t)
-
-// 			driver, dbMock, err := sqlmock.New()
-// 			if !assert.NoError(err) {
-// 				return
-// 			}
-
-// 			db := AuthUsersDB{DB: driver}
-// 			ctx := context.Background()
-
-// 			// mock setup
-// 			if tc.getQueryReturnsError != nil {
-// 				dbMock.
-// 					ExpectQuery("SELECT .* FROM users").
-// 					WillReturnError(tc.getQueryReturnsError)
-// 			} else {
-// 				stored := tc.getQueryReturnsUser
-// 				dbMock.
-// 					ExpectQuery("SELECT .* FROM users").
-// 					WillReturnRows(sqlmock.NewRows([]string{
-// 						"username",
-// 						"password",
-// 						"role",
-// 						"email",
-// 						"created",
-// 						"modified",
-// 						"last_logout_time",
-// 						"last_login_time",
-// 					}).AddRow(
-// 						stored.Username,
-// 						stored.Password,
-// 						int64(stored.Role),
-// 						stored.Email,
-// 						stored.Created.Unix(),
-// 						stored.Modified.Unix(),
-// 						stored.LastLogout.Unix(),
-// 						stored.LastLogin.Unix(),
-// 					))
-
-// 				if tc.deleteQueryReturnsError != nil {
-// 					dbMock.
-// 						ExpectExec("DELETE FROM users").
-// 						WillReturnError(tc.deleteQueryReturnsError)
-// 				} else if !tc.deleteQueryIsSkipped {
-// 					dbMock.
-// 						ExpectExec("DELETE FROM users").
-// 						WithArgs(tc.id).
-// 						WillReturnResult(sqlmock.NewResult(0, tc.deleteQueryReturnsRowsAffected))
-// 				}
-
-// 				// execute
-// 				actual, err := db.Delete(ctx, tc.id)
-
-// 				// assert
-// 				if tc.expectErrToMatch == nil {
-// 					if !assert.NoError(err) {
-// 						return
-// 					}
-// 					assert.Equal(tc.expectUser, actual)
-// 				} else {
-// 					if !assert.Error(err) {
-// 						return
-// 					}
-// 					if !assert.IsType(jelly.Error{}, err, "wrong type error") {
-// 						return
-// 					}
-
-// 					for _, expectMatch := range tc.expectErrToMatch {
-// 						assert.ErrorIs(err, expectMatch)
-// 					}
-// 				}
-
-// 				assert.NoError(dbMock.ExpectationsWereMet())
-// 			}
-// 		})
-// 	}
-// }
+				for _, expectMatch := range tc.expectErrToMatch {
+					assert.ErrorIs(err, expectMatch)
+				}
+			}
+		})
+	}
+}

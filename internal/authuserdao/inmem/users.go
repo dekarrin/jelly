@@ -129,7 +129,7 @@ func (aur *AuthUserRepo) GetByUsername(ctx context.Context, username string) (je
 func (aur *AuthUserRepo) Delete(ctx context.Context, id uuid.UUID) (jelly.AuthUser, error) {
 	user, ok := aur.users[id]
 	if !ok {
-		return jelly.AuthUser{}, jelly.ErrNotFound
+		return jelly.AuthUser{}, jelly.NewDBError("", jelly.ErrNotFound)
 	}
 
 	delete(aur.byUsernameIndex, user.Username)
