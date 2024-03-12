@@ -110,6 +110,7 @@ func Test_AnyUUID_Matches(t *testing.T) {
 	}
 }
 
+// TODO: split these based on what it is matching
 func Test_AnyTime_Matches(t *testing.T) {
 	testCases := []struct {
 		name   string
@@ -171,55 +172,55 @@ func Test_AnyTime_Matches(t *testing.T) {
 
 		// any except
 		{
-			name:   "any except with UTC zone - string = excluded",
+			name:   "any except with UTC zone - string - excluded",
 			input:  "2021-01-01T02:07:14Z",
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except with local zone - string = excluded",
+			name:   "any except with local zone - string - excluded",
 			input:  "2021-01-01T02:07:14Z",
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 1, 7, 14, 0, time.FixedZone("hourbehind", -3600)))},
 			expect: false,
 		},
 		{
-			name:   "any except - string = included",
+			name:   "any except - string - included",
 			input:  "2021-01-01T02:07:14Z",
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 3, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 		{
-			name:   "any except - int = excluded",
+			name:   "any except - int - excluded",
 			input:  1609466834,
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except - int = included",
+			name:   "any except - int - included",
 			input:  1609466835,
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 		{
-			name:   "any except - db.Timestamp = excluded",
+			name:   "any except - db.Timestamp - excluded",
 			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC)),
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except - db.Timestamp = included",
+			name:   "any except - db.Timestamp - included",
 			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 14, 1, time.UTC)),
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 		{
-			name:   "any except - time.Time = excluded",
+			name:   "any except - time.Time - excluded",
 			input:  time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC),
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except - time.Time = included",
+			name:   "any except - time.Time - included",
 			input:  time.Date(2021, 1, 1, 2, 7, 14, 1, time.UTC),
 			m:      AnyTime{Except: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
@@ -227,77 +228,238 @@ func Test_AnyTime_Matches(t *testing.T) {
 
 		// any equal to
 		{
-			name:   "any equal - string = excluded",
+			name:   "any equal - string - excluded",
 			input:  "2021-01-01T02:07:15Z",
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 3, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any equal with UTC zone - string = included",
+			name:   "any equal with UTC zone - string - included",
 			input:  "2021-01-01T02:07:14Z",
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 		{
-			name:   "any equal with local zone - string = included",
+			name:   "any equal with local zone - string - included",
 			input:  "2021-01-01T02:07:14Z",
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 1, 7, 14, 0, time.FixedZone("hourbehind", -3600)))},
 			expect: true,
 		},
 		{
-			name:   "any equal - int = excluded",
+			name:   "any equal - int - excluded",
 			input:  1609466835,
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except - int = included",
+			name:   "any equal - int - included",
 			input:  1609466834,
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 		{
-			name:   "any except - db.Timestamp = excluded",
+			name:   "any equal - db.Timestamp - excluded",
 			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 14, 1, time.UTC)),
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except - db.Timestamp = included",
+			name:   "any equal - db.Timestamp - included",
 			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC)),
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 		{
-			name:   "any except - time.Time = excluded",
+			name:   "any equal - time.Time - excluded",
 			input:  time.Date(2021, 1, 1, 2, 7, 14, 1, time.UTC),
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: false,
 		},
 		{
-			name:   "any except - time.Time = included",
+			name:   "any equal - time.Time - included",
 			input:  time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC),
 			m:      AnyTime{EqualTo: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
 			expect: true,
 		},
 
-		// any after - str inc
-		// any after - str exc
-		// any after - int inc
-		// any after - int excluded
-		// any after - db.timestamp inc
-		// any after - db.timestamp exc
-		// any after - time.Time inc
-		// any after - time.Time exc
+		// any after
+		{
+			name:   "any after - string - excluded =",
+			input:  "2021-01-01T02:07:14Z",
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - string - excluded <",
+			input:  "2021-01-01T02:07:13Z",
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after with UTC zone - string - included",
+			input:  "2021-01-01T02:07:15Z",
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+		{
+			name:   "any after with local zone - string - included",
+			input:  "2021-01-01T02:07:15Z",
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 1, 7, 14, 0, time.FixedZone("hourbehind", -3600)))},
+			expect: true,
+		},
+		{
+			name:   "any after - int - excluded =",
+			input:  1609466834,
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - int - excluded <",
+			input:  1609466833,
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - int - included",
+			input:  1609466835,
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+		{
+			name:   "any after - db.Timestamp - excluded =",
+			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC)),
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - db.Timestamp - excluded <",
+			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 13, 0, time.UTC)),
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - db.Timestamp - included",
+			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 15, 0, time.UTC)),
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+		{
+			name:   "any after - time.Time - excluded =",
+			input:  time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC),
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - time.Time - excluded <",
+			input:  time.Date(2021, 1, 1, 2, 7, 13, 0, time.UTC),
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any after - time.Time - included",
+			input:  time.Date(2021, 1, 1, 2, 7, 15, 0, time.UTC),
+			m:      AnyTime{After: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
 
-		// any before - str inc
-		// any before - str exc
-		// any before - int inc
-		// any before - int excluded
-		// any before - db.timestamp inc
-		// any before - db.timestamp exc
-		// any before - time.Time inc
-		// any before - time.Time exc
+		// any before
+		{
+			name:   "any before - string - excluded =",
+			input:  "2021-01-01T02:07:14Z",
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - string - excluded >",
+			input:  "2021-01-01T02:07:15Z",
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before with UTC zone - string - included",
+			input:  "2021-01-01T02:07:13Z",
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+		{
+			name:   "any before with local zone - string - included",
+			input:  "2021-01-01T02:07:13Z",
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 1, 7, 14, 0, time.FixedZone("hourbehind", -3600)))},
+			expect: true,
+		},
+		{
+			name:   "any before - int - excluded =",
+			input:  1609466834,
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - int - excluded >",
+			input:  1609466835,
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - int - included",
+			input:  1609466833,
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+		{
+			name:   "any before - db.Timestamp - excluded =",
+			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC)),
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - db.Timestamp - excluded >",
+			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 15, 0, time.UTC)),
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - db.Timestamp - included",
+			input:  Timestamp(time.Date(2021, 1, 1, 2, 7, 13, 0, time.UTC)),
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+		{
+			name:   "any before - time.Time - excluded =",
+			input:  time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC),
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - time.Time - excluded >",
+			input:  time.Date(2021, 1, 1, 2, 7, 15, 0, time.UTC),
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: false,
+		},
+		{
+			name:   "any before - time.Time - included",
+			input:  time.Date(2021, 1, 1, 2, 7, 13, 0, time.UTC),
+			m:      AnyTime{Before: ref(time.Date(2021, 1, 1, 2, 7, 14, 0, time.UTC))},
+			expect: true,
+		},
+
+		{
+			name:  "any between - excluded",
+			input: time.Date(2021, 1, 1, 0, 7, 13, 0, time.UTC),
+			m: AnyTime{
+				After:  ref(time.Date(2021, 1, 1, 1, 0, 14, 0, time.UTC)),
+				Before: ref(time.Date(2021, 1, 1, 3, 0, 14, 0, time.UTC)),
+			},
+			expect: false,
+		},
+		{
+			name:  "any between - included",
+			input: time.Date(2021, 1, 1, 2, 7, 13, 0, time.UTC),
+			m: AnyTime{
+				After:  ref(time.Date(2021, 1, 1, 1, 0, 14, 0, time.UTC)),
+				Before: ref(time.Date(2021, 1, 1, 3, 0, 14, 0, time.UTC)),
+			},
+			expect: true,
+		},
 	}
 
 	for _, tc := range testCases {
