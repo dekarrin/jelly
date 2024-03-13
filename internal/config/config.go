@@ -18,6 +18,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	defaultAuthUserDBName = "authuser"
+	anyMatchDBName        = "*"
+)
+
 // ConnectorRegistry holds registered connecter functions for opening store
 // structs on database connections.
 //
@@ -42,10 +47,10 @@ func (cr *ConnectorRegistry) initDefaults() {
 		}
 
 		if !cr.DisableDefaults {
-			cr.reg[jelly.DatabaseInMemory]["authuser"] = func(d jelly.DatabaseConfig) (jelly.Store, error) {
+			cr.reg[jelly.DatabaseInMemory][defaultAuthUserDBName] = func(d jelly.DatabaseConfig) (jelly.Store, error) {
 				return inmem.NewAuthUserStore(), nil
 			}
-			cr.reg[jelly.DatabaseSQLite]["authuser"] = func(db jelly.DatabaseConfig) (jelly.Store, error) {
+			cr.reg[jelly.DatabaseSQLite][defaultAuthUserDBName] = func(db jelly.DatabaseConfig) (jelly.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -58,7 +63,7 @@ func (cr *ConnectorRegistry) initDefaults() {
 
 				return store, nil
 			}
-			cr.reg[jelly.DatabaseOWDB]["*"] = func(db jelly.DatabaseConfig) (jelly.Store, error) {
+			cr.reg[jelly.DatabaseOWDB][anyMatchDBName] = func(db jelly.DatabaseConfig) (jelly.Store, error) {
 				err := os.MkdirAll(db.DataDir, 0770)
 				if err != nil {
 					return nil, fmt.Errorf("create data dir: %w", err)
@@ -89,7 +94,7 @@ func (cr *ConnectorRegistry) Register(engine jelly.DBType, name string, connecto
 	}
 
 	normName := strings.ToLower(name)
-	if _, ok := engConns[normName]; ok && normName != "*" {
+	if _, ok := engConns[normName]; ok && normName != anyMatchDBName {
 		return fmt.Errorf("duplicate connector registration; %q/%q already has a registered connector", engine, normName)
 	}
 
@@ -127,10 +132,10 @@ func (cr *ConnectorRegistry) Connect(db jelly.DatabaseConfig) (jelly.Store, erro
 	normName := strings.ToLower(db.Connector)
 	connector, ok := engConns[normName]
 	if !ok {
-		connector, ok = engConns["*"]
+		connector, ok = engConns[anyMatchDBName]
 		if !ok {
 			var additionalInfo = "DB does not specify connector"
-			if normName != "" && normName != "*" {
+			if normName != "" && normName != anyMatchDBName {
 				additionalInfo = fmt.Sprintf("%q/%q is not a registered connector", db.Type, normName)
 			}
 			return nil, fmt.Errorf("%s and %q has no default \"*\" connector registered", additionalInfo, db.Type)
