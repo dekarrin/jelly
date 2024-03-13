@@ -24,6 +24,8 @@ import (
 // The zero value can be immediately used and will have the built-in default and
 // pre-rolled connectors available. This can be disabled by setting
 // DisableDefaults to true before attempting to use it.
+//
+// TODO: move this into db package, there doesn't appear to be import cycles preventing this.
 type ConnectorRegistry struct {
 	DisableDefaults bool
 	reg             map[jelly.DBType]map[string]func(jelly.DatabaseConfig) (jelly.Store, error)

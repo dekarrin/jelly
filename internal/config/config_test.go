@@ -9,3 +9,8 @@ package config
 // Environment.Load - unregistered conf section, registered conf section, no special, disabledefaults on/off
 // Environment.Register - disabledefaults on/off
 //
+// ConnectorRegistry.Connect
+// ConnectorRegistry.List
+// ConnectorRegistry.Register
+//
+// When done writing tests for ConnectorRegistry, move it to DB.
