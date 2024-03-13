@@ -9,8 +9,10 @@ script_path="$(dirname "$0")"
 
 cd "$script_path/../.."
 
+pkgs=$(go list ./... | grep -v github.com/dekarrin/jelly/tools)
+
 if [ "$1" = '--all' ]; then
-    go test ./...
+    go test $pkgs -count 1
 else
-    go test ./... -short
+    go test $pkgs -short -count 1
 fi
