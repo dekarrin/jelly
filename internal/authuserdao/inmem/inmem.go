@@ -1,3 +1,5 @@
+// Package inmen provides a pre-rolled in-memory unpersisted database backend
+// for an AuthUserStore.
 package inmem
 
 import (

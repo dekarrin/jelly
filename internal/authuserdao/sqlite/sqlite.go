@@ -1,3 +1,5 @@
+// Package sqlite provides a pre-rolled SQLite database backend for an
+// AuthUserStore.
 package sqlite
 
 import (
