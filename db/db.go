@@ -35,12 +35,23 @@ func (ts Timestamp) Value() (driver.Value, error) {
 }
 
 func (ts *Timestamp) Scan(value interface{}) error {
-	iVal, ok := value.(int64)
-	if !ok {
-		return jelly.NewError(fmt.Sprintf("not an integer value: %v", value), jelly.ErrDecodingFailure)
+	var stamp int64
+
+	if iVal, ok := value.(int); ok {
+		stamp = int64(iVal)
+	} else if i8Val, ok := value.(int8); ok {
+		stamp = int64(i8Val)
+	} else if i16Val, ok := value.(int16); ok {
+		stamp = int64(i16Val)
+	} else if i32Val, ok := value.(int32); ok {
+		stamp = int64(i32Val)
+	} else if i64Val, ok := value.(int64); ok {
+		stamp = i64Val
+	} else {
+		return jelly.NewError(fmt.Sprintf("not a signed integer value: %v", value), jelly.ErrDecodingFailure)
 	}
 
-	tVal := time.Unix(iVal, 0).In(time.UTC)
+	tVal := time.Unix(stamp, 0).In(time.UTC)
 	*ts = Timestamp(tVal)
 	return nil
 }
