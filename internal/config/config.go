@@ -115,6 +115,7 @@ func (cr *ConnectorRegistry) List(engine jelly.DBType) []string {
 	var cur int
 	for k := range engConns {
 		names[cur] = k
+		cur++
 	}
 
 	sort.Strings(names)
