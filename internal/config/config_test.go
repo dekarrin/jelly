@@ -11,20 +11,172 @@ import (
 
 // Exported functions to test:
 //
-// DetectFormat
 // Dump
-// SupportedFormats - no reason to test this one, informational
 //
 // Environment.Load - unregistered conf section, registered conf section, no special, disabledefaults on/off
-// Environment.Register - disabledefaults on/off
-//
-// ConnectorRegistry.Connect
-// ConnectorRegistry.List
-// ConnectorRegistry.Register
-//
-// When done writing tests for ConnectorRegistry, move it to DB.
 
-// TODO: when done, move to db pkg
+func Test_Environment_Load(t *testing.T) {
+
+}
+
+func Test_Dump(t *testing.T) {
+
+}
+
+func Test_DetectFormat(t *testing.T) {
+	testCases := []struct {
+		name   string
+		file   string
+		expect jelly.Format
+	}{
+		{
+			name:   ".yml single file",
+			file:   "config.yml",
+			expect: jelly.YAML,
+		},
+		{
+			name:   ".yaml multi-dir rel path",
+			file:   "path/to/config.yaml",
+			expect: jelly.YAML,
+		},
+		{
+			name:   ".YML abs path",
+			file:   "/etc/path/to/config.YML",
+			expect: jelly.YAML,
+		},
+		{
+			name:   ".YAML",
+			file:   "config.YML",
+			expect: jelly.YAML,
+		},
+		{
+			name:   ".YaMl",
+			file:   "someConfigFile.YaMl",
+			expect: jelly.YAML,
+		},
+		{
+			name:   ".YmL",
+			file:   "someConfigFile.YmL",
+			expect: jelly.YAML,
+		},
+		{
+			name:   ".jsn",
+			file:   "config.jsn",
+			expect: jelly.JSON,
+		},
+		{
+			name:   ".json",
+			file:   "path/to/config.json",
+			expect: jelly.JSON,
+		},
+		{
+			name:   ".JSN",
+			file:   "/etc/path/to/config.JSN",
+			expect: jelly.JSON,
+		},
+		{
+			name:   ".JSON",
+			file:   "config.JSON",
+			expect: jelly.JSON,
+		},
+		{
+			name:   ".jSoN",
+			file:   "someConfigFile.jSoN",
+			expect: jelly.JSON,
+		},
+		{
+			name:   ".JsN",
+			file:   "someConfigFile.JsN",
+			expect: jelly.JSON,
+		},
+		{
+			name:   "invalid file",
+			file:   "someConfigFile.txt",
+			expect: jelly.NoFormat,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			actual := DetectFormat(tc.file)
+
+			assert.Equal(tc.expect, actual)
+		})
+	}
+}
+
+func Test_Environment_Register(t *testing.T) {
+	dummyProvider := func() jelly.APIConfig { return nil }
+
+	envWithJohn := &Environment{}
+	envWithJohn.initDefaults()
+	envWithJohn.apiConfigProviders["john"] = dummyProvider
+
+	testCases := []struct {
+		name string
+		env  *Environment
+
+		provName string
+		provider func() jelly.APIConfig
+
+		expectErrContains string
+	}{
+		{
+			name:     "normal add",
+			env:      &Environment{},
+			provName: "john",
+			provider: dummyProvider,
+		},
+		{
+			name:     "add uppercase",
+			env:      &Environment{},
+			provName: "JOHN",
+			provider: dummyProvider,
+		},
+		{
+			name:     "add conflict",
+			env:      envWithJohn,
+			provName: "john",
+			provider: dummyProvider,
+
+			expectErrContains: "duplicate config section name",
+		},
+		{
+			name:     "add conflict",
+			env:      envWithJohn,
+			provName: "JOHN",
+			provider: dummyProvider,
+
+			expectErrContains: "duplicate config section name",
+		},
+		{
+			name:     "nil connector",
+			env:      &Environment{},
+			provName: "john",
+			provider: nil,
+
+			expectErrContains: "provider function cannot be nil",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			actual := tc.env.Register(tc.provName, tc.provider)
+
+			if tc.expectErrContains == "" {
+				assert.NoError(actual)
+				assert.Contains(tc.env.apiConfigProviders, strings.ToLower(tc.provName))
+			} else {
+				assert.Contains(actual.Error(), tc.expectErrContains)
+			}
+		})
+	}
+}
+
 func Test_ConnectorRegistry_List(t *testing.T) {
 	regWithTestDBEntry := &ConnectorRegistry{}
 	regWithTestDBEntry.initDefaults()
@@ -103,7 +255,6 @@ func Test_ConnectorRegistry_List(t *testing.T) {
 	}
 }
 
-// TODO: when done, move to db pkg
 func Test_ConnectorRegistry_Register(t *testing.T) {
 	dummyConnector := func(dc jelly.DatabaseConfig) (jelly.Store, error) { return nil, nil }
 
@@ -192,7 +343,6 @@ type fakeStore struct{}
 
 func (fs fakeStore) Close() error { return nil }
 
-// TODO: when done, move to db pkg
 func Test_ConnectorRegistry_Connect(t *testing.T) {
 	t.Run("connector specified and exists in registry", func(t *testing.T) {
 		assert := assert.New(t)
@@ -344,20 +494,4 @@ func Test_ConnectorRegistry_Connect(t *testing.T) {
 		// assert
 		assert.ErrorContains(err, "MAJOR ISSUES")
 	})
-}
-
-func Test_Environment_Load(t *testing.T) {
-
-}
-
-func Test_Environment_Register(t *testing.T) {
-
-}
-
-func Test_DetectFormat(t *testing.T) {
-
-}
-
-func Test_Dump(t *testing.T) {
-
 }

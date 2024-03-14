@@ -264,8 +264,8 @@ func SupportedFormats() []jelly.Format {
 // DetectFormat detects the format of a given configuration file and returns the
 // Format that can decode it. Returns NoFormat if the format could not be
 // detected.
-func DetectFormat(file string) jelly.Format {
-	ext := strings.ToLower(filepath.Ext(file))
+func DetectFormat(filename string) jelly.Format {
+	ext := strings.ToLower(filepath.Ext(filename))
 	ext = strings.TrimPrefix(ext, ".")
 
 	for _, f := range SupportedFormats() {
