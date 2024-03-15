@@ -2,11 +2,16 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/dekarrin/jelly"
+	mock_jelly "github.com/dekarrin/jelly/tools/mocks/jelly"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
 )
 
 // Exported functions to test:
@@ -16,7 +21,498 @@ import (
 // Environment.Load - unregistered conf section, registered conf section, no special, disabledefaults on/off
 
 func Test_Environment_Load(t *testing.T) {
+	emptyYAMLConfig := jelly.Config{
+		DBs:    make(map[string]jelly.DatabaseConfig),
+		APIs:   make(map[string]jelly.APIConfig),
+		Format: jelly.YAML,
+	}
+	emptyJSONConfig := jelly.Config{
+		DBs:    make(map[string]jelly.DatabaseConfig),
+		APIs:   make(map[string]jelly.APIConfig),
+		Format: jelly.JSON,
+	}
 
+	testCases := []struct {
+		name     string
+		env      *Environment
+		filename string
+		content  string
+
+		expect            jelly.Config
+		expectErrContains string
+	}{
+		{
+			name:     "yaml - empty config file",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  "",
+			expect:   emptyYAMLConfig,
+		},
+		{
+			name:     "yaml - listen - address:port",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  `listen: 127.0.0.1:8002`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Port:    8002,
+					Address: "127.0.0.1",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "yaml - listen - address:",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  `listen: '127.0.0.1:'`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Address: "127.0.0.1",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "yaml - listen - :port",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  `listen: :8002`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Port: 8002,
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "yaml - base - non-slashed",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  `base: hello`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					URIBase: "hello",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "yaml - base - slashed",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  `base: /hello`,
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					URIBase: "/hello",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "yaml - base - slashed at end",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content:  `base: hello/`,
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					URIBase: "hello/",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "json - empty config file",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  "",
+			expect:   emptyJSONConfig,
+		},
+		{
+			name:     "json - empty object",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  "{}",
+			expect:   emptyJSONConfig,
+		},
+		{
+			name:     "json - listen - address:port",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  `{"listen": "127.0.0.1:8002"}`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Port:    8002,
+					Address: "127.0.0.1",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.JSON,
+			},
+		},
+		{
+			name:     "json - listen - address:",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  `{"listen": "127.0.0.1:"}`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Address: "127.0.0.1",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.JSON,
+			},
+		},
+		{
+			name:     "json - listen - :port",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  `{"listen": ":8002"}`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Port: 8002,
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.JSON,
+			},
+		},
+		{
+			name:     "json - base - non-slashed",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  `{"base": "hello"}`,
+
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					URIBase: "hello",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.JSON,
+			},
+		},
+		{
+			name:     "json - base - slashed",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  `{"base": "/hello"}`,
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					URIBase: "/hello",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.JSON,
+			},
+		},
+		{
+			name:     "json - base - slashed at end",
+			env:      &Environment{},
+			filename: "config.json",
+			content:  `{"base": "hello/"}`,
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					URIBase: "hello/",
+				},
+				DBs:    make(map[string]jelly.DatabaseConfig),
+				APIs:   make(map[string]jelly.APIConfig),
+				Format: jelly.JSON,
+			},
+		},
+		{
+			name:     "yaml - all options config file, default conf reader",
+			env:      &Environment{},
+			filename: "config.yaml",
+			content: `
+listen: 10.0.28.16:80
+base: api/
+authenticator: john.egbert
+
+logging:
+  enabled: true
+  provider: std
+  file: /var/log/jelly.log
+
+dbs:
+  testdb:
+    type: sqlite
+    file: /var/lib/jelly/testdb.sqlite
+  userdb:
+    type: inmem
+    connector: john
+  hitsdb:
+    type: owdb
+    dir: /var/lib/jelly/hitsdb
+    file: hitsdb.owdb
+
+users:
+  enabled: true
+  base: /users
+  uses: [testdb, userdb]
+  vriska: 88888888
+`,
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Port:             80,
+					Address:          "10.0.28.16",
+					URIBase:          "api/",
+					MainAuthProvider: "john.egbert",
+				},
+				DBs: map[string]jelly.DatabaseConfig{
+					"testdb": {
+						Type:     jelly.DatabaseSQLite,
+						DataFile: "/var/lib/jelly/testdb.sqlite",
+					},
+					"userdb": {
+						Type:      jelly.DatabaseInMemory,
+						Connector: "john",
+					},
+					"hitsdb": {
+						Type:     jelly.DatabaseOWDB,
+						DataDir:  "/var/lib/jelly/hitsdb",
+						DataFile: "hitsdb.owdb",
+					},
+				},
+				Log: jelly.LogConfig{
+					Enabled:  true,
+					Provider: jelly.StdLog,
+					File:     "/var/log/jelly.log",
+				},
+				APIs: map[string]jelly.APIConfig{
+					"users": &jelly.CommonConfig{
+						Name:    "users",
+						Enabled: true,
+						Base:    "/users",
+						UsesDBs: []string{"testdb", "userdb"},
+					},
+				},
+				Format: jelly.YAML,
+			},
+		},
+		{
+			name:     "json - all options config file, default conf reader",
+			env:      &Environment{},
+			filename: "config.json",
+			content: `
+		{
+			"listen": "10.0.28.16:80",
+			"base": "api/",
+			"authenticator": "john.egbert",
+			"logging": {
+				"enabled": true,
+				"provider": "std",
+				"file": "/var/log/jelly.log"
+			},
+			"dbs": {
+				"testdb": {
+					"type": "sqlite",
+					"file": "/var/lib/jelly/testdb.sqlite"
+				},
+				"userdb": {
+					"type": "inmem",
+					"connector": "john"
+				},
+				"hitsdb": {
+					"type": "owdb",
+					"dir": "/var/lib/jelly/hitsdb",
+					"file": "hitsdb.owdb"
+				}
+			},
+			"users": {
+				"enabled": true,
+				"base": "/users",
+				"uses": ["testdb", "userdb"],
+				"vriska": 88888888
+			}
+		}
+		`,
+			expect: jelly.Config{
+				Globals: jelly.Globals{
+					Port:             80,
+					Address:          "10.0.28.16",
+					URIBase:          "api/",
+					MainAuthProvider: "john.egbert",
+				},
+				DBs: map[string]jelly.DatabaseConfig{
+					"testdb": {
+						Type:     jelly.DatabaseSQLite,
+						DataFile: "/var/lib/jelly/testdb.sqlite",
+					},
+					"userdb": {
+						Type:      jelly.DatabaseInMemory,
+						Connector: "john",
+					},
+					"hitsdb": {
+						Type:     jelly.DatabaseOWDB,
+						DataDir:  "/var/lib/jelly/hitsdb",
+						DataFile: "hitsdb.owdb",
+					},
+				},
+				Log: jelly.LogConfig{
+					Enabled:  true,
+					Provider: jelly.StdLog,
+					File:     "/var/log/jelly.log",
+				},
+				APIs: map[string]jelly.APIConfig{
+					"users": &jelly.CommonConfig{
+						Name:    "users",
+						Enabled: true,
+						Base:    "/users",
+						UsesDBs: []string{"testdb", "userdb"},
+					},
+				},
+				Format: jelly.JSON,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			// dump contents of config to a temp file
+			tmpdir := t.TempDir()
+			confPath := filepath.Join(tmpdir, tc.filename)
+			writeFileErr := os.WriteFile(confPath, []byte(tc.content), 0666)
+			if writeFileErr != nil {
+				panic(fmt.Sprintf("failed to write file to load from: %v", writeFileErr))
+			}
+
+			// config file now exists, time to load it
+			actual, err := tc.env.Load(confPath)
+			if tc.expectErrContains == "" {
+				if !assert.NoError(err) {
+					return
+				}
+				assert.Equal(tc.expect, actual)
+			} else {
+				assert.ErrorContains(err, tc.expectErrContains)
+			}
+		})
+	}
+
+	// slightly more complicated test cases:
+	t.Run("yaml - all options config file, registered conf reader", func(t *testing.T) {
+		filename := "config.yaml"
+		content := `
+listen: 10.0.28.16:80
+base: api/
+authenticator: john.egbert
+
+logging:
+  enabled: true
+  provider: std
+  file: /var/log/jelly.log
+
+dbs:
+  testdb:
+    type: sqlite
+    file: /var/lib/jelly/testdb.sqlite
+  userdb:
+    type: inmem
+    connector: john
+  hitsdb:
+    type: owdb
+    dir: /var/lib/jelly/hitsdb
+    file: hitsdb.owdb
+
+users:
+  enabled: true
+  base: /users
+  uses: [testdb, userdb]
+  vriska: 88888888
+`
+		expect := jelly.Config{
+			Globals: jelly.Globals{
+				Port:             80,
+				Address:          "10.0.28.16",
+				URIBase:          "api/",
+				MainAuthProvider: "john.egbert",
+			},
+			DBs: map[string]jelly.DatabaseConfig{
+				"testdb": {
+					Type:     jelly.DatabaseSQLite,
+					DataFile: "/var/lib/jelly/testdb.sqlite",
+				},
+				"userdb": {
+					Type:      jelly.DatabaseInMemory,
+					Connector: "john",
+				},
+				"hitsdb": {
+					Type:     jelly.DatabaseOWDB,
+					DataDir:  "/var/lib/jelly/hitsdb",
+					DataFile: "hitsdb.owdb",
+				},
+			},
+			Log: jelly.LogConfig{
+				Enabled:  true,
+				Provider: jelly.StdLog,
+				File:     "/var/log/jelly.log",
+			},
+			APIs: map[string]jelly.APIConfig{
+				"users": &jelly.CommonConfig{
+					Name:    "users",
+					Enabled: true,
+					Base:    "/users",
+					UsesDBs: []string{"testdb", "userdb"},
+				},
+			},
+			Format: jelly.YAML,
+		}
+
+		assert := assert.New(t)
+
+		// dump contents of config to a temp file
+		tmpdir := t.TempDir()
+		confPath := filepath.Join(tmpdir, filename)
+		writeFileErr := os.WriteFile(confPath, []byte(content), 0666)
+		if writeFileErr != nil {
+			panic(fmt.Sprintf("failed to write file to load from: %v", writeFileErr))
+		}
+
+		// setup
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockUsersConfig := mock_jelly.NewMockAPIConfig(ctrl)
+		mockUsersConfig.EXPECT().Set("vriska", 88888888).Return(nil)
+
+		// setup env
+		env := &Environment{
+			apiConfigProviders: map[string]func() jelly.APIConfig{
+				"users": func() jelly.APIConfig { return mockUsersConfig },
+			},
+		}
+
+		actual, err := env.Load(confPath)
+
+		if !assert.NoError(err) {
+			return
+		}
+
+		assert.Equal(expect, actual)
+	})
 }
 
 func Test_Dump(t *testing.T) {

@@ -3,6 +3,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -222,7 +223,10 @@ func decode(f jelly.Format, env *Environment, data []byte) (jelly.Config, error)
 
 	switch f {
 	case jelly.JSON:
-		err = json.Unmarshal(data, &mc)
+		trimmed := bytes.TrimSpace(data)
+		if len(trimmed) != 0 { // JSON will normally choke on empty input
+			err = json.Unmarshal(data, &mc)
+		}
 	case jelly.YAML:
 		err = yaml.Unmarshal(data, &mc)
 	default:
@@ -398,8 +402,8 @@ func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (jelly.APIConf
 	nameNorm := strings.ToLower(name)
 
 	var api jelly.APIConfig
-	prov, ok := env.apiConfigProviders[nameNorm]
-	if ok {
+	prov, validProvider := env.apiConfigProviders[nameNorm]
+	if validProvider {
 		api = prov()
 	} else {
 		// fallback - if it fails to provide one, it just gets a common config
@@ -421,9 +425,13 @@ func unmarshalAPI(env *Environment, ma marshaledAPI, name string) (jelly.APIConf
 
 	for k, v := range ma.others {
 		kNorm := strings.ToLower(k)
-		if err := api.Set(kNorm, v); err != nil {
-			return nil, fmt.Errorf("%s: %w", kNorm, err)
+		if validProvider {
+			if err := api.Set(kNorm, v); err != nil {
+				return nil, fmt.Errorf("%s: %w", kNorm, err)
+			}
 		}
+		// TODO: not giving a provider but having keys that clearly require one
+		// should be a warn state
 	}
 
 	return api, nil
@@ -462,15 +470,21 @@ func unmarshalGlobals(cfg *jelly.Globals, m marshaledConfig) error {
 	var err error
 
 	// listen address part...
-	listenAddr := m.Listen
-	bindParts := strings.SplitN(listenAddr, ":", 2)
-	if len(bindParts) != 2 {
-		return fmt.Errorf("listen: not in \"ADDRESS:PORT\" or \":PORT\" format")
-	}
-	cfg.Address = bindParts[0]
-	cfg.Port, err = strconv.Atoi(bindParts[1])
-	if err != nil {
-		return fmt.Errorf("listen: %q is not a valid port number", bindParts[1])
+	if m.Listen != "" {
+		listenAddr := m.Listen
+		bindParts := strings.SplitN(listenAddr, ":", 2)
+		if len(bindParts) != 2 {
+			return fmt.Errorf("listen: not in \"ADDRESS:PORT\" or \":PORT\" or \"ADDRESS:\" format")
+		}
+		if bindParts[0] != "" {
+			cfg.Address = bindParts[0]
+		}
+		if bindParts[1] != "" {
+			cfg.Port, err = strconv.Atoi(bindParts[1])
+			if err != nil {
+				return fmt.Errorf("listen: %q is not a valid port number", bindParts[1])
+			}
+		}
 	}
 
 	// ...and the rest
@@ -623,6 +637,7 @@ func (mc *marshaledConfig) unmarshalMap(m map[string]interface{}, unmarshalFn fu
 			return fmt.Errorf("authenticator: not in COMPONENT.PROVIDER format: %q", authProvStr)
 		}
 		mc.Auth = authProvStr
+		delete(m, "authenticator")
 	}
 
 	mc.DBs = map[string]marshaledDatabase{}

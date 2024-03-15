@@ -14,7 +14,7 @@
 # a port formatted as :PORT. If the address is missing, it defaults to
 # 'localhost'. If the port is missing, it defaults to 8080. If this key is
 # missing altogether, both are set to their defaults.
-listen: localhost:8080
+listen: :8080
 
 # "base" - string - default: "/"
 #
