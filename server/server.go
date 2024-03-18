@@ -193,7 +193,6 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 		apiConf := rs.getAPIConfigBundle(name)
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
-			// TODO: remove subpaths once we realize inferred works
 			apiRouter := api.Routes(sp)
 
 			if apiRouter != nil {
