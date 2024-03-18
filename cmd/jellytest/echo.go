@@ -138,7 +138,7 @@ func (echo *EchoAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *EchoAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
+func (api *EchoAPI) Routes(em jelly.ServiceProvider) chi.Router {
 	templateEndpoints := templateEndpoints{
 		em:                em,
 		templates:         api.store.EchoTemplates,
@@ -154,7 +154,7 @@ func (api *EchoAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpath
 	r.With(optAuth).Get("/", api.httpGetEcho(em))
 	r.Mount("/templates", templateEndpoints.routes())
 
-	return r, true
+	return r
 }
 
 type echoRequestBody struct {

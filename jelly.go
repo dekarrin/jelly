@@ -46,10 +46,9 @@ type API interface {
 	Authenticators() map[string]Authenticator
 
 	// Routes returns a router that leads to all accessible routes in the API.
-	// Additionally, returns whether the API's router contains subpaths beyond
-	// just setting methods on its relative root; this affects whether
-	// path-terminal slashes are redirected in the base router the API
-	// router is mounted in.
+	// If the returned router contains subpaths beyond just setting methods on
+	// its relative root, path-terminal slashes are redirected in the base
+	// router the API router is mounted in.
 	//
 	// An endpoint creator passed in provides access to creation of middleware
 	// configured by the server's main config file for the server to use.
@@ -60,7 +59,7 @@ type API interface {
 	// Init is guaranteed to have been called for all APIs in the server before
 	// Routes is called, and it is safe to refer to middleware services that
 	// rely on other APIs within.
-	Routes(ServiceProvider) (router chi.Router, subpaths bool) // TODO: remove subpaths!!
+	Routes(ServiceProvider) chi.Router
 
 	// Shutdown terminates any pending operations cleanly and releases any held
 	// resources. It will be called after the server listener socket is shut

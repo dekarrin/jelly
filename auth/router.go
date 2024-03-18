@@ -12,7 +12,7 @@ func p(s string) (pathParam string) {
 	return jelly.PathParam(s)
 }
 
-func (api *loginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
+func (api *loginAPI) Routes(em jelly.ServiceProvider) chi.Router {
 	r := chi.NewRouter()
 
 	login := api.routesForLogin(em)
@@ -41,7 +41,7 @@ func (api *loginAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 		em.LogResponse(req, res)
 	})
 
-	return r, true
+	return r
 }
 
 func (api loginAPI) routesForLogin(em jelly.ServiceProvider) chi.Router {

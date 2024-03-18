@@ -194,7 +194,7 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 		if apiConf.Enabled() {
 			base := rs.apiBases[name]
 			// TODO: remove subpaths once we realize inferred works
-			apiRouter, _ := api.Routes(sp)
+			apiRouter := api.Routes(sp)
 
 			if apiRouter != nil {
 				r.Mount(base, apiRouter)

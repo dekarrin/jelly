@@ -228,7 +228,7 @@ func (api *HelloAPI) Shutdown(ctx context.Context) error {
 	return ctx.Err()
 }
 
-func (api *HelloAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpaths bool) {
+func (api *HelloAPI) Routes(em jelly.ServiceProvider) chi.Router {
 	niceTemplates := templateEndpoints{em: em, uriBase: api.uriBase, requireFormatVerb: false}
 	rudeTemplates := niceTemplates
 	secretTemplates := niceTemplates
@@ -259,7 +259,7 @@ func (api *HelloAPI) Routes(em jelly.ServiceProvider) (router chi.Router, subpat
 	r.With(reqAuth).Get("/secret", api.httpGetSecret(em))
 	r.Mount("/secret/templates", secretTemplates.routes())
 
-	return r, false
+	return r
 }
 
 // httpGetNice returns a HandlerFunc that returns a polite greeting message.
