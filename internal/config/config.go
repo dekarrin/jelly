@@ -166,7 +166,7 @@ func (env *Environment) initDefaults() {
 
 type marshaledDatabase struct {
 	Type      string `yaml:"type" json:"type"`
-	Connector string `yaml:"connector" json:"connector"`
+	Connector string `yaml:"connector,omitempty" json:"connector,omitempty"`
 	Dir       string `yaml:"dir,omitempty" json:"dir,omitempty"`
 	File      string `yaml:"file,omitempty" json:"file,omitempty"`
 }
@@ -249,7 +249,7 @@ func encode(f jelly.Format, c jelly.Config) ([]byte, error) {
 
 	switch f {
 	case jelly.JSON:
-		data, err = json.Marshal(mc)
+		data, err = json.MarshalIndent(mc, "", "    ")
 	case jelly.YAML:
 		data, err = yaml.Marshal(mc)
 	default:
@@ -716,15 +716,6 @@ func (mc *marshaledConfig) unmarshalMap(m map[string]interface{}, unmarshalFn fu
 	return nil
 }
 
-func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
-	var m map[string]interface{}
-	if err := n.Decode(&m); err != nil {
-		return err
-	}
-
-	return mc.unmarshalMap(m, yaml.Unmarshal, yaml.Marshal)
-}
-
 func (mc marshaledConfig) marshalMap() interface{} {
 	m := map[string]interface{}{}
 
@@ -745,7 +736,7 @@ func (mc marshaledConfig) MarshalYAML() (interface{}, error) {
 	return mc.marshalMap(), nil
 }
 
-func (mc *marshaledConfig) MarshalJSON() ([]byte, error) {
+func (mc marshaledConfig) MarshalJSON() ([]byte, error) {
 	return json.Marshal(mc.marshalMap())
 }
 
@@ -756,4 +747,13 @@ func (mc *marshaledConfig) UnmarshalJSON(b []byte) error {
 	}
 
 	return mc.unmarshalMap(m, json.Unmarshal, json.Marshal)
+}
+
+func (mc *marshaledConfig) UnmarshalYAML(n *yaml.Node) error {
+	var m map[string]interface{}
+	if err := n.Decode(&m); err != nil {
+		return err
+	}
+
+	return mc.unmarshalMap(m, yaml.Unmarshal, yaml.Marshal)
 }

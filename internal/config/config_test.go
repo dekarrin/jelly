@@ -1,24 +1,89 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/dekarrin/jelly"
-	mock_jelly "github.com/dekarrin/jelly/tools/mocks/jelly"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
+	"gopkg.in/yaml.v3"
 )
 
-// Exported functions to test:
-//
-// Dump
-//
-// Environment.Load - unregistered conf section, registered conf section, no special, disabledefaults on/off
+type testAPIConfig struct {
+	jelly.CommonConfig
+	Vriska int
+}
+
+func (cfg *testAPIConfig) FillDefaults() jelly.APIConfig {
+	newCFG := new(testAPIConfig)
+	*newCFG = *cfg
+
+	newCFG.CommonConfig = newCFG.CommonConfig.FillDefaults().Common()
+
+	return newCFG
+}
+
+func (cfg *testAPIConfig) Validate() error {
+	if cfg.Vriska%8 != 0 {
+		return errors.New("vriska must be a multiple of 8")
+	}
+	return nil
+}
+
+func (cfg *testAPIConfig) Common() jelly.CommonConfig {
+	return cfg.CommonConfig
+}
+
+func (cfg *testAPIConfig) Set(name string, value interface{}) error {
+	switch strings.ToLower(name) {
+	case "vriska":
+		v, err := jelly.TypedInt(name, value)
+		if err == nil {
+			cfg.Vriska = v
+		}
+		return err
+	default:
+		return cfg.CommonConfig.Set(name, value)
+	}
+}
+
+func (cfg *testAPIConfig) SetFromString(name, value string) error {
+	switch strings.ToLower(name) {
+	case "vriska":
+		if value == "" {
+			return cfg.Set(name, 0)
+		} else {
+			if v, err := strconv.ParseInt(value, 10, 64); err != nil {
+				return err
+			} else {
+				return cfg.Set(name, int(v))
+			}
+		}
+	default:
+		return cfg.CommonConfig.SetFromString(name, value)
+	}
+}
+
+func (cfg *testAPIConfig) Get(name string) interface{} {
+	switch strings.ToLower(name) {
+	case "vriska":
+		return cfg.Vriska
+	default:
+		return cfg.CommonConfig.Get(name)
+	}
+}
+
+func (cfg *testAPIConfig) Keys() []string {
+	keys := cfg.CommonConfig.Keys()
+	keys = append(keys, "vriska")
+	return keys
+}
 
 func Test_Environment_Load(t *testing.T) {
 	emptyYAMLConfig := jelly.Config{
@@ -41,6 +106,13 @@ func Test_Environment_Load(t *testing.T) {
 		expect            jelly.Config
 		expectErrContains string
 	}{
+		{
+			name:              "invalid file extension",
+			env:               &Environment{},
+			filename:          "config.txt",
+			content:           "",
+			expectErrContains: "incompatible format",
+		},
 		{
 			name:     "yaml - empty config file",
 			env:      &Environment{},
@@ -471,11 +543,14 @@ users:
 				File:     "/var/log/jelly.log",
 			},
 			APIs: map[string]jelly.APIConfig{
-				"users": &jelly.CommonConfig{
-					Name:    "users",
-					Enabled: true,
-					Base:    "/users",
-					UsesDBs: []string{"testdb", "userdb"},
+				"users": &testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Name:    "users",
+						Enabled: true,
+						Base:    "/users",
+						UsesDBs: []string{"testdb", "userdb"},
+					},
+					Vriska: 88888888,
 				},
 			},
 			Format: jelly.YAML,
@@ -492,16 +567,11 @@ users:
 		}
 
 		// setup
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockUsersConfig := mock_jelly.NewMockAPIConfig(ctrl)
-		mockUsersConfig.EXPECT().Set("vriska", 88888888).Return(nil)
 
 		// setup env
 		env := &Environment{
 			apiConfigProviders: map[string]func() jelly.APIConfig{
-				"users": func() jelly.APIConfig { return mockUsersConfig },
+				"users": func() jelly.APIConfig { return &testAPIConfig{} },
 			},
 		}
 
@@ -513,10 +583,109 @@ users:
 
 		assert.Equal(expect, actual)
 	})
-}
 
-func Test_Dump(t *testing.T) {
+	t.Run("json - all options config file, registered conf reader", func(t *testing.T) {
+		filename := "config.json"
+		content := `{
+			"listen": "10.0.28.16:80",
+			"base": "api/",
+			"authenticator": "john.egbert",
+			"logging": {
+				"enabled": true,
+				"provider": "std",
+				"file": "/var/log/jelly.log"
+			},
+			"dbs": {
+				"testdb": {
+					"type": "sqlite",
+					"file": "/var/lib/jelly/testdb.sqlite"
+				},
+				"userdb": {
+					"type": "inmem",
+					"connector": "john"
+				},
+				"hitsdb": {
+					"type": "owdb",
+					"dir": "/var/lib/jelly/hitsdb",
+					"file": "hitsdb.owdb"
+				}
+			},
+			"users": {
+				"enabled": true,
+				"base": "/users",
+				"uses": ["testdb", "userdb"],
+				"vriska": 88888888
+			}
+		}`
 
+		expect := jelly.Config{
+			Globals: jelly.Globals{
+				Port:             80,
+				Address:          "10.0.28.16",
+				URIBase:          "api/",
+				MainAuthProvider: "john.egbert",
+			},
+			DBs: map[string]jelly.DatabaseConfig{
+				"testdb": {
+					Type:     jelly.DatabaseSQLite,
+					DataFile: "/var/lib/jelly/testdb.sqlite",
+				},
+				"userdb": {
+					Type:      jelly.DatabaseInMemory,
+					Connector: "john",
+				},
+				"hitsdb": {
+					Type:     jelly.DatabaseOWDB,
+					DataDir:  "/var/lib/jelly/hitsdb",
+					DataFile: "hitsdb.owdb",
+				},
+			},
+			Log: jelly.LogConfig{
+				Enabled:  true,
+				Provider: jelly.StdLog,
+				File:     "/var/log/jelly.log",
+			},
+			APIs: map[string]jelly.APIConfig{
+				"users": &testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Name:    "users",
+						Enabled: true,
+						Base:    "/users",
+						UsesDBs: []string{"testdb", "userdb"},
+					},
+					Vriska: 88888888,
+				},
+			},
+			Format: jelly.JSON,
+		}
+
+		assert := assert.New(t)
+
+		// dump contents of config to a temp file
+		tmpdir := t.TempDir()
+		confPath := filepath.Join(tmpdir, filename)
+		writeFileErr := os.WriteFile(confPath, []byte(content), 0666)
+		if writeFileErr != nil {
+			panic(fmt.Sprintf("failed to write file to load from: %v", writeFileErr))
+		}
+
+		// setup
+
+		// setup env
+		env := &Environment{
+			apiConfigProviders: map[string]func() jelly.APIConfig{
+				"users": func() jelly.APIConfig { return &testAPIConfig{} },
+			},
+		}
+
+		actual, err := env.Load(confPath)
+
+		if !assert.NoError(err) {
+			return
+		}
+
+		assert.Equal(expect, actual)
+	})
 }
 
 func Test_DetectFormat(t *testing.T) {
@@ -990,4 +1159,276 @@ func Test_ConnectorRegistry_Connect(t *testing.T) {
 		// assert
 		assert.ErrorContains(err, "MAJOR ISSUES")
 	})
+}
+
+func Test_Dump(t *testing.T) {
+	testCases := []struct {
+		name   string
+		config jelly.Config
+		expect map[string]interface{}
+	}{
+		{
+			name:   "empty config, no format",
+			config: jelly.Config{},
+			expect: map[string]interface{}{
+				"listen": ":0",
+				"base":   "",
+				"dbs":    map[string]interface{}{},
+				"logging": map[string]interface{}{
+					"enabled":  false,
+					"provider": "none",
+				},
+				"authenticator": "",
+			},
+		},
+		{
+			name:   "empty config, YAML",
+			config: jelly.Config{Format: jelly.YAML},
+			expect: map[string]interface{}{
+				"listen": ":0",
+				"base":   "",
+				"dbs":    map[string]interface{}{},
+				"logging": map[string]interface{}{
+					"enabled":  false,
+					"provider": "none",
+				},
+				"authenticator": "",
+			},
+		},
+		{
+			name:   "empty config, JSON",
+			config: jelly.Config{Format: jelly.JSON},
+			expect: map[string]interface{}{
+				"listen": ":0",
+				"base":   "",
+				"dbs":    map[string]interface{}{},
+				"logging": map[string]interface{}{
+					"enabled":  false,
+					"provider": "none",
+				},
+				"authenticator": "",
+			},
+		},
+		{
+			name: "full config - YAML",
+			config: jelly.Config{
+				Format: jelly.YAML,
+				Globals: jelly.Globals{
+					Port:             80,
+					Address:          "10.28.10.1",
+					URIBase:          "v1/api/",
+					MainAuthProvider: "john.egbert",
+				},
+				DBs: map[string]jelly.DatabaseConfig{
+					"testdb": {
+						Type:      jelly.DatabaseSQLite,
+						DataFile:  "/var/lib/jelly/testdb.sqlite",
+						Connector: "*",
+					},
+					"userdb": {
+						Type:      jelly.DatabaseInMemory,
+						Connector: "john",
+					},
+					"hitsdb": {
+						Type:     jelly.DatabaseOWDB,
+						DataDir:  "/var/lib/jelly/hitsdb",
+						DataFile: "hitsdb.owdb",
+					},
+				},
+				Log: jelly.LogConfig{
+					Enabled:  true,
+					Provider: jelly.Jellog,
+					File:     "/var/log/jelly.log",
+				},
+				APIs: map[string]jelly.APIConfig{
+					"users": &testAPIConfig{
+						CommonConfig: jelly.CommonConfig{
+							Name:    "users",
+							Enabled: true,
+							Base:    "/auth/users",
+							UsesDBs: []string{"testdb", "userdb"},
+						},
+						Vriska: 88888888,
+					},
+					"hits": &jelly.CommonConfig{
+						Name:    "hits",
+						Enabled: true,
+						Base:    "/admin/hits",
+						UsesDBs: []string{"hitsdb"},
+					},
+					"inprog": &jelly.CommonConfig{
+						Name:    "inprog",
+						Enabled: false,
+						Base:    "/admin/inprog",
+						UsesDBs: []string{"hitsdb"},
+					},
+				},
+			},
+			expect: map[string]interface{}{
+				"listen":        "10.28.10.1:80",
+				"base":          "v1/api/",
+				"authenticator": "john.egbert",
+				"dbs": map[string]interface{}{
+					"testdb": map[string]interface{}{
+						"type":      "sqlite",
+						"file":      "/var/lib/jelly/testdb.sqlite",
+						"connector": "*",
+					},
+					"userdb": map[string]interface{}{
+						"type":      "inmem",
+						"connector": "john",
+					},
+					"hitsdb": map[string]interface{}{
+						"type": "owdb",
+						"dir":  "/var/lib/jelly/hitsdb",
+						"file": "hitsdb.owdb",
+					},
+				},
+				"users": map[string]interface{}{
+					"enabled": true,
+					"base":    "/auth/users",
+					"uses":    []interface{}{"testdb", "userdb"},
+					"vriska":  88888888,
+				},
+				"hits": map[string]interface{}{
+					"enabled": true,
+					"base":    "/admin/hits",
+					"uses":    []interface{}{"hitsdb"},
+				},
+				"inprog": map[string]interface{}{
+					"enabled": false,
+					"base":    "/admin/inprog",
+					"uses":    []interface{}{"hitsdb"},
+				},
+				"logging": map[string]interface{}{
+					"enabled":  true,
+					"provider": "jellog",
+					"file":     "/var/log/jelly.log",
+				},
+			},
+		},
+		{
+			name: "full config - JSON",
+			config: jelly.Config{
+				Format: jelly.JSON,
+				Globals: jelly.Globals{
+					Port:             80,
+					Address:          "10.28.10.1",
+					URIBase:          "v1/api/",
+					MainAuthProvider: "john.egbert",
+				},
+				DBs: map[string]jelly.DatabaseConfig{
+					"testdb": {
+						Type:      jelly.DatabaseSQLite,
+						DataFile:  "/var/lib/jelly/testdb.sqlite",
+						Connector: "*",
+					},
+					"userdb": {
+						Type:      jelly.DatabaseInMemory,
+						Connector: "john",
+					},
+					"hitsdb": {
+						Type:     jelly.DatabaseOWDB,
+						DataDir:  "/var/lib/jelly/hitsdb",
+						DataFile: "hitsdb.owdb",
+					},
+				},
+				Log: jelly.LogConfig{
+					Enabled:  true,
+					Provider: jelly.Jellog,
+					File:     "/var/log/jelly.log",
+				},
+				APIs: map[string]jelly.APIConfig{
+					"users": &testAPIConfig{
+						CommonConfig: jelly.CommonConfig{
+							Name:    "users",
+							Enabled: true,
+							Base:    "/auth/users",
+							UsesDBs: []string{"testdb", "userdb"},
+						},
+						Vriska: 88888888,
+					},
+					"hits": &jelly.CommonConfig{
+						Name:    "hits",
+						Enabled: true,
+						Base:    "/admin/hits",
+						UsesDBs: []string{"hitsdb"},
+					},
+					"inprog": &jelly.CommonConfig{
+						Name:    "inprog",
+						Enabled: false,
+						Base:    "/admin/inprog",
+						UsesDBs: []string{"hitsdb"},
+					},
+				},
+			},
+			expect: map[string]interface{}{
+				"listen":        "10.28.10.1:80",
+				"base":          "v1/api/",
+				"authenticator": "john.egbert",
+				"dbs": map[string]interface{}{
+					"testdb": map[string]interface{}{
+						"type":      "sqlite",
+						"file":      "/var/lib/jelly/testdb.sqlite",
+						"connector": "*",
+					},
+					"userdb": map[string]interface{}{
+						"type":      "inmem",
+						"connector": "john",
+					},
+					"hitsdb": map[string]interface{}{
+						"type": "owdb",
+						"dir":  "/var/lib/jelly/hitsdb",
+						"file": "hitsdb.owdb",
+					},
+				},
+				"users": map[string]interface{}{
+					"enabled": true,
+					"base":    "/auth/users",
+					"uses":    []interface{}{"testdb", "userdb"},
+					"vriska":  float64(88888888),
+				},
+				"hits": map[string]interface{}{
+					"enabled": true,
+					"base":    "/admin/hits",
+					"uses":    []interface{}{"hitsdb"},
+				},
+				"inprog": map[string]interface{}{
+					"enabled": false,
+					"base":    "/admin/inprog",
+					"uses":    []interface{}{"hitsdb"},
+				},
+				"logging": map[string]interface{}{
+					"enabled":  true,
+					"provider": "jellog",
+					"file":     "/var/log/jelly.log",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+
+			result := Dump(tc.config)
+
+			// attempt to parse into result map
+			var resultMap map[string]interface{}
+			if tc.config.Format == jelly.JSON {
+				err := json.Unmarshal(result, &resultMap)
+				if !assert.NoError(err, "parse result back into JSON failed") {
+					return
+				}
+			} else {
+				// fallback is jelly.YAML
+				err := yaml.Unmarshal(result, &resultMap)
+				if !assert.NoError(err, "parse result back into YAML failed") {
+					return
+				}
+			}
+
+			assert.Equal(tc.expect, resultMap)
+		})
+	}
 }

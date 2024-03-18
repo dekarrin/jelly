@@ -52,6 +52,30 @@ func TypedSlice[E any](key string, value interface{}) ([]E, error) {
 	}
 }
 
+// TypedInt takes a value that is passed to Set that is expected to be an int,
+// one of its sized variants, or a float type, and converts it into an int. If a
+// non-nil error is returned it will contain the key name automatically in its
+// error string.
+func TypedInt(key string, value interface{}) (int, error) {
+	if valueInt, ok := value.(int); ok {
+		return valueInt, nil
+	} else if valueInt8, ok := value.(int8); ok {
+		return int(valueInt8), nil
+	} else if valueInt16, ok := value.(int16); ok {
+		return int(valueInt16), nil
+	} else if valueInt32, ok := value.(int32); ok {
+		return int(valueInt32), nil
+	} else if valueInt64, ok := value.(int64); ok {
+		return int(valueInt64), nil
+	} else if valueFloat32, ok := value.(float32); ok {
+		return int(valueFloat32), nil
+	} else if valueFloat64, ok := value.(float64); ok {
+		return int(valueFloat64), nil
+	} else {
+		return 0, fmt.Errorf("key '%s' requires an int but got a %T", key, value)
+	}
+}
+
 type Format int
 
 func (f Format) String() string {
