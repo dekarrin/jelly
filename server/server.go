@@ -336,7 +336,7 @@ func (rs *restServer) checkCreatedViaNew() {
 // This function will block until the server is stopped. If it returns as a
 // result of rs.Close() being called elsewhere, it will return
 // http.ErrServerClosed.
-func (rs *restServer) ServeForever() error {
+func (rs *restServer) ServeForever() (err error) {
 	rs.checkCreatedViaNew()
 	rs.mtx.Lock()
 	if rs.serving {
@@ -346,16 +346,23 @@ func (rs *restServer) ServeForever() error {
 	rs.serving = true
 	rs.mtx.Unlock()
 
+	addr := fmt.Sprintf("%s:%d", rs.cfg.Globals.Address, rs.cfg.Globals.Port)
+
+	// calling into user code, do a panic check
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic occurred while running server: %v", r)
+		}
+	}()
+	rtr := rs.routeAllAPIs()
+	rs.http = &http.Server{Addr: addr, Handler: rtr}
+
 	defer func() {
 		rs.mtx.Lock()
 		rs.closing = false
 		rs.serving = false
 		rs.mtx.Unlock()
 	}()
-
-	addr := fmt.Sprintf("%s:%d", rs.cfg.Globals.Address, rs.cfg.Globals.Port)
-	rtr := rs.routeAllAPIs()
-	rs.http = &http.Server{Addr: addr, Handler: rtr}
 
 	return rs.http.ListenAndServe()
 }
@@ -373,15 +380,13 @@ func (rs *restServer) ServeForever() error {
 func (rs *restServer) Shutdown(ctx context.Context) error {
 	rs.checkCreatedViaNew()
 	rs.mtx.Lock()
+	defer rs.mtx.Unlock()
 	if rs.closing {
-		rs.mtx.Unlock()
 		return fmt.Errorf("close already in-progress in another goroutine")
 	}
 	if !rs.serving {
-		rs.mtx.Unlock()
 		return fmt.Errorf("server is not running")
 	}
-	defer rs.mtx.Unlock()
 	rs.closing = true
 
 	var fullError error
