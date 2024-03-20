@@ -377,11 +377,9 @@ func (rs *restServer) ServeForever() (err error) {
 // to ServeForever or Serve.
 //
 // Once Shutdown returns, the RESTServer should not be used again.
-func (rs *restServer) Shutdown(ctx context.Context) error {
+func (rs *restServer) Shutdown(ctx context.Context) (err error) {
 	// betta way - start several goroutines to do the work, then wait for them to
 	// complete via a channel sent from waitgroup.
-
-	// TODO: this func calls into user-code; it should really have a panic check
 
 	rs.checkCreatedViaNew()
 	rs.mtx.Lock()
@@ -442,8 +440,7 @@ func (rs *restServer) Shutdown(ctx context.Context) error {
 		}()
 	}
 
-	// here we put in the channel check to wait for threads while also
-	// respecting timeout.
+	// wait for gothreads while also respecting timeout.
 	wg.Wait()
 
 	// all shutdowns are complete, collect errors
@@ -477,6 +474,12 @@ func (rs *restServer) shutdownAPIFunc(name string) func(ctx context.Context) cha
 				errChan <- nil
 			}
 
+			// calling into user-code, do a panic check
+			defer func() {
+				if r := recover(); r != nil {
+					errChan <- fmt.Errorf("panic occurred while shutting down API %q: %v", name, r)
+				}
+			}()
 			if err := api.Shutdown(ctx); err != nil {
 				errChan <- fmt.Errorf("shutdown API %q: %w", name, err)
 			}

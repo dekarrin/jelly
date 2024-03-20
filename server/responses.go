@@ -218,20 +218,3 @@ func (em endpointCreator) InternalServerError(internalMsg ...interface{}) jelly.
 
 	return em.Err(http.StatusInternalServerError, "An internal server error occurred", internalMsgFmt, msgArgs...)
 }
-
-/*
-OK(respObj interface{}, internalMsg ...interface{}) jelly.Result
-NoContent(internalMsg ...interface{}) jelly.Result
-Created(respObj interface{}, internalMsg ...interface{}) jelly.Result
-Conflict(userMsg string, internalMsg ...interface{}) jelly.Result
-BadRequest(userMsg string, internalMsg ...interface{}) jelly.Result
-MethodNotAllowed(req *http.Request, internalMsg ...interface{}) jelly.Result
-NotFound(internalMsg ...interface{}) jelly.Result
-Forbidden(internalMsg ...interface{}) jelly.Result
-Unauthorized(userMsg string, internalMsg ...interface{}) jelly.Result
-InternalServerError(internalMsg ...interface{}) jelly.Result
-Redirection(uri string) jelly.Result
-Response(status int, respObj interface{}, internalMsg string, v ...interface{}) jelly.Result
-Err(status int, userMsg, internalMsg string, v ...interface{}) jelly.Result
-TextErr(status int, userMsg, internalMsg string, v ...interface{}) jelly.Result
-*/
