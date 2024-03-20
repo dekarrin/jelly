@@ -378,6 +378,11 @@ func (rs *restServer) ServeForever() (err error) {
 //
 // Once Shutdown returns, the RESTServer should not be used again.
 func (rs *restServer) Shutdown(ctx context.Context) error {
+	// betta way - start several goroutines to do the work, then wait for them to
+	// complete via a channel sent from waitgroup.
+
+	// TODO: this func calls into user-code; it should really have a panic check
+
 	rs.checkCreatedViaNew()
 	rs.mtx.Lock()
 	defer rs.mtx.Unlock()
@@ -389,50 +394,127 @@ func (rs *restServer) Shutdown(ctx context.Context) error {
 	}
 	rs.closing = true
 
-	var fullError error
+	// do this without goroutining on it for now, since it undergoes its own
+	// context check, but:
+	// TODO: this should eventually become one of those shutdown funcs.
 
-	if rs.http != nil {
-		err := rs.http.Shutdown(ctx)
-		if err != nil {
-			fullError = fmt.Errorf("stop HTTP server: %w", err)
-		}
-		rs.http = nil
-		if err != nil && err == ctx.Err() {
-			// if its due to the context expiring or timing out, we should
-			// immediately exit without waiting for clean shutdown of the APIs.
-			return fullError
-		}
+	shutdownFuncs := []func(context.Context) chan error{
+		rs.shutdownHTTPServerFunc(),
 	}
 
-	// call life-cycle shutdown on each API
-	for name, api := range rs.apis {
-		apiConf := rs.getAPIConfigBundle(name)
-		if !apiConf.Enabled() {
-			continue
-		}
+	// prepare to call life-cycle shutdown on each API
+	for name := range rs.apis {
+		shutdownFuncs = append(shutdownFuncs, rs.shutdownAPIFunc(name))
+	}
 
-		select {
-		case <-ctx.Done():
-			apiErr := ctx.Err()
-			if fullError != nil {
-				fullError = fmt.Errorf("%s\nadditionally: %w", fullError, apiErr)
-			} else {
-				fullError = apiErr
-			}
+	// the 'right' way is probably to use channels to ensure slice results are
+	// present in all threads, but this is a bit simpler and should work fine,
+	// glub!
+	type res struct {
+		done bool
+		err  error
+	}
+	var contextError error
+	var once sync.Once
 
-			// for context end, immediately close
-			return fullError
-		default:
-			if err := api.Shutdown(ctx); err != nil {
-				apiErr := fmt.Errorf("shutdown API %q: %w", name, err)
-				if fullError != nil {
-					fullError = fmt.Errorf("%s\nadditionally: %w", fullError, apiErr)
-				} else {
-					fullError = apiErr
-				}
+	results := make([]res, len(shutdownFuncs))
+
+	wg := &sync.WaitGroup{}
+	wg.Add(len(shutdownFuncs))
+
+	for index, shutdownFunc := range shutdownFuncs {
+		i := index
+		f := shutdownFunc
+		go func() {
+			defer wg.Done()
+
+			ch := f(ctx)
+			select {
+			case <-ctx.Done():
+				// set contextError and return without setting result;
+				// operation was cancelled by context.
+				once.Do(func() {
+					contextError = ctx.Err()
+				})
+			case err := <-ch:
+				results[i] = res{done: true, err: err}
 			}
+		}()
+	}
+
+	// here we put in the channel check to wait for threads while also
+	// respecting timeout.
+	wg.Wait()
+
+	// all shutdowns are complete, collect errors
+	if contextError != nil {
+		// report only the context error, the others do not matter at this time
+		return contextError
+	}
+
+	var fullError error
+
+	for i := range results {
+		if results[i].done && results[i].err != nil {
+			fullError = chainShutdownErr(fullError, results[i].err)
 		}
 	}
 
 	return fullError
+}
+
+func (rs *restServer) shutdownAPIFunc(name string) func(ctx context.Context) chan error {
+	return func(ctx context.Context) chan error {
+		errChan := make(chan error)
+		go func() {
+			api, ok := rs.apis[name]
+			if !ok {
+				errChan <- fmt.Errorf("API %q does not exist", name)
+			}
+
+			apiConf := rs.getAPIConfigBundle(name)
+			if !apiConf.Enabled() {
+				errChan <- nil
+			}
+
+			if err := api.Shutdown(ctx); err != nil {
+				errChan <- fmt.Errorf("shutdown API %q: %w", name, err)
+			}
+
+			errChan <- nil
+		}()
+		return errChan
+	}
+}
+
+func chainShutdownErr(fullError, err error) error {
+	if fullError != nil {
+		return fmt.Errorf("%s\nadditionally: %w", fullError, err)
+	} else {
+		return err
+	}
+}
+
+// not actually required to have this implement the same returning error channel
+// for concurrent operation, but it makes this func sit next to the API one
+func (rs *restServer) shutdownHTTPServerFunc() func(ctx context.Context) chan error {
+	return func(ctx context.Context) chan error {
+		errChan := make(chan error, 1)
+
+		var err error
+		if rs.http != nil {
+			err = rs.http.Shutdown(ctx)
+			rs.http = nil
+			if err != nil {
+				if err != ctx.Err() {
+					err = fmt.Errorf("stop HTTP server: %w", err)
+				}
+			}
+		}
+
+		errChan <- err
+		// we aren't actually checking synchronization here; just making this func
+		// do the same as the shutdownAPIFunc one.
+		return errChan
+	}
 }

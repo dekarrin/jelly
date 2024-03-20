@@ -88,7 +88,66 @@ func (cfg *testAPIConfig) Keys() []string {
 	return keys
 }
 
-func Test_ServeForever(t *testing.T) {
+func Test_Add(t *testing.T) {
+	getInitializedServer := func() *restServer {
+		return &restServer{
+			mtx:         &sync.Mutex{},
+			apis:        map[string]jelly.API{},
+			apiBases:    map[string]string{},
+			basesToAPIs: map[string]string{},
+			log:         logging.NoOpLogger{},
+			dbs:         map[string]jelly.Store{},
+			cfg:         jelly.Config{}.FillDefaults(),
+		}
+	}
+
+	t.Run("add API with no config, nil routes", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+
+		server := getInitializedServer()
+
+		// execute
+		err := server.Add("test", mockAPI)
+
+		// assert
+		assert.NoError(err)
+		assert.Equal(mockAPI, server.apis["test"])
+	})
+
+	t.Run("add API with basic config, nil routes", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+		mockAPI.EXPECT().Authenticators().Return(nil)
+		mockAPI.EXPECT().Init(gomock.Any()).Return(nil)
+
+		server := getInitializedServer()
+		server.cfg.APIs = map[string]jelly.APIConfig{
+			"test": &testAPIConfig{
+				CommonConfig: jelly.CommonConfig{
+					Enabled: true,
+				},
+			},
+		}
+
+		// execute
+		err := server.Add("test", mockAPI)
+
+		// assert
+		assert.NoError(err)
+		assert.Equal(mockAPI, server.apis["test"])
+	})
+}
+
+func Test_ServeForever_And_Shutdown(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running tests that require server up")
 	}
@@ -122,11 +181,12 @@ func Test_ServeForever(t *testing.T) {
 		timeLimitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		server.http.Shutdown(timeLimitCtx)
-		serveForeverError := <-retErrChan
+		shutdownErr := server.http.Shutdown(timeLimitCtx)
+		serveForeverErr := <-retErrChan
 
 		// assert
-		assert.ErrorIs(serveForeverError, http.ErrServerClosed)
+		assert.NoError(shutdownErr)
+		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
 	})
 
 	t.Run("empty server, clean shutdown via Shutdown method", func(t *testing.T) {
@@ -147,11 +207,12 @@ func Test_ServeForever(t *testing.T) {
 		timeLimitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		server.Shutdown(timeLimitCtx)
-		serveForeverError := <-retErrChan
+		shutdownErr := server.Shutdown(timeLimitCtx)
+		serveForeverErr := <-retErrChan
 
 		// assert
-		assert.ErrorIs(serveForeverError, http.ErrServerClosed)
+		assert.NoError(shutdownErr)
+		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
 	})
 
 	t.Run("custom-api server, clean shutdown via Shutdown method", func(t *testing.T) {
@@ -194,11 +255,107 @@ func Test_ServeForever(t *testing.T) {
 		timeLimitCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		server.Shutdown(timeLimitCtx)
-		serveForeverError := <-retErrChan
+		shutdownErr := server.Shutdown(timeLimitCtx)
+		serveForeverErr := <-retErrChan
 
-		assert.ErrorIs(serveForeverError, http.ErrServerClosed)
+		assert.NoError(shutdownErr)
+		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
 	})
 
-	// TODO: server Shutdown with context timeout does not appear to work as expected.
+	t.Run("custom-api server, api shutdown terminated by context", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		rtr := chi.NewRouter()
+		rtr.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+		mockAPI.EXPECT().Routes(gomock.Any()).Return(rtr)
+		mockAPI.EXPECT().Shutdown(gomock.Any()).DoAndReturn(func(ctx context.Context) error {
+			time.Sleep(10 * time.Second) // operation will take 10 seconds
+			return nil
+		})
+
+		server := getInitializedServer()
+		server.apis["test"] = mockAPI
+		server.apiBases["test"] = "/test"
+		server.cfg.APIs = map[string]jelly.APIConfig{
+			"test": &testAPIConfig{
+				CommonConfig: jelly.CommonConfig{
+					Enabled: true,
+				},
+			},
+		}
+		retErrChan := make(chan error)
+
+		// execute
+		go func() {
+			retErrChan <- server.ServeForever()
+		}()
+
+		// give it two seconds to come up (BAD BAD sleep synchronization. how about nosleep lib?)
+		time.Sleep(1 * time.Second)
+
+		// okay, shut it down with 2 seconds of grace time.
+		timeLimitCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		shutdownErr := server.Shutdown(timeLimitCtx)
+		serveForeverErr := <-retErrChan
+
+		assert.ErrorIs(shutdownErr, context.DeadlineExceeded)
+		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
+	})
+
+	t.Run("custom-api server, api shutdown returns error", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		rtr := chi.NewRouter()
+		rtr.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+		mockAPI.EXPECT().Routes(gomock.Any()).Return(rtr)
+		mockAPI.EXPECT().Shutdown(gomock.Any()).Return(errors.New("shutdown error"))
+
+		server := getInitializedServer()
+		server.apis["test"] = mockAPI
+		server.apiBases["test"] = "/test"
+		server.cfg.APIs = map[string]jelly.APIConfig{
+			"test": &testAPIConfig{
+				CommonConfig: jelly.CommonConfig{
+					Enabled: true,
+				},
+			},
+		}
+		retErrChan := make(chan error)
+
+		// execute
+		go func() {
+			retErrChan <- server.ServeForever()
+		}()
+
+		// give it two seconds to come up (BAD BAD sleep synchronization. how about nosleep lib?)
+		time.Sleep(1 * time.Second)
+
+		// okay, shut it down with 2 seconds of grace time.
+		timeLimitCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		shutdownErr := server.Shutdown(timeLimitCtx)
+		serveForeverErr := <-retErrChan
+
+		assert.ErrorContains(shutdownErr, "shutdown error")
+		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
+	})
 }
