@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,7 +117,7 @@ func Test_restServer_Add(t *testing.T) {
 		assert.Equal(mockAPI, server.apis["test"])
 	})
 
-	t.Run("add API whose init fails", func(t *testing.T) {
+	t.Run("add API whose Init() fails", func(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 		mockCtrl := gomock.NewController(t)
@@ -138,6 +140,61 @@ func Test_restServer_Add(t *testing.T) {
 
 		// assert
 		assert.ErrorContains(err, "init error")
+	})
+
+	t.Run("add API whose Init() panics", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+		mockAPI.EXPECT().Init(gomock.Any()).Do(func(_ interface{}) {
+			panic("my special panic")
+		})
+
+		server := getInitializedServer()
+		server.cfg.APIs = map[string]jelly.APIConfig{
+			"test": &testAPIConfig{
+				CommonConfig: jelly.CommonConfig{
+					Enabled: true,
+				},
+			},
+		}
+
+		// execute
+		err := server.Add("test", mockAPI)
+
+		// assert
+		assert.ErrorContains(err, "my special panic")
+	})
+
+	t.Run("add API whose Authenticators() panics", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+		mockCtrl := gomock.NewController(t)
+		defer mockCtrl.Finish()
+
+		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+		mockAPI.EXPECT().Init(gomock.Any()).Return(nil)
+		mockAPI.EXPECT().Authenticators().DoAndReturn(func() {
+			panic("my special panic")
+		})
+
+		server := getInitializedServer()
+		server.cfg.APIs = map[string]jelly.APIConfig{
+			"test": &testAPIConfig{
+				CommonConfig: jelly.CommonConfig{
+					Enabled: true,
+				},
+			},
+		}
+
+		// execute
+		err := server.Add("test", mockAPI)
+
+		// assert
+		assert.ErrorContains(err, "my special panic")
 	})
 }
 
@@ -202,7 +259,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := gomock.NewController(t)
+		mockCtrl := newGoroutineSafeMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -249,7 +306,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := gomock.NewController(t)
+		mockCtrl := newGoroutineSafeMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -299,7 +356,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := gomock.NewController(t)
+		mockCtrl := newGoroutineSafeMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -346,7 +403,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := gomock.NewController(t)
+		mockCtrl := newGoroutineSafeMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -357,7 +414,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
 		mockAPI.EXPECT().Routes(gomock.Any()).Return(rtr)
 		mockAPI.EXPECT().Shutdown(gomock.Any()).Do(func(ctx context.Context) {
-			panic("panic")
+			panic("my special panic")
 		})
 
 		server := getInitializedServer()
@@ -387,7 +444,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		shutdownErr := server.Shutdown(timeLimitCtx)
 		serveForeverErr := <-retErrChan
 
-		assert.ErrorContains(shutdownErr, "panic")
+		assert.ErrorContains(shutdownErr, "my special panic")
 		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
 	})
 
@@ -395,7 +452,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := gomock.NewController(t)
+		mockCtrl := newGoroutineSafeMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -404,8 +461,8 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		})
 
 		mockAPI := mock_jelly.NewMockAPI(mockCtrl)
-		mockAPI.EXPECT().Routes(gomock.Any()).Do(func(ctx context.Context) {
-			panic("panic")
+		mockAPI.EXPECT().Routes(gomock.Any()).DoAndReturn(func(_ interface{}) error {
+			panic("my special panic")
 		})
 
 		server := getInitializedServer()
@@ -435,9 +492,69 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		shutdownErr := server.Shutdown(timeLimitCtx)
 		serveForeverErr := <-retErrChan
 
-		assert.ErrorContains(shutdownErr, "panic")
-		assert.ErrorIs(serveForeverErr, http.ErrServerClosed)
+		assert.ErrorContains(shutdownErr, "server is not running")
+		assert.ErrorContains(serveForeverErr, "my special panic")
 	})
+}
+
+func newGoroutineSafeMockCtrl(t *testing.T) *gomock.Controller {
+	return gomock.NewController(newGoroutineCheckReporter(t))
+}
+
+type goroutineCheckReporter struct {
+	t       *testing.T
+	creator string
+}
+
+func newGoroutineCheckReporter(t *testing.T) *goroutineCheckReporter {
+	st := string(debug.Stack())
+	var creator string
+
+	lines := strings.Split(st, "\n")
+	for lineno := range lines {
+		if strings.Contains(lines[lineno], "newGoroutineCheckReporter") {
+			// the first time we encounter newGoroutineCheckReporter, we're at
+			// this function in the stack. skip the next line as it
+			// is the file and line number of this call.
+			if lineno+2 < len(lines) {
+				creator = lines[lineno+2]
+			}
+			continue
+		}
+	}
+
+	return &goroutineCheckReporter{t: t, creator: creator}
+}
+
+func (r *goroutineCheckReporter) Helper() {
+	r.t.Helper()
+}
+
+func (r *goroutineCheckReporter) Errorf(format string, args ...interface{}) {
+	r.t.Errorf(format, args...)
+}
+
+func (r *goroutineCheckReporter) Fatalf(format string, args ...interface{}) {
+	r.t.Helper()
+
+	st := string(debug.Stack())
+
+	var inCreatorRoutine bool
+
+	lines := strings.Split(st, "\n")
+	for lineno := range lines {
+		if lines[lineno] == r.creator {
+			// if we hit the exact line, the original caller is in the stack
+			inCreatorRoutine = true
+			break
+		}
+	}
+
+	if inCreatorRoutine {
+		r.t.Fatalf(format, args...)
+	} else {
+		r.t.Errorf("FATAL ERROR FROM OTHER ROUTINE: %s", fmt.Sprintf(format, args...))
+	}
 }
 
 func getInitializedServer() *restServer {

@@ -229,7 +229,7 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 // use the same normalized name in two calls to Add on the same RESTServer.
 //
 // Returns an error if there is any issue initializing the API.
-func (rs *restServer) Add(name string, api jelly.API) error {
+func (rs *restServer) Add(name string, api jelly.API) (err error) {
 	name = strings.ToLower(name)
 
 	if _, ok := rs.apis[name]; ok {
@@ -254,12 +254,18 @@ func (rs *restServer) Add(name string, api jelly.API) error {
 	rs.apis[name] = api
 	if apiConf.Enabled() {
 		rs.log.Debugf("Added API %q; initializing...", name)
-		base, err := rs.initAPI(name, api)
-		if err != nil {
-			return err
+		base, initErr := rs.initAPI(name, api)
+		if initErr != nil {
+			return initErr
 		}
 		rs.apiBases[name] = base
 
+		// calling into user code; catch panic
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("panic occurred calling Authenticators() on API %q: %v", name, r)
+			}
+		}()
 		auths := api.Authenticators()
 		for aName, a := range auths {
 			fullName := name + "." + aName
@@ -282,7 +288,7 @@ func (rs *restServer) getAPIConfigBundle(name string) jelly.Bundle {
 	return jelly.NewBundle(conf, rs.cfg.Globals, rs.log, nil)
 }
 
-func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
+func (rs *restServer) initAPI(name string, api jelly.API) (base string, err error) {
 	// using strings.ToLower is getting old. probs should just do that once on
 	// input and then assume all controlled code is good to go
 	if _, ok := rs.cfg.APIs[strings.ToLower(name)]; !ok {
@@ -302,7 +308,7 @@ func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
 		usedDBs[strings.ToLower(dbName)] = connectedDB
 	}
 
-	base := apiConf.APIBase()
+	base = apiConf.APIBase()
 	// routing must be unique on case-insensitive basis (unless it's root, in
 	// which case we make zero assumptions)
 	if base != "/" {
@@ -316,6 +322,12 @@ func (rs *restServer) initAPI(name string, api jelly.API) (string, error) {
 
 	initBundle := apiConf.WithDBs(usedDBs)
 
+	// calling into user code; catch panic
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic occurred while initializing API %q: %v", name, r)
+		}
+	}()
 	if err := api.Init(initBundle); err != nil {
 		return "", fmt.Errorf("init API %q: Init(): %w", name, err)
 	}
@@ -348,6 +360,13 @@ func (rs *restServer) ServeForever() (err error) {
 
 	addr := fmt.Sprintf("%s:%d", rs.cfg.Globals.Address, rs.cfg.Globals.Port)
 
+	defer func() {
+		rs.mtx.Lock()
+		rs.closing = false
+		rs.serving = false
+		rs.mtx.Unlock()
+	}()
+
 	// calling into user code, do a panic check
 	defer func() {
 		if r := recover(); r != nil {
@@ -356,13 +375,6 @@ func (rs *restServer) ServeForever() (err error) {
 	}()
 	rtr := rs.routeAllAPIs()
 	rs.http = &http.Server{Addr: addr, Handler: rtr}
-
-	defer func() {
-		rs.mtx.Lock()
-		rs.closing = false
-		rs.serving = false
-		rs.mtx.Unlock()
-	}()
 
 	return rs.http.ListenAndServe()
 }
