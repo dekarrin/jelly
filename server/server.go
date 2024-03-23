@@ -116,7 +116,10 @@ func (rs restServer) Config() jelly.Config {
 
 // RoutesIndex returns a human-readable formatted string that lists all routes
 // and methods currently available in the server.
-func (rs *restServer) RoutesIndex() string {
+//
+// If there are no routes, an empty string is returned, but the returned error
+// will be nil.
+func (rs *restServer) RoutesIndex() (string, error) {
 	routeMethods := map[string][]string{}
 
 	r := rs.routeAllAPIs()
@@ -131,6 +134,10 @@ func (rs *restServer) RoutesIndex() string {
 
 		return nil
 	})
+
+	if len(routeMethods) < 1 {
+		return "", nil
+	}
 
 	// alphabetize the routes
 	allRoutes := []string{}

@@ -22,17 +22,193 @@ import (
 
 // TODO: test user-code panic
 func Test_restServer_RoutesIndex(t *testing.T) {
+	type apiAndConf struct {
+		api jelly.API
+		cfg jelly.APIConfig
+	}
+
 	testCases := []struct {
-		name        string
-		serverSetup func() *restServer
-		expect      string
-	}{}
+		name          string
+		serverSetup   func() *restServer
+		apiMocksSetup func(t *testing.T) map[string]apiAndConf
+		expect        string
+		expectErr     string
+	}{
+		{
+			name:        "empty server",
+			serverSetup: getInitializedServer,
+			expect:      "(no routes added)",
+		},
+		{
+			name:        "server with one route",
+			serverSetup: getInitializedServer,
+			apiMocksSetup: func(t *testing.T) map[string]apiAndConf {
+				mockCtrl := gomock.NewController(t)
+				t.Cleanup(mockCtrl.Finish)
+
+				rtr := chi.NewRouter()
+				rtr.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+
+				mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+				mockAPI.EXPECT().Routes(gomock.Any()).Return(rtr)
+
+				cfg := (&testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Enabled: true,
+					},
+				}).FillDefaults()
+
+				return map[string]apiAndConf{
+					"test": {
+						api: mockAPI,
+						cfg: cfg,
+					},
+				}
+			},
+			expect: "* /test - GET",
+		},
+		{
+			name:        "empty server",
+			serverSetup: getInitializedServer,
+			expect:      "(no routes added)",
+		},
+		{
+			name:        "server with serveral APIs and routes",
+			serverSetup: getInitializedServer,
+			apiMocksSetup: func(t *testing.T) map[string]apiAndConf {
+				mockCtrl := gomock.NewController(t)
+				t.Cleanup(mockCtrl.Finish)
+
+				rtr1 := chi.NewRouter()
+				rtr1.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+
+				mockAPI1 := mock_jelly.NewMockAPI(mockCtrl)
+				mockAPI1.EXPECT().Routes(gomock.Any()).Return(rtr1)
+
+				cfg1 := (&testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Name:    "test1",
+						Enabled: true,
+					},
+				}).FillDefaults()
+
+				rtr2 := chi.NewRouter()
+				rtr2.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+
+				mockAPI2 := mock_jelly.NewMockAPI(mockCtrl)
+				mockAPI2.EXPECT().Routes(gomock.Any()).Return(rtr2)
+
+				cfg2 := (&testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Name:    "test2",
+						Enabled: true,
+						Base:    "/api2/",
+					},
+				}).FillDefaults()
+
+				rtr3 := chi.NewRouter()
+				rtr3.Get("/echo", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+				rtr3.Post("/hello", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+				rtr3.Get("/hello", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+
+				mockAPI3 := mock_jelly.NewMockAPI(mockCtrl)
+				mockAPI3.EXPECT().Routes(gomock.Any()).Return(rtr3)
+
+				cfg3 := (&testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Name:    "autoreply",
+						Enabled: true,
+						Base:    "/autoreply",
+					},
+				}).FillDefaults()
+
+				return map[string]apiAndConf{
+					"test1": {
+						api: mockAPI1,
+						cfg: cfg1,
+					},
+					"test2": {
+						api: mockAPI2,
+						cfg: cfg2,
+					},
+					"autoreplier": {
+						api: mockAPI3,
+						cfg: cfg3,
+					},
+				}
+			},
+			expect: "* /api2/test - GET\n" +
+				"* /autoreply/echo - GET\n" +
+				"* /autoreply/hello - GET, POST\n" +
+				"* /test - GET",
+		},
+		{
+			name:        "routes panics",
+			serverSetup: getInitializedServer,
+			apiMocksSetup: func(t *testing.T) map[string]apiAndConf {
+				mockCtrl := gomock.NewController(t)
+				t.Cleanup(mockCtrl.Finish)
+
+				rtr := chi.NewRouter()
+				rtr.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				})
+
+				mockAPI := mock_jelly.NewMockAPI(mockCtrl)
+				mockAPI.EXPECT().Routes(gomock.Any()).DoAndReturn(func(_ interface{}) error {
+					panic("my special panic")
+				})
+
+				cfg := (&testAPIConfig{
+					CommonConfig: jelly.CommonConfig{
+						Name:    "test1",
+						Enabled: true,
+					},
+				}).FillDefaults()
+
+				return map[string]apiAndConf{
+					"test": {
+						api: mockAPI,
+						cfg: cfg,
+					},
+				}
+			},
+			expect: "* /api2/test - GET\n" +
+				"* /autoreply/echo - GET\n" +
+				"* /autoreply/hello - GET, POST\n" +
+				"* /test - GET",
+		},
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// setup
 			assert := assert.New(t)
 			server := tc.serverSetup()
+
+			if tc.apiMocksSetup != nil {
+				server.cfg.APIs = map[string]jelly.APIConfig{}
+
+				mocks := tc.apiMocksSetup(t)
+
+				for apiName, mockAPI := range mocks {
+					server.apis[apiName] = mockAPI.api
+					server.cfg.APIs[apiName] = mockAPI.cfg
+					server.apiBases[apiName] = mockAPI.cfg.Common().Base
+				}
+			}
 
 			// execute
 			rtr := server.RoutesIndex()
@@ -43,7 +219,6 @@ func Test_restServer_RoutesIndex(t *testing.T) {
 	}
 }
 
-// TODO: test user-code panic
 func Test_restServer_Add(t *testing.T) {
 	t.Run("add API with no config, nil routes", func(t *testing.T) {
 		// setup
@@ -259,7 +434,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := newGoroutineSafeMockCtrl(t)
+		mockCtrl := newGoroutineAwareMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -306,7 +481,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := newGoroutineSafeMockCtrl(t)
+		mockCtrl := newGoroutineAwareMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -356,7 +531,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := newGoroutineSafeMockCtrl(t)
+		mockCtrl := newGoroutineAwareMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -403,7 +578,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := newGoroutineSafeMockCtrl(t)
+		mockCtrl := newGoroutineAwareMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -452,7 +627,7 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 		// setup
 		assert := assert.New(t)
 
-		mockCtrl := newGoroutineSafeMockCtrl(t)
+		mockCtrl := newGoroutineAwareMockCtrl(t)
 		defer mockCtrl.Finish()
 
 		rtr := chi.NewRouter()
@@ -497,16 +672,16 @@ func Test_restServer_ServeForever_And_Shutdown(t *testing.T) {
 	})
 }
 
-func newGoroutineSafeMockCtrl(t *testing.T) *gomock.Controller {
-	return gomock.NewController(newGoroutineCheckReporter(t))
+func newGoroutineAwareMockCtrl(t *testing.T) *gomock.Controller {
+	return gomock.NewController(newGoroutineAwareReporter(t))
 }
 
-type goroutineCheckReporter struct {
+type goroutineAwareReporter struct {
 	t       *testing.T
 	creator string
 }
 
-func newGoroutineCheckReporter(t *testing.T) *goroutineCheckReporter {
+func newGoroutineAwareReporter(t *testing.T) *goroutineAwareReporter {
 	st := string(debug.Stack())
 	var creator string
 
@@ -523,18 +698,18 @@ func newGoroutineCheckReporter(t *testing.T) *goroutineCheckReporter {
 		}
 	}
 
-	return &goroutineCheckReporter{t: t, creator: creator}
+	return &goroutineAwareReporter{t: t, creator: creator}
 }
 
-func (r *goroutineCheckReporter) Helper() {
+func (r *goroutineAwareReporter) Helper() {
 	r.t.Helper()
 }
 
-func (r *goroutineCheckReporter) Errorf(format string, args ...interface{}) {
+func (r *goroutineAwareReporter) Errorf(format string, args ...interface{}) {
 	r.t.Errorf(format, args...)
 }
 
-func (r *goroutineCheckReporter) Fatalf(format string, args ...interface{}) {
+func (r *goroutineAwareReporter) Fatalf(format string, args ...interface{}) {
 	r.t.Helper()
 
 	st := string(debug.Stack())
