@@ -20,6 +20,32 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+func Test_restServer_Config(t *testing.T) {
+	t.Run("normal", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+		server := getInitializedServer()
+
+		// execute
+		cfg := server.Config()
+
+		// assert
+		assert.Equal(server.cfg, cfg)
+	})
+
+	t.Run("empty server", func(t *testing.T) {
+		// setup
+		assert := assert.New(t)
+		server := &restServer{}
+
+		// execute
+		cfg := server.Config()
+
+		// assert
+		assert.Equal(server.cfg.FillDefaults(), cfg)
+	})
+}
+
 func Test_restServer_RoutesIndex(t *testing.T) {
 	type apiAndConf struct {
 		api jelly.API
