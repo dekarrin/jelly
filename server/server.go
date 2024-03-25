@@ -118,7 +118,13 @@ func (rs restServer) Config() jelly.Config {
 //
 // If there are no routes, an empty string is returned, but the returned error
 // will be nil.
-func (rs *restServer) RoutesIndex() (jelly.RoutesIndex, error) {
+func (rs *restServer) RoutesIndex() (routes jelly.RoutesIndex, err error) {
+	// calling into user code; catch panic
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic occurred while generating routes index: %v", r)
+		}
+	}()
 	r := rs.routeAllAPIs()
 	return jelly.NewRoutesIndex(r), nil
 }

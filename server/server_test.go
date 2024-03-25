@@ -20,7 +20,6 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// TODO: test user-code panic
 func Test_restServer_RoutesIndex(t *testing.T) {
 	type apiAndConf struct {
 		api jelly.API
@@ -185,10 +184,7 @@ func Test_restServer_RoutesIndex(t *testing.T) {
 					},
 				}
 			},
-			expect: "* /api2/test - GET\n" +
-				"* /autoreply/echo - GET\n" +
-				"* /autoreply/hello - GET, POST\n" +
-				"* /test - GET",
+			expectErr: "my special panic",
 		},
 	}
 
@@ -211,10 +207,15 @@ func Test_restServer_RoutesIndex(t *testing.T) {
 			}
 
 			// execute
-			rtr, _ := server.RoutesIndex()
+			rtr, err := server.RoutesIndex()
 
 			// assert
-			assert.Equal(tc.expect, rtr.FormattedList())
+			if tc.expectErr != "" {
+				assert.ErrorContains(err, tc.expectErr)
+			} else {
+				assert.NoError(err)
+				assert.Equal(tc.expect, rtr.FormattedList())
+			}
 		})
 	}
 }
