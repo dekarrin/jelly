@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -83,9 +84,105 @@ type Component interface {
 	Config() APIConfig
 }
 
+type RoutesIndex struct {
+	byEndpoint map[string][]string
+	order      []string
+	count      int
+}
+
+// String returns an informational string with the total number of unique routes
+// and the endpoints in the server. To get an actual formatted printout, use
+// FormattedList.
+func (ri RoutesIndex) String() string {
+	return fmt.Sprintf("Route(%d unique routes, %d endpoints)", ri.count, len(ri.byEndpoint))
+}
+
+// FormattedList returns all routes as a formatted list of paths and their
+// endpoints. If none are present, returns "(no routes added)".
+func (ri RoutesIndex) FormattedList() string {
+	str := ri.formatBulletedList()
+	if str == "" {
+		return "(no routes added)"
+	}
+	return str
+}
+
+// Count returns the total number of unique routes (endpoint + method pairs) in
+// the server.
+func (ri RoutesIndex) Count() int {
+	return ri.count
+}
+
+// EndpointCount returns the total number of endpoints in the server without
+// considering the methods they are available at.
+func (ri RoutesIndex) EndpointCount() int {
+	return len(ri.byEndpoint)
+}
+
+func (ri RoutesIndex) forEachRoute(fn func(path string, methods []string)) {
+	for _, path := range ri.order {
+		func(path string, methods []string) {
+			meths := ri.byEndpoint[path]
+			fn(path, meths)
+		}(path, ri.byEndpoint[path])
+	}
+}
+
+func (ri RoutesIndex) formatBulletedList() string {
+	var sb strings.Builder
+	ri.forEachRoute(func(path string, methods []string) {
+		sb.WriteString("* ")
+		sb.WriteString(UnPathParam(path))
+		sb.WriteString(" - ")
+
+		sort.Strings(methods)
+		for i, m := range methods {
+			sb.WriteString(m)
+			if i+1 < len(methods) {
+				sb.WriteString(", ")
+			}
+		}
+		sb.WriteRune('\n')
+	})
+
+	return strings.TrimSpace(sb.String())
+}
+
+func NewRoutesIndex(r chi.Router) RoutesIndex {
+	routes := RoutesIndex{
+		byEndpoint: make(map[string][]string),
+		order:      []string{},
+	}
+
+	chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		meths, ok := routes.byEndpoint[route]
+		if !ok {
+			meths = []string{}
+		}
+
+		meths = append(meths, method)
+		routes.byEndpoint[route] = meths
+		routes.count++
+
+		return nil
+	})
+
+	if len(routes.byEndpoint) < 1 {
+		return routes
+	}
+
+	// alphabetize the routes
+	for name := range routes.byEndpoint {
+		routes.order = append(routes.order, name)
+	}
+	sort.Strings(routes.order)
+
+	return routes
+}
+
 type RESTServer interface {
 	Config() Config
-	RoutesIndex() string
+	RoutesIndex() (RoutesIndex, error)
 	Add(name string, api API) error
 	ServeForever() error
 	Shutdown(ctx context.Context) error

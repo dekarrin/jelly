@@ -211,10 +211,10 @@ func Test_restServer_RoutesIndex(t *testing.T) {
 			}
 
 			// execute
-			rtr := server.RoutesIndex()
+			rtr, _ := server.RoutesIndex()
 
 			// assert
-			assert.Equal(tc.expect, rtr)
+			assert.Equal(tc.expect, rtr.FormattedList())
 		})
 	}
 }

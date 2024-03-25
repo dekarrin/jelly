@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 
@@ -119,52 +118,9 @@ func (rs restServer) Config() jelly.Config {
 //
 // If there are no routes, an empty string is returned, but the returned error
 // will be nil.
-func (rs *restServer) RoutesIndex() (string, error) {
-	routeMethods := map[string][]string{}
-
+func (rs *restServer) RoutesIndex() (jelly.RoutesIndex, error) {
 	r := rs.routeAllAPIs()
-	chi.Walk(r, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		meths, ok := routeMethods[route]
-		if !ok {
-			meths = []string{}
-		}
-
-		meths = append(meths, method)
-		routeMethods[route] = meths
-
-		return nil
-	})
-
-	if len(routeMethods) < 1 {
-		return "", nil
-	}
-
-	// alphabetize the routes
-	allRoutes := []string{}
-	for name := range routeMethods {
-		allRoutes = append(allRoutes, name)
-	}
-	sort.Strings(allRoutes)
-
-	// write the sorted routes
-	var sb strings.Builder
-	for _, r := range allRoutes {
-		sb.WriteString("* ")
-		sb.WriteString(r)
-		sb.WriteString(" - ")
-
-		meths := routeMethods[r]
-		sort.Strings(meths)
-		for i, m := range meths {
-			sb.WriteString(m)
-			if i+1 < len(meths) {
-				sb.WriteString(", ")
-			}
-		}
-		sb.WriteRune('\n')
-	}
-
-	return jelly.UnPathParam(strings.TrimSpace(sb.String()))
+	return jelly.NewRoutesIndex(r), nil
 }
 
 // routeAllAPIs is called just before serving. it gets all enabled routes and

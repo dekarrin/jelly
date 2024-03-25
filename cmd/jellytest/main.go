@@ -217,11 +217,12 @@ func main() {
 		}
 	}()
 
-	routes := server.RoutesIndex()
-	if routes == "" {
-		routes = "(no routes)"
+	index, err := server.RoutesIndex()
+	if err != nil {
+		logger.Warnf("Failed to get routes: %v", err)
 	}
-	logger.Debugf("Configured routes:\n%s", routes)
+
+	logger.Debugf("Configured routes:\n%s", index.FormattedList())
 	logger.InsertBreak(jellog.LvDebug)
 
 	logger.Infof("Jelly test server listening on %s:%d; Ctrl-C (SIGINT) to stop", conf.Globals.Address, conf.Globals.Port)
