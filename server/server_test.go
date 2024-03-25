@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -13,12 +14,148 @@ import (
 	"time"
 
 	"github.com/dekarrin/jelly"
+	jellyauth "github.com/dekarrin/jelly/auth"
 	"github.com/dekarrin/jelly/internal/logging"
 	mock_jelly "github.com/dekarrin/jelly/tools/mocks/jelly"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
+
+type fakeStore struct{}
+
+func (fs *fakeStore) Close() error {
+	return nil
+}
+
+func Test_restServer_New(t *testing.T) {
+	tempDir := t.TempDir()
+
+	testCases := []struct {
+		name     string
+		envSetup func(t *testing.T) *Environment
+
+		cfg *jelly.Config
+
+		expectServerWithConfig jelly.Config
+		expectErr              string
+	}{
+		{
+			name:     "nil config, blank environment",
+			envSetup: func(t *testing.T) *Environment { return &Environment{} },
+			cfg:      nil,
+
+			expectServerWithConfig: jelly.Config{}.FillDefaults(),
+		},
+		{
+			name: "typical config, blank environment",
+			envSetup: func(t *testing.T) *Environment {
+				env := &Environment{}
+				env.UseComponent(jellyauth.Component)
+				env.RegisterConnector(jelly.DatabaseSQLite, "*", func(dc jelly.DatabaseConfig) (jelly.Store, error) {
+					return &fakeStore{}, nil
+				})
+				return env
+			},
+			cfg: &jelly.Config{
+				Globals: jelly.Globals{
+					Port:    8080,
+					Address: "localhost",
+					URIBase: "/",
+				},
+				APIs: map[string]jelly.APIConfig{
+					"test": &testAPIConfig{
+						CommonConfig: jelly.CommonConfig{
+							Enabled: true,
+							UsesDBs: []string{"testdb"},
+						},
+					},
+					"jellyauth": &jellyauth.Config{
+						CommonConf: jelly.CommonConfig{
+							Enabled: true,
+						},
+					},
+				},
+				DBs: map[string]jelly.DatabaseConfig{
+					"testdb": {
+						Type:    jelly.DatabaseSQLite,
+						DataDir: filepath.Join(tempDir, "data"),
+					},
+				},
+				Log: jelly.LogConfig{
+					Enabled:  true,
+					Provider: jelly.Jellog,
+					File:     filepath.Join(tempDir, "jellytest.log"),
+				},
+			},
+
+			expectServerWithConfig: jelly.Config{
+				Globals: jelly.Globals{
+					Port:             8080,
+					Address:          "localhost",
+					URIBase:          "/",
+					MainAuthProvider: "jellyauth.jwt",
+				},
+				DBs: map[string]jelly.DatabaseConfig{
+					"auth": {
+						Type:      jelly.DatabaseInMemory,
+						Connector: "authuser",
+					},
+					"testdb": {
+						Type:      jelly.DatabaseSQLite,
+						Connector: "*",
+						DataDir:   filepath.Join(tempDir, "data"),
+					},
+				},
+				APIs: map[string]jelly.APIConfig{
+					"jellyauth": &jellyauth.Config{
+						CommonConf: jelly.CommonConfig{
+							Enabled: true,
+							Base:    "/auth",
+							Name:    "jellyauth",
+							UsesDBs: []string{"auth"},
+						},
+						Secret:            []byte("DEFAULT_NONPROD_TOKEN_SECRET_DO_NOT_USE"),
+						UnauthDelayMillis: 1000,
+					},
+					"test": &testAPIConfig{
+						CommonConfig: jelly.CommonConfig{
+							Enabled: true,
+							Base:    "/",
+							Name:    "test",
+							UsesDBs: []string{"testdb"},
+						},
+					},
+				},
+				Log: jelly.LogConfig{
+					Enabled:  true,
+					Provider: jelly.Jellog,
+					File:     filepath.Join(tempDir, "jellytest.log"),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+
+			env := tc.envSetup(t)
+			// execute
+
+			server, err := env.NewServer(tc.cfg)
+
+			// assert
+			if tc.expectErr != "" {
+				assert.ErrorContains(err, tc.expectErr)
+			} else {
+				assert.NoError(err)
+				assert.Equal(tc.expectServerWithConfig, server.Config())
+			}
+		})
+	}
+}
 
 func Test_restServer_Config(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
