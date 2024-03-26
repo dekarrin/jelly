@@ -7,18 +7,18 @@ import (
 	"github.com/dekarrin/jelly"
 )
 
-func (em endpointCreator) Logger() jelly.Logger {
+func (em services) Logger() jelly.Logger {
 	return em.log
 }
 
-func (em endpointCreator) LogResponse(req *http.Request, r jelly.Result) {
+func (em services) LogResponse(req *http.Request, r jelly.Result) {
 	em.log.LogResult(req, r)
 }
 
 // if status is http.StatusNoContent, respObj will not be read and may be nil.
 // Otherwise, respObj MUST NOT be nil. If additional values are provided they
 // are given to internalMsg as a format string.
-func (em endpointCreator) Response(status int, respObj interface{}, internalMsg string, v ...interface{}) jelly.Result {
+func (em services) Response(status int, respObj interface{}, internalMsg string, v ...interface{}) jelly.Result {
 	msg := fmt.Sprintf(internalMsg, v...)
 	return jelly.Result{
 		IsJSON:      true,
@@ -31,7 +31,7 @@ func (em endpointCreator) Response(status int, respObj interface{}, internalMsg 
 
 // If additional values are provided they are given to internalMsg as a format
 // string.
-func (em endpointCreator) Err(status int, userMsg, internalMsg string, v ...interface{}) jelly.Result {
+func (em services) Err(status int, userMsg, internalMsg string, v ...interface{}) jelly.Result {
 	msg := fmt.Sprintf(internalMsg, v...)
 	return jelly.Result{
 		IsJSON:      true,
@@ -45,7 +45,7 @@ func (em endpointCreator) Err(status int, userMsg, internalMsg string, v ...inte
 	}
 }
 
-func (em endpointCreator) Redirection(uri string) jelly.Result {
+func (em services) Redirection(uri string) jelly.Result {
 	msg := fmt.Sprintf("redirect -> %s", uri)
 	return jelly.Result{
 		Status:      http.StatusPermanentRedirect,
@@ -57,7 +57,7 @@ func (em endpointCreator) Redirection(uri string) jelly.Result {
 // TextErr is like jsonErr but it avoids JSON encoding of any kind and writes
 // the output as plain text. If additional values are provided they are given to
 // internalMsg as a format string.
-func (em endpointCreator) TextErr(status int, userMsg, internalMsg string, v ...interface{}) jelly.Result {
+func (em services) TextErr(status int, userMsg, internalMsg string, v ...interface{}) jelly.Result {
 	msg := fmt.Sprintf(internalMsg, v...)
 	return jelly.Result{
 		IsJSON:      false,
@@ -71,7 +71,7 @@ func (em endpointCreator) TextErr(status int, userMsg, internalMsg string, v ...
 // OK returns an endpointResult containing an HTTP-200 along with a more
 // detailed message (if desired; if none is provided it defaults to a generic
 // one) that is not displayed to the user.
-func (em endpointCreator) OK(respObj interface{}, internalMsg ...interface{}) jelly.Result {
+func (em services) OK(respObj interface{}, internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "OK"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -85,7 +85,7 @@ func (em endpointCreator) OK(respObj interface{}, internalMsg ...interface{}) je
 // NoContent returns an endpointResult containing an HTTP-204 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) NoContent(internalMsg ...interface{}) jelly.Result {
+func (em services) NoContent(internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "no content"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -99,7 +99,7 @@ func (em endpointCreator) NoContent(internalMsg ...interface{}) jelly.Result {
 // Created returns an endpointResult containing an HTTP-201 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) Created(respObj interface{}, internalMsg ...interface{}) jelly.Result {
+func (em services) Created(respObj interface{}, internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "created"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -113,7 +113,7 @@ func (em endpointCreator) Created(respObj interface{}, internalMsg ...interface{
 // Conflict returns an endpointResult containing an HTTP-409 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) Conflict(userMsg string, internalMsg ...interface{}) jelly.Result {
+func (em services) Conflict(userMsg string, internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "conflict"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -127,7 +127,7 @@ func (em endpointCreator) Conflict(userMsg string, internalMsg ...interface{}) j
 // BadRequest returns an endpointResult containing an HTTP-400 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) BadRequest(userMsg string, internalMsg ...interface{}) jelly.Result {
+func (em services) BadRequest(userMsg string, internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "bad request"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -141,7 +141,7 @@ func (em endpointCreator) BadRequest(userMsg string, internalMsg ...interface{})
 // MethodNotAllowed returns an endpointResult containing an HTTP-405 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) MethodNotAllowed(req *http.Request, internalMsg ...interface{}) jelly.Result {
+func (em services) MethodNotAllowed(req *http.Request, internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "method not allowed"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -157,7 +157,7 @@ func (em endpointCreator) MethodNotAllowed(req *http.Request, internalMsg ...int
 // NotFound returns an endpointResult containing an HTTP-404 response along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) NotFound(internalMsg ...interface{}) jelly.Result {
+func (em services) NotFound(internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "not found"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -172,7 +172,7 @@ func (em endpointCreator) NotFound(internalMsg ...interface{}) jelly.Result {
 // internalMsg is a detailed error message  (if desired; if none is provided it
 // defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) Forbidden(internalMsg ...interface{}) jelly.Result {
+func (em services) Forbidden(internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "forbidden"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -187,7 +187,7 @@ func (em endpointCreator) Forbidden(internalMsg ...interface{}) jelly.Result {
 // along with the proper WWW-Authenticate header. internalMsg is a detailed
 // error message  (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func (em endpointCreator) Unauthorized(userMsg string, internalMsg ...interface{}) jelly.Result {
+func (em services) Unauthorized(userMsg string, internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "unauthorized"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -208,7 +208,7 @@ func (em endpointCreator) Unauthorized(userMsg string, internalMsg ...interface{
 // user. If internalMsg is provided the first argument must be a string that is
 // the format string and any subsequent args are passed to Sprintf with the
 // first as the format string.
-func (em endpointCreator) InternalServerError(internalMsg ...interface{}) jelly.Result {
+func (em services) InternalServerError(internalMsg ...interface{}) jelly.Result {
 	internalMsgFmt := "internal server error"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {

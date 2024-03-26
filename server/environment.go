@@ -65,15 +65,6 @@ func (env *Environment) RegisterConfigSection(name string, provider func() jelly
 	return env.confEnv.Register(name, provider)
 }
 
-// SetMainAuthenticator sets what the main authenticator in the middleware
-// provider is. This provider will be used when obtaining middleware that uses
-// an authenticator but no specific authenticator is specified. The name given
-// must be the name of one previously registered with RegisterAuthenticator
-func (env *Environment) SetMainAuthenticator(name string) error {
-	env.initDefaults()
-	return env.middleProv.RegisterMainAuthenticator(name)
-}
-
 // RegisterConnector allows the specification of database connection methods.
 // The registered name can then be specified as the connector field of any DB
 // in config whose type is the given engine.
@@ -107,4 +98,13 @@ func (env *Environment) LoadConfig(file string) (jelly.Config, error) {
 func (env *Environment) DumpConfig(cfg jelly.Config) []byte {
 	env.initDefaults()
 	return config.Dump(cfg)
+}
+
+// setMainAuthenticator sets what the main authenticator in the middleware
+// provider is. This provider will be used when obtaining middleware that uses
+// an authenticator but no specific authenticator is specified. The name given
+// must be the name of one previously registered with RegisterAuthenticator
+func (env *Environment) setMainAuthenticator(name string) error {
+	env.initDefaults()
+	return env.middleProv.RegisterMainAuthenticator(name)
 }

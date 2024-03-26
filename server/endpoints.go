@@ -8,32 +8,32 @@ import (
 	"github.com/dekarrin/jelly/internal/middle"
 )
 
-type endpointCreator struct {
+type services struct {
 	mid *middle.Provider
 	log jelly.Logger
 }
 
-func (em endpointCreator) DontPanic() jelly.Middleware {
+func (em services) DontPanic() jelly.Middleware {
 	return em.mid.DontPanic(em)
 }
 
-func (em endpointCreator) OptionalAuth(authenticators ...string) jelly.Middleware {
+func (em services) OptionalAuth(authenticators ...string) jelly.Middleware {
 	return em.mid.OptionalAuth(em, authenticators...)
 }
 
-func (em endpointCreator) RequiredAuth(authenticators ...string) jelly.Middleware {
+func (em services) RequiredAuth(authenticators ...string) jelly.Middleware {
 	return em.mid.RequiredAuth(em, authenticators...)
 }
 
-func (em endpointCreator) SelectAuthenticator(authenticators ...string) jelly.Authenticator {
+func (em services) SelectAuthenticator(authenticators ...string) jelly.Authenticator {
 	return em.mid.SelectAuthenticator(authenticators...)
 }
 
-func (em endpointCreator) GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
+func (em services) GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
 	return middle.GetLoggedInUser(req)
 }
 
-func (em endpointCreator) Endpoint(ep jelly.EndpointFunc, overrides ...jelly.Override) http.HandlerFunc {
+func (em services) Endpoint(ep jelly.EndpointFunc, overrides ...jelly.Override) http.HandlerFunc {
 	overs := jelly.CombineOverrides(overrides)
 
 	return func(w http.ResponseWriter, req *http.Request) {

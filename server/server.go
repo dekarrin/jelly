@@ -101,7 +101,7 @@ func (env *Environment) NewServer(cfg *jelly.Config) (jelly.RESTServer, error) {
 	// okay, after the pre-rolls are initialized and authenticators added, it
 	// should be safe to set the main authenticator
 	if cfg.Globals.MainAuthProvider != "" {
-		env.SetMainAuthenticator(cfg.Globals.MainAuthProvider)
+		env.setMainAuthenticator(cfg.Globals.MainAuthProvider)
 	}
 
 	return rs, nil
@@ -145,7 +145,7 @@ func (rs *restServer) routeAllAPIs() chi.Router {
 		env.initDefaults()
 	}
 
-	sp := endpointCreator{mid: env.middleProv, log: rs.log}
+	sp := services{mid: env.middleProv, log: rs.log}
 
 	// Create root router
 	root := chi.NewRouter()
