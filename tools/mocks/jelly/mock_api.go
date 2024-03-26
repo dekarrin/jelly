@@ -70,7 +70,7 @@ func (mr *MockAPIMockRecorder) Init(arg0 any) *gomock.Call {
 }
 
 // Routes mocks base method.
-func (m *MockAPI) Routes(arg0 jelly.ServiceProvider) chi.Router {
+func (m *MockAPI) Routes(arg0 jelly.EndpointServices) chi.Router {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Routes", arg0)
 	ret0, _ := ret[0].(chi.Router)

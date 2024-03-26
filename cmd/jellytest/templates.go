@@ -107,7 +107,7 @@ func daoToTemplate(t dao.Template, uriBase string) Template {
 
 type templateEndpoints struct {
 	templates         dao.Templates
-	em                jelly.ServiceProvider
+	em                jelly.EndpointServices
 	uriBase           string
 	name              string
 	requireFormatVerb bool

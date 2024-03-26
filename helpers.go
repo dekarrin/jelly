@@ -79,7 +79,7 @@ func PathParam(nameType string) string {
 
 // RedirectNoTrailingSlash is an http.HandlerFunc that redirects to the same URL as the
 // request but with no trailing slash.
-func RedirectNoTrailingSlash(sp ServiceProvider) http.HandlerFunc {
+func RedirectNoTrailingSlash(sp EndpointServices) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		redirPath := strings.TrimRight(req.URL.Path, "/")
 		r := sp.Redirection(redirPath)
@@ -157,10 +157,10 @@ func CombineOverrides(overs []Override) Override {
 	return newOver
 }
 
-// ServiceProvider is passed to an API's Routes method and is used to access
+// EndpointServices is passed to an API's Routes method and is used to access
 // jelly middleware and standardized endpoint function wrapping to produce an
 // http.HandlerFunc from an EndpointFunc.
-type ServiceProvider interface {
+type EndpointServices interface {
 	ResponseGenerator
 	DontPanic() Middleware
 	OptionalAuth(authenticators ...string) Middleware

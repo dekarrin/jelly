@@ -13,27 +13,27 @@ type services struct {
 	log jelly.Logger
 }
 
-func (em services) DontPanic() jelly.Middleware {
-	return em.mid.DontPanic(em)
+func (svc services) DontPanic() jelly.Middleware {
+	return svc.mid.DontPanic(svc)
 }
 
-func (em services) OptionalAuth(authenticators ...string) jelly.Middleware {
-	return em.mid.OptionalAuth(em, authenticators...)
+func (svc services) OptionalAuth(authenticators ...string) jelly.Middleware {
+	return svc.mid.OptionalAuth(svc, authenticators...)
 }
 
-func (em services) RequiredAuth(authenticators ...string) jelly.Middleware {
-	return em.mid.RequiredAuth(em, authenticators...)
+func (svc services) RequiredAuth(authenticators ...string) jelly.Middleware {
+	return svc.mid.RequiredAuth(svc, authenticators...)
 }
 
-func (em services) SelectAuthenticator(authenticators ...string) jelly.Authenticator {
-	return em.mid.SelectAuthenticator(authenticators...)
+func (svc services) SelectAuthenticator(authenticators ...string) jelly.Authenticator {
+	return svc.mid.SelectAuthenticator(authenticators...)
 }
 
-func (em services) GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
+func (svc services) GetLoggedInUser(req *http.Request) (user jelly.AuthUser, loggedIn bool) {
 	return middle.GetLoggedInUser(req)
 }
 
-func (em services) Endpoint(ep jelly.EndpointFunc, overrides ...jelly.Override) http.HandlerFunc {
+func (svc services) Endpoint(ep jelly.EndpointFunc, overrides ...jelly.Override) http.HandlerFunc {
 	overs := jelly.CombineOverrides(overrides)
 
 	return func(w http.ResponseWriter, req *http.Request) {
@@ -43,11 +43,11 @@ func (em services) Endpoint(ep jelly.EndpointFunc, overrides ...jelly.Override) 
 			// if it's one of these statuses, either the user is improperly
 			// logging in or tried to access a forbidden resource, both of which
 			// should force the wait time before responding.
-			auth := em.mid.SelectAuthenticator(overs.Authenticators...)
+			auth := svc.mid.SelectAuthenticator(overs.Authenticators...)
 			time.Sleep(auth.UnauthDelay())
 		}
 
 		r.WriteResponse(w)
-		em.LogResponse(req, r)
+		svc.LogResponse(req, r)
 	}
 }
